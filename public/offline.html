@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - AgriGest</title>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #f0f9f1;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    .container {
+      max-width: 500px;
+      background-color: white;
+      border-radius: 10px;
+      padding: 30px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #2D5E40;
+      margin-bottom: 10px;
+    }
+    p {
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      color: #2D5E40;
+    }
+    .button {
+      background-color: #2D5E40;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s;
+    }
+    .button:hover {
+      background-color: #264c35;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">🌱</div>
+    <h1>Você está offline</h1>
+    <p>Parece que você está sem conexão com a internet. Algumas funcionalidades do AgriGest podem não estar disponíveis até que você se reconecte.</p>
+    <p>Você ainda pode acessar dados que foram previamente carregados.</p>
+    <button class="button" onclick="window.location.reload()">Tentar novamente</button>
+  </div>
+</body>
+</html>

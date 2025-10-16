@@ -1,0 +1,15 @@
+Este arquivo é apenas um placeholder. Você precisará criar e adicionar os ícones reais nos tamanhos especificados no manifest.json:
+
+- icon-72x72.png
+- icon-96x96.png
+- icon-128x128.png
+- icon-144x144.png
+- icon-152x152.png
+- icon-192x192.png
+- icon-384x384.png
+- icon-512x512.png
+
+Você pode gerar estes ícones a partir de uma imagem de alta resolução usando ferramentas online como:
+- https://app-manifest.firebaseapp.com/
+- https://www.pwabuilder.com/
+- https://realfavicongenerator.net/
