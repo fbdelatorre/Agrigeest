@@ -3,7 +3,7 @@ import { Operation, OperationType } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
-import { Calendar, User, FileText, Pencil, Trash2, Map } from 'lucide-react';
+import { Calendar, User, FileText, Pencil, Trash2, Map, Copy, DollarSign } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
@@ -69,14 +69,42 @@ const OperationCard: React.FC<OperationCardProps> = ({
     if (!operation.productsUsed || !operation.productsUsed.length) {
       return language === 'pt' ? 'Nenhum produto utilizado' : 'No products used';
     }
-    
+
     return (operation.productsUsed || []).map(usage => {
       const product = getProductById(usage.productId);
-      return product 
+      return product
         ? `${usage.quantity} ${product.unit} ${language === 'pt' ? 'de' : 'of'} ${product.name}`
         : language === 'pt' ? 'Produto desconhecido' : 'Unknown product';
     }).join(', ');
   };
+
+  const calculateOperationCost = () => {
+    let totalCost = 0;
+
+    if (operation.productsUsed && operation.productsUsed.length > 0) {
+      operation.productsUsed.forEach(usage => {
+        const product = getProductById(usage.productId);
+        if (product) {
+          totalCost += usage.quantity * product.price;
+        }
+      });
+    }
+
+    const costPerHectare = operation.operationSize > 0 ? totalCost / operation.operationSize : 0;
+
+    return { totalCost, costPerHectare };
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const { totalCost, costPerHectare } = calculateOperationCost();
 
   return (
     <Card className="h-full transition-all duration-200 hover:shadow-md">
@@ -96,6 +124,16 @@ const OperationCard: React.FC<OperationCardProps> = ({
             <Card.Title className="mt-2">{operation.description}</Card.Title>
           </div>
           <div className="flex space-x-2">
+            <Link to={`/operations/new?copy=${operation.id}`}>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={language === 'pt' ? 'Copiar operação' : 'Copy operation'}
+                leftIcon={<Copy size={16} />}
+              >
+                {language === 'pt' ? 'Copiar' : 'Copy'}
+              </Button>
+            </Link>
             <Link to={`/operations/${operation.id}/edit`}>
               <Button
                 variant="ghost"
@@ -153,7 +191,28 @@ const OperationCard: React.FC<OperationCardProps> = ({
             </div>
             <p className="text-sm text-gray-600">{getProductsUsedText()}</p>
           </div>
-          
+
+          {totalCost > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <div className="flex items-center text-gray-700 mb-2">
+                <DollarSign size={16} className="mr-2" />
+                <span className="font-medium text-sm">
+                  {language === 'pt' ? 'Custos da Operação' : 'Operation Costs'}
+                </span>
+              </div>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">{language === 'pt' ? 'Total gasto:' : 'Total spent:'}</span>
+                  <span className="font-medium text-gray-900">{formatCurrency(totalCost)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">{language === 'pt' ? `Custo por ${area?.unit || 'ha'}:` : `Cost per ${area?.unit || 'ha'}:`}</span>
+                  <span className="font-medium text-gray-900">{formatCurrency(costPerHectare)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {operation.notes && (
             <div className="mt-2">
               <div className="flex items-center text-gray-700">

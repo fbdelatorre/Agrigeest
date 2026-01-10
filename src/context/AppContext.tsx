@@ -275,7 +275,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         .select('*')
         .order('start_date', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading seasons:', error);
+        // If seasons table doesn't exist yet, just set empty array
+        if (error.code === 'PGRST205') {
+          setSeasons([]);
+          setOfflineSeasons([], false);
+          return;
+        }
+        throw error;
+      }
 
       setSeasons(data || []);
       setOfflineSeasons(data || [], false);
@@ -287,6 +296,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error('Error loading seasons:', error);
+      // Set empty seasons array on error to prevent app crash
+      setSeasons([]);
+      setOfflineSeasons([], false);
     }
   };
 
@@ -460,15 +472,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         throw new Error('User must be authenticated to add an operation');
       }
 
-      // First, check and update product quantities
-      const canUseProducts = await useProducts(operation.productsUsed);
-      if (!canUseProducts) {
-        throw new Error('Insufficient product quantity in stock');
+      // First, check and update product quantities (if any products are used)
+      if (operation.productsUsed && operation.productsUsed.length > 0) {
+        await useProducts(operation.productsUsed);
       }
 
       if (!isOnline) {
@@ -551,19 +562,42 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const updateOperation = async (id: string, updatedData: Partial<Operation>) => {
-    if (!isOnline) {
-      // Modo offline: atualiza localmente para sincronização posterior
-      const updatedOperations = operations.map(operation => 
-        operation.id === id ? { ...operation, ...updatedData, updatedAt: new Date() } : operation
-      );
-      
-      setOperations(updatedOperations);
-      setOfflineOperations(updatedOperations, true);
-      setHasPendingSync(true);
-      return;
-    }
-
     try {
+      // Find the original operation to compare product changes
+      const originalOperation = operations.find(op => op.id === id);
+
+      if (!originalOperation) {
+        throw new Error('Operation not found');
+      }
+
+      // Adjust product quantities if products have changed
+      if (updatedData.productsUsed) {
+        const oldProducts = originalOperation.productsUsed || [];
+        const newProducts = updatedData.productsUsed || [];
+
+        // Return old products to stock
+        if (oldProducts.length > 0) {
+          await returnProducts(oldProducts);
+        }
+
+        // Deduct new products from stock
+        if (newProducts.length > 0) {
+          await useProducts(newProducts);
+        }
+      }
+
+      if (!isOnline) {
+        // Modo offline: atualiza localmente para sincronização posterior
+        const updatedOperations = operations.map(operation =>
+          operation.id === id ? { ...operation, ...updatedData, updatedAt: new Date() } : operation
+        );
+
+        setOperations(updatedOperations);
+        setOfflineOperations(updatedOperations, true);
+        setHasPendingSync(true);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('operations')
         .update({
@@ -604,10 +638,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         updatedAt: new Date(data.updated_at)
       };
 
-      const updatedOperations = operations.map(operation => 
+      const updatedOperations = operations.map(operation =>
         operation.id === id ? updatedOperation : operation
       );
-      
+
       setOperations(updatedOperations);
       setOfflineOperations(updatedOperations, false);
     } catch (error) {
@@ -617,16 +651,24 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const deleteOperation = async (id: string) => {
-    if (!isOnline) {
-      // Modo offline: marca para exclusão na sincronização
-      const updatedOperations = operations.filter(operation => operation.id !== id);
-      setOperations(updatedOperations);
-      setOfflineOperations(updatedOperations, true);
-      setHasPendingSync(true);
-      return;
-    }
-
     try {
+      // Find the operation to get its products
+      const operation = operations.find(op => op.id === id);
+
+      if (operation && operation.productsUsed && operation.productsUsed.length > 0) {
+        // Return products to stock before deleting
+        await returnProducts(operation.productsUsed);
+      }
+
+      if (!isOnline) {
+        // Modo offline: marca para exclusão na sincronização
+        const updatedOperations = operations.filter(operation => operation.id !== id);
+        setOperations(updatedOperations);
+        setOfflineOperations(updatedOperations, true);
+        setHasPendingSync(true);
+        return;
+      }
+
       const { error } = await supabase
         .from('operations')
         .delete()
@@ -816,28 +858,152 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     return products.find((product) => product.id === id);
   };
 
+  // Return products to stock (used when updating or deleting operations)
+  const returnProducts = async (usages: ProductUsage[]): Promise<boolean> => {
+    if (usages.length === 0) {
+      return true;
+    }
+
+    try {
+      console.log('Returning products to stock:', usages);
+
+      // Calculate new quantities for all products (adding back)
+      const updatedProducts = products.map(product => {
+        const usage = usages.find(u => u.productId === product.id);
+        if (usage) {
+          return {
+            ...product,
+            quantityInStock: product.quantityInStock + usage.quantity,
+            updatedAt: new Date()
+          };
+        }
+        return product;
+      });
+
+      if (!isOnline) {
+        // Modo offline: atualiza localmente
+        setProducts(updatedProducts);
+        setOfflineProducts(updatedProducts, true);
+        setHasPendingSync(true);
+        return true;
+      }
+
+      // Update each product in database
+      const updatePromises = usages.map(async (usage) => {
+        const product = products.find(p => p.id === usage.productId);
+        if (!product) return;
+
+        const newQuantity = product.quantityInStock + usage.quantity;
+
+        console.log(`Returning ${usage.quantity} ${product.unit} of ${product.name}. New stock: ${newQuantity}`);
+
+        const { error } = await supabase
+          .from('products')
+          .update({ quantity_in_stock: newQuantity })
+          .eq('id', product.id);
+
+        if (error) {
+          console.error('Error returning product quantity:', error);
+          throw error;
+        }
+      });
+
+      // Wait for all database updates to complete
+      await Promise.all(updatePromises);
+
+      // Update local state once after all database updates
+      setProducts(updatedProducts);
+      setOfflineProducts(updatedProducts, false);
+
+      return true;
+    } catch (error) {
+      console.error('Error returning products:', error);
+      throw error;
+    }
+  };
+
   // Use products for an operation
   const useProducts = async (usages: ProductUsage[]): Promise<boolean> => {
-    // Check if we have enough of each product
-    for (const usage of usages) {
-      const product = products.find(p => p.id === usage.productId);
-      if (!product || product.quantityInStock < usage.quantity) {
-        return false;
-      }
+    if (usages.length === 0) {
+      return true;
     }
-    
-    // Update product quantities
-    for (const usage of usages) {
-      const product = products.find(p => p.id === usage.productId);
-      if (product) {
-        await updateProduct(product.id, {
-          ...product,
-          quantityInStock: product.quantityInStock - usage.quantity
-        });
+
+    try {
+      console.log('Using products from stock:', usages);
+
+      // Check if we have enough of each product
+      const insufficientProducts: string[] = [];
+      for (const usage of usages) {
+        const product = products.find(p => p.id === usage.productId);
+        if (!product) {
+          console.error(`Product not found: ${usage.productId}`);
+          insufficientProducts.push('Produto desconhecido');
+          continue;
+        }
+        if (product.quantityInStock < usage.quantity) {
+          console.error(`Insufficient stock for product ${product.name}: needed ${usage.quantity}, available ${product.quantityInStock}`);
+          insufficientProducts.push(`${product.name} (disponível: ${product.quantityInStock} ${product.unit}, necessário: ${usage.quantity} ${product.unit})`);
+        }
       }
+
+      if (insufficientProducts.length > 0) {
+        const errorMsg = `Insufficient product quantity in stock: ${insufficientProducts.join(', ')}`;
+        throw new Error(errorMsg);
+      }
+
+      // Calculate new quantities for all products
+      const updatedProducts = products.map(product => {
+        const usage = usages.find(u => u.productId === product.id);
+        if (usage) {
+          return {
+            ...product,
+            quantityInStock: product.quantityInStock - usage.quantity,
+            updatedAt: new Date()
+          };
+        }
+        return product;
+      });
+
+      if (!isOnline) {
+        // Modo offline: atualiza localmente
+        setProducts(updatedProducts);
+        setOfflineProducts(updatedProducts, true);
+        setHasPendingSync(true);
+        return true;
+      }
+
+      // Update each product in database
+      const updatePromises = usages.map(async (usage) => {
+        const product = products.find(p => p.id === usage.productId);
+        if (!product) return;
+
+        const newQuantity = product.quantityInStock - usage.quantity;
+
+        console.log(`Using ${usage.quantity} ${product.unit} of ${product.name}. New stock: ${newQuantity}`);
+
+        const { error } = await supabase
+          .from('products')
+          .update({ quantity_in_stock: newQuantity })
+          .eq('id', product.id);
+
+        if (error) {
+          console.error('Error updating product quantity:', error);
+          throw error;
+        }
+      });
+
+      // Wait for all database updates to complete
+      await Promise.all(updatePromises);
+
+      // Update local state once after all database updates
+      setProducts(updatedProducts);
+      setOfflineProducts(updatedProducts, false);
+
+      return true;
+    } catch (error) {
+      console.error('Error using products:', error);
+      throw error;
     }
-    
-    return true;
   };
 
   // Sincroniza dados pendentes com o servidor

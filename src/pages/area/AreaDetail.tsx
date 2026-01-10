@@ -103,24 +103,32 @@ const AreaDetail = () => {
   // Calculate total spent and cost per hectare
   const calculateCosts = () => {
     let totalSpent = 0;
-    
+    let costPerHectareSum = 0;
+
     operations.forEach(operation => {
+      let operationCost = 0;
+
       if (operation.productsUsed && operation.productsUsed.length > 0) {
         operation.productsUsed.forEach(usage => {
           const product = getProductById(usage.productId);
           if (product) {
-            totalSpent += usage.quantity * product.price;
+            operationCost += usage.quantity * product.price;
           }
         });
       }
+
+      totalSpent += operationCost;
+
+      // Cost per hectare for the area: operation cost divided by TOTAL area size
+      if (area.size > 0) {
+        costPerHectareSum += operationCost / area.size;
+      }
     });
-    
-    const costPerUnit = area.size > 0 ? totalSpent / area.size : 0;
-    
-    return { totalSpent, costPerUnit };
+
+    return { totalSpent, costPerHectare: costPerHectareSum };
   };
-  
-  const { totalSpent, costPerUnit } = calculateCosts();
+
+  const { totalSpent, costPerHectare } = calculateCosts();
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -209,7 +217,7 @@ const AreaDetail = () => {
     doc.setFont('helvetica', 'bold');
     doc.text(language === 'pt' ? `Custo por ${area.unit}:` : `Cost per ${area.unit}:`, detailsStartX + columnWidth, yPos);
     doc.setFont('helvetica', 'normal');
-    doc.text(formatCurrency(costPerUnit), detailsStartX + columnWidth, yPos + 5);
+    doc.text(formatCurrency(costPerHectare), detailsStartX + columnWidth, yPos + 5);
 
     // Add description if available
     if (area.description) {
@@ -488,7 +496,7 @@ const AreaDetail = () => {
                     {language === 'pt' ? `Custo por ${area.unit}:` : `Cost per ${area.unit}:`}
                   </span>
                   <span className="font-medium text-gray-900">
-                    {formatCurrency(costPerUnit)}
+                    {formatCurrency(costPerHectare)}
                   </span>
                 </div>
               </div>

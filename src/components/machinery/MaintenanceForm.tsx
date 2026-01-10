@@ -28,6 +28,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
   const [formData, setFormData] = useState({
     machineryId: initialData.machineryId || searchParams.get('machineryId') || '',
     maintenanceTypeId: initialData.maintenanceTypeId || '',
+    description: initialData.description || '',
     materialUsed: initialData.materialUsed || '',
     date: initialData.date
       ? new Date(initialData.date).toISOString().split('T')[0]
@@ -113,6 +114,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
     onSubmit({
       machineryId: formData.machineryId,
       maintenanceTypeId: formData.maintenanceTypeId,
+      description: formData.description || undefined,
       materialUsed: formData.materialUsed || undefined,
       date: new Date(formData.date),
       machineHours: formData.machineHours ? Number(formData.machineHours) : undefined,
@@ -225,14 +227,6 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
         </div>
 
         <Input
-          name="materialUsed"
-          label={language === 'pt' ? 'Material Utilizado (opcional)' : 'Material Used (optional)'}
-          value={formData.materialUsed}
-          onChange={handleChange}
-          placeholder={language === 'pt' ? 'ex: Óleo 15W40, Filtro de óleo' : 'e.g., 15W40 Oil, Oil filter'}
-        />
-        
-        <Input
           name="date"
           label={language === 'pt' ? 'Data da Manutenção' : 'Maintenance Date'}
           type="date"
@@ -266,7 +260,39 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
           error={errors.cost}
         />
       </div>
-      
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {language === 'pt' ? 'Descrição' : 'Description'}
+        </label>
+        <textarea
+          name="description"
+          value={formData.description}
+          onChange={handleChange}
+          rows={3}
+          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          placeholder={language === 'pt'
+            ? 'Descreva a manutenção realizada...'
+            : 'Describe the maintenance performed...'}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          {language === 'pt' ? 'Material Utilizado (opcional)' : 'Material Used (optional)'}
+        </label>
+        <textarea
+          name="materialUsed"
+          value={formData.materialUsed}
+          onChange={handleChange}
+          rows={2}
+          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          placeholder={language === 'pt'
+            ? 'ex: Óleo 15W40, Filtro de óleo, Parafusos'
+            : 'e.g., 15W40 Oil, Oil filter, Bolts'}
+        />
+      </div>
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           {language === 'pt' ? 'Observações (opcional)' : 'Notes (optional)'}
@@ -275,7 +301,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
           name="notes"
           value={formData.notes}
           onChange={handleChange}
-          rows={3}
+          rows={2}
           className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
           placeholder={language === 'pt'
             ? 'Digite observações adicionais sobre esta manutenção...'

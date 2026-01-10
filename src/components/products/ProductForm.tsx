@@ -6,6 +6,7 @@ import Button from '../ui/Button';
 import { Save, X, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAppContext } from '../../context/AppContext';
 
 interface ProductFormProps {
   initialData?: Partial<Product>;
@@ -20,9 +21,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
 }) => {
   const navigate = useNavigate();
   const { language } = useLanguage();
+  const { products } = useAppContext();
+
   const [formData, setFormData] = useState({
     name: initialData.name || '',
-    category: initialData.category || 'seed' as ProductCategory,
+    category: initialData.category || '',
     unit: initialData.unit || '',
     quantityInStock: initialData.quantityInStock?.toString() || '0',
     minStockLevel: initialData.minStockLevel?.toString() || '0',
@@ -34,22 +37,14 @@ const ProductForm: React.FC<ProductFormProps> = ({
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [newCategory, setNewCategory] = useState('');
-  const [customCategories, setCustomCategories] = useState<string[]>([]);
 
-  // Load custom categories from localStorage on component mount
-  useEffect(() => {
-    try {
-      const savedCategories = localStorage.getItem('customProductCategories');
-      if (savedCategories) {
-        const parsedCategories = JSON.parse(savedCategories);
-        if (Array.isArray(parsedCategories)) {
-          setCustomCategories(parsedCategories);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading custom categories:', error);
-    }
-  }, []);
+  // Get unique categories from existing products
+  const existingCategories = React.useMemo(() => {
+    const categories = products
+      .map(product => product.category)
+      .filter(category => category && category.trim() !== '');
+    return [...new Set(categories)].sort();
+  }, [products]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -68,33 +63,26 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
   const handleAddNewCategory = () => {
     if (newCategory.trim()) {
-      try {
-        // Add to local state
-        const updatedCategories = [...customCategories, newCategory.trim()];
-        setCustomCategories(updatedCategories);
-        
-        // Save to localStorage for persistence
-        localStorage.setItem('customProductCategories', JSON.stringify(updatedCategories));
-        
-        // Update form data with new category
-        setFormData(prev => ({ ...prev, category: newCategory.trim() as ProductCategory }));
-        
-        // Reset input and hide form
-        setNewCategory('');
-        setShowNewCategoryInput(false);
-      } catch (error) {
-        console.error('Error saving custom category:', error);
-      }
+      // Update form data with new category
+      setFormData(prev => ({ ...prev, category: newCategory.trim() }));
+
+      // Reset input and hide form
+      setNewCategory('');
+      setShowNewCategoryInput(false);
     }
   };
 
   const validate = (): boolean => {
     const newErrors: { [key: string]: string } = {};
-    
+
     if (!formData.name.trim()) {
       newErrors.name = language === 'pt' ? 'Nome é obrigatório' : 'Name is required';
     }
-    
+
+    if (!formData.category.trim()) {
+      newErrors.category = language === 'pt' ? 'Categoria é obrigatória' : 'Category is required';
+    }
+
     if (!formData.unit.trim()) {
       newErrors.unit = language === 'pt' ? 'Unidade é obrigatória' : 'Unit is required';
     }
@@ -134,37 +122,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
     });
   };
 
-  // Combine default categories with custom categories
-  const categoryOptions = [
-    { 
-      value: 'seed', 
-      label: language === 'pt' ? 'Sementes' : 'Seeds'
-    },
-    { 
-      value: 'fertilizer', 
-      label: language === 'pt' ? 'Fertilizantes' : 'Fertilizers'
-    },
-    { 
-      value: 'pesticide', 
-      label: language === 'pt' ? 'Pesticidas' : 'Pesticides'
-    },
-    { 
-      value: 'herbicide', 
-      label: language === 'pt' ? 'Herbicidas' : 'Herbicides'
-    },
-    { 
-      value: 'equipment', 
-      label: language === 'pt' ? 'Equipamentos' : 'Equipment'
-    },
-    { 
-      value: 'other', 
-      label: language === 'pt' ? 'Outros' : 'Other'
-    },
-    ...customCategories.map(category => ({
-      value: category,
-      label: category
-    }))
-  ];
+  // Use existing categories from products in database
+  const categoryOptions = existingCategories.map(category => ({
+    value: category,
+    label: category
+  }));
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -229,7 +191,14 @@ const ProductForm: React.FC<ProductFormProps> = ({
               name="category"
               value={formData.category}
               onChange={handleChange}
-              options={categoryOptions}
+              options={[
+                {
+                  value: '',
+                  label: language === 'pt' ? 'Selecione uma categoria' : 'Select a category'
+                },
+                ...categoryOptions
+              ]}
+              error={errors.category}
               required
             />
           )}

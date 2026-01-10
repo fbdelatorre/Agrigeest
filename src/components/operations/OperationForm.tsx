@@ -5,6 +5,7 @@ import { Operation, ProductUsage } from '../../types';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
+import ProductSearchInput from '../ui/ProductSearchInput';
 import { Save, X, Plus } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -271,11 +272,6 @@ const OperationForm: React.FC<OperationFormProps> = ({
     label: area.name,
   }));
 
-  const productOptions = products.map((product) => ({
-    value: product.id,
-    label: `${product.name} (${product.quantityInStock} ${product.unit} disponível)`,
-  }));
-
   const selectedArea = areas.find(area => area.id === formData.areaId);
 
   // If no active season, show message
@@ -510,22 +506,16 @@ const OperationForm: React.FC<OperationFormProps> = ({
         
         {formData.productsUsed.map((usage, index) => {
           const product = products.find(p => p.id === usage.productId);
-          
+
           return (
             <div key={index} className="flex items-start space-x-4 mb-4 p-4 bg-gray-50 rounded-md">
               <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Select
-                  name={`product-${index}`}
-                  label={language === 'pt' ? 'Produto' : 'Product'}
+                <ProductSearchInput
+                  products={products}
                   value={usage.productId}
-                  onChange={(e) => handleProductChange(index, 'productId', e.target.value)}
-                  options={[
-                    { 
-                      value: '', 
-                      label: language === 'pt' ? 'Selecione um produto' : 'Select a product'
-                    },
-                    ...productOptions
-                  ]}
+                  onChange={(productId) => handleProductChange(index, 'productId', productId)}
+                  label={language === 'pt' ? 'Produto' : 'Product'}
+                  placeholder={language === 'pt' ? 'Buscar produto...' : 'Search product...'}
                   error={errors[`productId-${index}`]}
                   required
                 />

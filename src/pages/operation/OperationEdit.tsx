@@ -24,9 +24,24 @@ const OperationEdit = () => {
     return null;
   }
   
-  const handleSubmit = (operationData: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => {
-    updateOperation(id, operationData);
-    navigate('/operations');
+  const handleSubmit = async (operationData: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      await updateOperation(id, operationData);
+      navigate('/operations');
+    } catch (error: any) {
+      console.error('Error updating operation:', error);
+
+      // Check if it's a stock error
+      if (error.message?.includes('Insufficient product quantity')) {
+        alert(language === 'pt'
+          ? 'Estoque insuficiente! Verifique a quantidade disponível dos produtos e tente novamente.'
+          : 'Insufficient stock! Check the available quantity of products and try again.');
+      } else {
+        alert(language === 'pt'
+          ? 'Erro ao atualizar operação. Tente novamente.'
+          : 'Error updating operation. Please try again.');
+      }
+    }
   };
 
   if (!activeSeason) {

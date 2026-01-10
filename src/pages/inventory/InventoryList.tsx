@@ -15,22 +15,14 @@ const InventoryList = () => {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterStock, setFilterStock] = useState('');
   const [sortBy, setSortBy] = useState('name');
-  const [customCategories, setCustomCategories] = useState<string[]>([]);
-  
-  // Load custom categories from localStorage
-  useEffect(() => {
-    try {
-      const savedCategories = localStorage.getItem('customProductCategories');
-      if (savedCategories) {
-        const parsedCategories = JSON.parse(savedCategories);
-        if (Array.isArray(parsedCategories)) {
-          setCustomCategories(parsedCategories);
-        }
-      }
-    } catch (error) {
-      console.error('Error parsing custom categories:', error);
-    }
-  }, []);
+
+  // Get all unique categories from products in the database
+  const uniqueCategories = React.useMemo(() => {
+    const categories = products
+      .map(product => product.category)
+      .filter(category => category && category.trim() !== '');
+    return [...new Set(categories)].sort();
+  }, [products]);
   
   // Filter products
   const filteredProducts = products.filter((product) => {
@@ -84,12 +76,6 @@ const InventoryList = () => {
   const lowStockCount = products.filter(
     (product) => product.quantityInStock <= product.minStockLevel
   ).length;
-
-  // Get all unique categories from products and custom categories
-  const allCategories = [...new Set([
-    ...products.map(product => product.category),
-    ...customCategories
-  ])];
 
   return (
     <div>
@@ -162,35 +148,11 @@ const InventoryList = () => {
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
             options={[
-              { 
-                value: '', 
+              {
+                value: '',
                 label: language === 'pt' ? 'Todas as Categorias' : 'All Categories'
               },
-              { 
-                value: 'seed', 
-                label: language === 'pt' ? 'Sementes' : 'Seeds'
-              },
-              { 
-                value: 'fertilizer', 
-                label: language === 'pt' ? 'Fertilizantes' : 'Fertilizers'
-              },
-              { 
-                value: 'pesticide', 
-                label: language === 'pt' ? 'Pesticidas' : 'Pesticides'
-              },
-              { 
-                value: 'herbicide', 
-                label: language === 'pt' ? 'Herbicidas' : 'Herbicides'
-              },
-              { 
-                value: 'equipment', 
-                label: language === 'pt' ? 'Equipamentos' : 'Equipment'
-              },
-              { 
-                value: 'other', 
-                label: language === 'pt' ? 'Outros' : 'Other'
-              },
-              ...customCategories.map(category => ({
+              ...uniqueCategories.map(category => ({
                 value: category,
                 label: category
               }))

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import OperationForm from '../../components/operations/OperationForm';
 import { Operation } from '../../types';
@@ -8,18 +8,30 @@ import { useLanguage } from '../../context/LanguageContext';
 
 const OperationCreate = () => {
   const navigate = useNavigate();
-  const { addOperation, activeSeason, areas } = useAppContext();
+  const [searchParams] = useSearchParams();
+  const copyId = searchParams.get('copy');
+  const { addOperation, activeSeason, areas, operations } = useAppContext();
   const { language } = useLanguage();
+
+  const operationToCopy = copyId ? operations.find(op => op.id === copyId) : undefined;
   
   const handleSubmit = async (operationData: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       await addOperation(operationData);
       navigate('/operations');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating operation:', error);
-      alert(language === 'pt' 
-        ? 'Erro ao criar operação. Tente novamente.'
-        : 'Error creating operation. Please try again.');
+
+      // Check if it's a stock error
+      if (error.message?.includes('Insufficient product quantity')) {
+        alert(language === 'pt'
+          ? 'Estoque insuficiente! Verifique a quantidade disponível dos produtos e tente novamente.'
+          : 'Insufficient stock! Check the available quantity of products and try again.');
+      } else {
+        alert(language === 'pt'
+          ? 'Erro ao criar operação. Tente novamente.'
+          : 'Error creating operation. Please try again.');
+      }
     }
   };
 
@@ -71,12 +83,18 @@ const OperationCreate = () => {
       
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          {language === 'pt' ? 'Nova Operação' : 'New Operation'}
+          {operationToCopy
+            ? (language === 'pt' ? 'Copiar Operação' : 'Copy Operation')
+            : (language === 'pt' ? 'Nova Operação' : 'New Operation')}
         </h1>
         <p className="text-gray-600">
-          {language === 'pt' 
-            ? 'Registre uma nova atividade agrícola'
-            : 'Record a new farming activity'}
+          {operationToCopy
+            ? (language === 'pt'
+                ? 'Revise e ajuste os dados da operação copiada'
+                : 'Review and adjust the copied operation data')
+            : (language === 'pt'
+                ? 'Registre uma nova atividade agrícola'
+                : 'Record a new farming activity')}
         </p>
       </div>
 
@@ -93,7 +111,10 @@ const OperationCreate = () => {
         </div>
       ) : (
         <div className="bg-white p-6 rounded-lg shadow-sm">
-          <OperationForm onSubmit={handleSubmit} />
+          <OperationForm
+            onSubmit={handleSubmit}
+            initialData={operationToCopy}
+          />
         </div>
       )}
     </div>

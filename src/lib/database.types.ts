@@ -20,6 +20,44 @@ export interface Database {
           created_at: string | null
           updated_at: string | null
           user_id: string
+          institution_id: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          start_date: string
+          end_date?: string | null
+          status?: string
+          description?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          user_id: string
+          institution_id: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          start_date?: string
+          end_date?: string | null
+          status?: string
+          description?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+          institution_id?: string
+        }
+      }
+      seasons: {
+        Row: {
+          id: string
+          name: string
+          start_date: string
+          end_date: string | null
+          status: string
+          description: string | null
+          created_at: string | null
+          updated_at: string | null
+          user_id: string
         }
         Insert: {
           id?: string
@@ -262,7 +300,7 @@ export interface Database {
           id: string
           machinery_id: string
           maintenance_type_id: string
-          description: string
+          description: string | null
           material_used: string | null
           date: string
           machine_hours: number | null
@@ -277,7 +315,7 @@ export interface Database {
           id?: string
           machinery_id: string
           maintenance_type_id: string
-          description: string
+          description?: string | null
           material_used?: string | null
           date: string
           machine_hours?: number | null
@@ -292,7 +330,7 @@ export interface Database {
           id?: string
           machinery_id?: string
           maintenance_type_id?: string
-          description?: string
+          description?: string | null
           material_used?: string | null
           date?: string
           machine_hours?: number | null

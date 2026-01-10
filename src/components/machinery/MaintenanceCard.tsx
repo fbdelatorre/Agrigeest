@@ -83,7 +83,7 @@ const MaintenanceCard: React.FC<MaintenanceCardProps> = ({
             <Calendar size={16} className="mr-2" />
             <span>{formatDate(maintenance.date)}</span>
           </div>
-          
+
           {maintenance.machineHours && (
             <div className="flex items-center text-gray-700">
               <Clock size={16} className="mr-2" />
@@ -99,7 +99,19 @@ const MaintenanceCard: React.FC<MaintenanceCardProps> = ({
               <span>{formatCurrency(maintenance.cost)}</span>
             </div>
           )}
-          
+
+          {maintenance.description && maintenance.description !== type?.name && (
+            <div className="mt-2 pt-2 border-t border-gray-200">
+              <div className="flex items-center text-gray-700 mb-1">
+                <Wrench size={16} className="mr-2" />
+                <span className="font-medium text-sm">
+                  {language === 'pt' ? 'Descrição:' : 'Description:'}
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 ml-6">{maintenance.description}</p>
+            </div>
+          )}
+
           {maintenance.materialUsed && (
             <div className="mt-2">
               <div className="text-sm font-medium text-gray-700 mb-1">
@@ -108,7 +120,7 @@ const MaintenanceCard: React.FC<MaintenanceCardProps> = ({
               <p className="text-sm text-gray-600">{maintenance.materialUsed}</p>
             </div>
           )}
-          
+
           {maintenance.notes && (
             <div className="mt-2">
               <div className="flex items-center text-gray-700">
