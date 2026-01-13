@@ -5,6 +5,7 @@ import Button from '../ui/Button';
 import { Save, X, CheckCircle2, Circle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
+import { dateToInputValue, inputValueToDate } from '../../utils/dateHelpers';
 
 interface NoteFormProps {
   initialData?: Partial<Note>;
@@ -24,11 +25,11 @@ const NoteForm: React.FC<NoteFormProps> = ({
     title: initialData.title || '',
     content: initialData.content || '',
     noteDate: initialData.noteDate
-      ? initialData.noteDate.toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0],
+      ? dateToInputValue(initialData.noteDate)
+      : dateToInputValue(new Date()),
     isCompleted: initialData.isCompleted || false,
     completedDate: initialData.completedDate
-      ? initialData.completedDate.toISOString().split('T')[0]
+      ? dateToInputValue(initialData.completedDate)
       : '',
   });
 
@@ -60,7 +61,7 @@ const NoteForm: React.FC<NoteFormProps> = ({
       return {
         ...prev,
         isCompleted: newIsCompleted,
-        completedDate: newIsCompleted ? new Date().toISOString().split('T')[0] : '',
+        completedDate: newIsCompleted ? dateToInputValue(new Date()) : '',
       };
     });
   };
@@ -92,9 +93,9 @@ const NoteForm: React.FC<NoteFormProps> = ({
     onSubmit({
       title: formData.title,
       content: formData.content,
-      noteDate: new Date(formData.noteDate),
+      noteDate: inputValueToDate(formData.noteDate),
       isCompleted: formData.isCompleted,
-      completedDate: formData.completedDate ? new Date(formData.completedDate) : null,
+      completedDate: formData.completedDate ? inputValueToDate(formData.completedDate) : null,
     });
   };
 

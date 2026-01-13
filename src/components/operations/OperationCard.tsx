@@ -7,6 +7,7 @@ import { Calendar, User, FileText, Pencil, Trash2, Map, Copy, DollarSign } from 
 import { Link } from 'react-router-dom';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
+import { formatDateForDisplay } from '../../utils/dateHelpers';
 
 interface OperationCardProps {
   operation: Operation;
@@ -23,9 +24,9 @@ const OperationCard: React.FC<OperationCardProps> = ({
   const { language } = useLanguage();
   
   const area = getAreaById(operation.areaId);
-  
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US');
+
+  const formatDate = (date: Date | string) => {
+    return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
   
   const getOperationTypeLabel = (type: OperationType): string => {

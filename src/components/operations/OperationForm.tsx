@@ -8,6 +8,7 @@ import Button from '../ui/Button';
 import ProductSearchInput from '../ui/ProductSearchInput';
 import { Save, X, Plus } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { dateToInputValue, inputValueToDate } from '../../utils/dateHelpers';
 
 interface OperationFormProps {
   initialData?: Partial<Operation>;
@@ -30,14 +31,14 @@ const OperationForm: React.FC<OperationFormProps> = ({
   const [formData, setFormData] = useState({
     areaId: initialData.areaId || '',
     type: initialData.type || 'gradagem',
-    startDate: initialData.startDate 
-      ? new Date(initialData.startDate).toISOString().split('T')[0] 
-      : new Date().toISOString().split('T')[0],
-    endDate: initialData.endDate 
-      ? new Date(initialData.endDate).toISOString().split('T')[0] 
+    startDate: initialData.startDate
+      ? dateToInputValue(initialData.startDate)
+      : dateToInputValue(new Date()),
+    endDate: initialData.endDate
+      ? dateToInputValue(initialData.endDate)
       : '',
     nextOperationDate: initialData.nextOperationDate
-      ? new Date(initialData.nextOperationDate).toISOString().split('T')[0]
+      ? dateToInputValue(initialData.nextOperationDate)
       : '',
     description: initialData.description || '',
     operatedBy: initialData.operatedBy || '',
@@ -63,16 +64,27 @@ const OperationForm: React.FC<OperationFormProps> = ({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    
+
     if (name === 'areaId') {
       const selectedArea = areas.find(area => area.id === value);
-      setFormData(prev => ({ 
-        ...prev, 
-        [name]: value,
-        ...(wasOperationSizeManuallyEdited ? {} : {
-          operationSize: selectedArea?.size.toString() || prev.operationSize
-        })
-      }));
+      const newSize = selectedArea?.size || parseNumber(formData.operationSize);
+
+      setFormData(prev => {
+        // Recalculate product quantities based on the new area size
+        const updatedProducts = prev.productsUsed.map(usage => ({
+          ...usage,
+          quantity: (parseNumber(usage.dose) * newSize).toString().replace('.', ',')
+        }));
+
+        return {
+          ...prev,
+          [name]: value,
+          ...(wasOperationSizeManuallyEdited ? {} : {
+            operationSize: newSize.toString()
+          }),
+          productsUsed: updatedProducts
+        };
+      });
     } else if (name === 'operationSize') {
       setWasOperationSizeManuallyEdited(true);
       const newSize = parseNumber(value);
@@ -92,7 +104,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
-    
+
     if (errors[name]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -240,9 +252,9 @@ const OperationForm: React.FC<OperationFormProps> = ({
 
     const submissionData = {
       ...formData,
-      startDate: new Date(formData.startDate),
-      endDate: formData.endDate ? new Date(formData.endDate) : undefined,
-      nextOperationDate: formData.nextOperationDate ? new Date(formData.nextOperationDate) : undefined,
+      startDate: inputValueToDate(formData.startDate),
+      endDate: formData.endDate ? inputValueToDate(formData.endDate) : undefined,
+      nextOperationDate: formData.nextOperationDate ? inputValueToDate(formData.nextOperationDate) : undefined,
       productsUsed: formData.productsUsed.map(usage => ({
         ...usage,
         quantity: parseNumber(usage.quantity.toString()),

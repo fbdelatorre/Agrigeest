@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Note } from '../types/notes';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflineStorage } from '../hooks/useOfflineStorage';
+import { dateToInputValue } from '../utils/dateHelpers';
 
 interface NotesContextType {
   notes: Note[];
@@ -136,9 +137,9 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
       const insertData = {
         title: noteData.title,
         content: noteData.content,
-        note_date: noteData.noteDate.toISOString().split('T')[0],
+        note_date: dateToInputValue(noteData.noteDate),
         is_completed: noteData.isCompleted,
-        completed_date: noteData.completedDate ? noteData.completedDate.toISOString().split('T')[0] : null,
+        completed_date: noteData.completedDate ? dateToInputValue(noteData.completedDate) : null,
         user_id: user.id,
         institution_id: userProfile.institution_id
       };
@@ -197,11 +198,11 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
 
       if (updatedData.title !== undefined) updatePayload.title = updatedData.title;
       if (updatedData.content !== undefined) updatePayload.content = updatedData.content;
-      if (updatedData.noteDate !== undefined) updatePayload.note_date = updatedData.noteDate.toISOString().split('T')[0];
+      if (updatedData.noteDate !== undefined) updatePayload.note_date = dateToInputValue(updatedData.noteDate);
       if (updatedData.isCompleted !== undefined) updatePayload.is_completed = updatedData.isCompleted;
       if (updatedData.completedDate !== undefined) {
         updatePayload.completed_date = updatedData.completedDate
-          ? updatedData.completedDate.toISOString().split('T')[0]
+          ? dateToInputValue(updatedData.completedDate)
           : null;
       }
 

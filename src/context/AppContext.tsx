@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflineStorage } from '../hooks/useOfflineStorage';
+import { dateToISOString, dateToDateString, parseDate } from '../utils/dateHelpers';
 
 interface Season {
   id: string;
@@ -222,9 +223,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       const formattedOperations = data.map(operation => ({
         ...operation,
         areaId: operation.area_id,
-        startDate: new Date(operation.start_date),
-        endDate: operation.end_date ? new Date(operation.end_date) : undefined,
-        nextOperationDate: operation.next_operation_date ? new Date(operation.next_operation_date) : undefined,
+        startDate: parseDate(operation.start_date)!,
+        endDate: parseDate(operation.end_date),
+        nextOperationDate: parseDate(operation.next_operation_date),
         operatedBy: operation.operated_by,
         productsUsed: operation.products_used || [],
         operationSize: operation.operation_size || 0,
@@ -516,9 +517,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
           area_id: operation.areaId,
           season_id: activeSeason.id,
           type: operation.type,
-          start_date: operation.startDate.toISOString(),
-          end_date: operation.endDate?.toISOString(),
-          next_operation_date: operation.nextOperationDate?.toISOString(),
+          start_date: dateToDateString(operation.startDate),
+          end_date: dateToDateString(operation.endDate),
+          next_operation_date: dateToDateString(operation.nextOperationDate),
           description: operation.description,
           operated_by: operation.operatedBy,
           notes: operation.notes,
@@ -540,9 +541,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       const newOperation: Operation = {
         ...data,
         areaId: data.area_id,
-        startDate: new Date(data.start_date),
-        endDate: data.end_date ? new Date(data.end_date) : undefined,
-        nextOperationDate: data.next_operation_date ? new Date(data.next_operation_date) : undefined,
+        startDate: parseDate(data.start_date)!,
+        endDate: parseDate(data.end_date),
+        nextOperationDate: parseDate(data.next_operation_date),
         operatedBy: data.operated_by,
         productsUsed: data.products_used || [],
         operationSize: data.operation_size,
@@ -575,14 +576,19 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         const oldProducts = originalOperation.productsUsed || [];
         const newProducts = updatedData.productsUsed || [];
 
-        // Return old products to stock
-        if (oldProducts.length > 0) {
-          await returnProducts(oldProducts);
-        }
+        // Check if products actually changed
+        const productsChanged = JSON.stringify(oldProducts) !== JSON.stringify(newProducts);
 
-        // Deduct new products from stock
-        if (newProducts.length > 0) {
-          await useProducts(newProducts);
+        if (productsChanged) {
+          // Return old products to stock
+          if (oldProducts.length > 0) {
+            await returnProducts(oldProducts);
+          }
+
+          // Deduct new products from stock
+          if (newProducts.length > 0) {
+            await useProducts(newProducts);
+          }
         }
       }
 
@@ -598,22 +604,25 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         return;
       }
 
+      // Build update object only with provided fields
+      const updateFields: any = {};
+
+      if (updatedData.areaId !== undefined) updateFields.area_id = updatedData.areaId;
+      if (updatedData.type !== undefined) updateFields.type = updatedData.type;
+      if (updatedData.startDate !== undefined) updateFields.start_date = dateToDateString(updatedData.startDate);
+      if (updatedData.endDate !== undefined) updateFields.end_date = dateToDateString(updatedData.endDate);
+      if (updatedData.nextOperationDate !== undefined) updateFields.next_operation_date = dateToDateString(updatedData.nextOperationDate);
+      if (updatedData.description !== undefined) updateFields.description = updatedData.description;
+      if (updatedData.operatedBy !== undefined) updateFields.operated_by = updatedData.operatedBy;
+      if (updatedData.notes !== undefined) updateFields.notes = updatedData.notes;
+      if (updatedData.productsUsed !== undefined) updateFields.products_used = updatedData.productsUsed;
+      if (updatedData.operationSize !== undefined) updateFields.operation_size = updatedData.operationSize;
+      if (updatedData.yieldPerHectare !== undefined) updateFields.yield_per_hectare = updatedData.yieldPerHectare;
+      if (updatedData.seedsPerHectare !== undefined) updateFields.seeds_per_hectare = updatedData.seedsPerHectare;
+
       const { data, error } = await supabase
         .from('operations')
-        .update({
-          area_id: updatedData.areaId,
-          type: updatedData.type,
-          start_date: updatedData.startDate?.toISOString(),
-          end_date: updatedData.endDate?.toISOString(),
-          next_operation_date: updatedData.nextOperationDate?.toISOString(),
-          description: updatedData.description,
-          operated_by: updatedData.operatedBy,
-          notes: updatedData.notes,
-          products_used: updatedData.productsUsed || [],
-          operation_size: updatedData.operationSize,
-          yield_per_hectare: updatedData.yieldPerHectare,
-          seeds_per_hectare: updatedData.seedsPerHectare
-        })
+        .update(updateFields)
         .eq('id', id)
         .select()
         .single();
@@ -626,9 +635,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       const updatedOperation: Operation = {
         ...data,
         areaId: data.area_id,
-        startDate: new Date(data.start_date),
-        endDate: data.end_date ? new Date(data.end_date) : undefined,
-        nextOperationDate: data.next_operation_date ? new Date(data.next_operation_date) : undefined,
+        startDate: parseDate(data.start_date)!,
+        endDate: parseDate(data.end_date),
+        nextOperationDate: parseDate(data.next_operation_date),
         operatedBy: data.operated_by,
         productsUsed: data.products_used || [],
         operationSize: data.operation_size,
@@ -1186,9 +1195,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
               area_id: operation.areaId,
               season_id: operation.season_id,
               type: operation.type,
-              start_date: operation.startDate.toISOString(),
-              end_date: operation.endDate?.toISOString(),
-              next_operation_date: operation.nextOperationDate?.toISOString(),
+              start_date: dateToDateString(operation.startDate),
+              end_date: dateToDateString(operation.endDate),
+              next_operation_date: dateToDateString(operation.nextOperationDate),
               description: operation.description,
               operated_by: operation.operatedBy,
               notes: operation.notes,
@@ -1230,9 +1239,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
               .update({
                 area_id: operation.areaId,
                 type: operation.type,
-                start_date: operation.startDate.toISOString(),
-                end_date: operation.endDate?.toISOString(),
-                next_operation_date: operation.nextOperationDate?.toISOString(),
+                start_date: dateToDateString(operation.startDate),
+                end_date: dateToDateString(operation.endDate),
+                next_operation_date: dateToDateString(operation.nextOperationDate),
                 description: operation.description,
                 operated_by: operation.operatedBy,
                 notes: operation.notes,

@@ -8,6 +8,7 @@ import { ArrowLeft, Pencil, Map, Plus, Calendar, Trash2, FileDown, DollarSign } 
 import Badge from '../../components/ui/Badge';
 import { jsPDF } from 'jspdf';
 import { useLanguage } from '../../context/LanguageContext';
+import { formatDateForDisplay } from '../../utils/dateHelpers';
 
 const AreaDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,9 +29,9 @@ const AreaDetail = () => {
   }
   
   const operations = getOperationsByAreaId(id);
-  
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US');
+
+  const formatDate = (date: Date | string) => {
+    return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
   
   const handleDeleteArea = () => {

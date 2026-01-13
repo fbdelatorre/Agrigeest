@@ -6,13 +6,13 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
-import { 
-  Globe, 
-  User, 
-  Save, 
-  Mail, 
-  Phone, 
-  Building2, 
+import {
+  Globe,
+  User,
+  Save,
+  Mail,
+  Phone,
+  Building2,
   Calendar,
   Plus,
   Check,
@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { formatDateForDisplay } from '../utils/dateHelpers';
 
 interface Profile {
   id: string;
@@ -608,14 +609,8 @@ export default function Settings() {
     }
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatDate = (date: string | Date) => {
+    return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
 
   const getStatusBadge = (status: string) => {

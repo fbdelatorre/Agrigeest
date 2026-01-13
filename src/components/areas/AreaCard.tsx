@@ -6,6 +6,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAppContext } from '../../context/AppContext';
+import { formatDateForDisplay } from '../../utils/dateHelpers';
 
 interface AreaCardProps {
   area: Area;
@@ -17,8 +18,8 @@ const AreaCard: React.FC<AreaCardProps> = ({ area, onDelete }) => {
   const { activeSeason } = useAppContext();
   const navigate = useNavigate();
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US');
+  const formatDate = (date: Date | string) => {
+    return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
 
   const handleAddOperation = () => {

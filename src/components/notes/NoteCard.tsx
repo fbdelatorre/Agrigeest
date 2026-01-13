@@ -7,6 +7,7 @@ import { Calendar, CheckCircle2, Circle, Pencil, Trash2, StickyNote } from 'luci
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNotesContext } from '../../context/NotesContext';
+import { formatDateForDisplay } from '../../utils/dateHelpers';
 
 interface NoteCardProps {
   note: Note;
@@ -17,8 +18,8 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete }) => {
   const { language } = useLanguage();
   const { toggleNoteComplete } = useNotesContext();
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US');
+  const formatDate = (date: Date | string) => {
+    return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
 
   const handleToggleComplete = async () => {

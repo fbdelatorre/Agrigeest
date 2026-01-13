@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import Button from '../ui/Button';
 import { useLanguage } from '../../context/LanguageContext';
 import { useMachineryContext } from '../../context/MachineryContext';
+import { formatDateForDisplay } from '../../utils/dateHelpers';
 
 interface MaintenanceCardProps {
   maintenance: MaintenanceWithDetails;
@@ -22,9 +23,9 @@ const MaintenanceCard: React.FC<MaintenanceCardProps> = ({
   
   const machine = machinery.find(m => m.id === maintenance.machineryId);
   const type = maintenanceTypes.find(t => t.id === maintenance.maintenanceTypeId);
-  
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US');
+
+  const formatDate = (date: Date | string) => {
+    return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
 
   const formatCurrency = (amount: number) => {

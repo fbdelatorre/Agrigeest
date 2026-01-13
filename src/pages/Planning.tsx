@@ -6,6 +6,7 @@ import Select from '../components/ui/Select';
 import Input from '../components/ui/Input';
 import { Calendar, Map, Plus, Save, X, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { formatDateForDisplay } from '../utils/dateHelpers';
 
 const Planning = () => {
   const { areas, operations, addOperation } = useAppContext();
@@ -36,12 +37,8 @@ const Planning = () => {
     return labels[type] || type;
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+  const formatDate = (date: string | Date) => {
+    return formatDateForDisplay(date, 'pt-BR');
   };
 
   const validate = () => {

@@ -5,6 +5,7 @@ import Card from '../components/ui/Card';
 import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
 import { BarChart3, Map, Calendar, Package, Filter } from 'lucide-react';
+import { formatDateForDisplay } from '../utils/dateHelpers';
 
 const Statistics = () => {
   const { areas, operations, products, activeSeason } = useAppContext();
@@ -98,9 +99,9 @@ const Statistics = () => {
       currency: 'BRL',
     }).format(amount);
   };
-  
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US');
+
+  const formatDate = (date: Date | string) => {
+    return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
 
   return (

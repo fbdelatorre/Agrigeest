@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Select from '../components/ui/Select';
 import { useLanguage } from '../context/LanguageContext';
+import { formatDateForDisplay } from '../utils/dateHelpers';
 
 const Notifications = () => {
   const { operations, areas, activeSeason } = useAppContext();
@@ -83,14 +84,9 @@ const Notifications = () => {
     });
     return acc;
   }, {} as Record<string, Array<typeof filteredOperations[0] & { area: typeof areas[0] | undefined }>>);
-  
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US', {
-      weekday: 'long',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+
+  const formatDate = (date: Date | string) => {
+    return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
   
   const getOperationTypeLabel = (type: string) => {

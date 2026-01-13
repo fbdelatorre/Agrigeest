@@ -5,6 +5,7 @@ import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
 import { FileText, Calendar, Filter } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { formatDateForDisplay } from '../utils/dateHelpers';
 
 const Reports = () => {
   const { areas, operations } = useAppContext();
@@ -44,13 +45,9 @@ const Reports = () => {
   });
   
   // Format date
-  const formatDate = (date: Date | null) => {
+  const formatDate = (date: Date | string | null) => {
     if (!date) return '-';
-    return new Date(date).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    return formatDateForDisplay(date, 'pt-BR');
   };
   
   // Get operation type label

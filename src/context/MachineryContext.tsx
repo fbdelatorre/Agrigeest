@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Machinery, MaintenanceType, Maintenance } from '../types/machinery';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflineStorage } from '../hooks/useOfflineStorage';
+import { dateToISOString, dateToDateString, parseDate } from '../utils/dateHelpers';
 
 interface MachineryContextType {
   // Máquinas
@@ -537,7 +538,7 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
           maintenance_type_id: maintenanceData.maintenanceTypeId,
           description: maintenanceData.description || null,
           material_used: maintenanceData.materialUsed || null,
-          date: maintenanceData.date.toISOString(),
+          date: dateToDateString(maintenanceData.date),
           machine_hours: maintenanceData.machineHours || null,
           cost: maintenanceData.cost || 0,
           notes: maintenanceData.notes || null,
@@ -561,7 +562,7 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
         machineHours: data.machine_hours,
         userId: data.user_id,
         institutionId: data.institution_id,
-        date: new Date(data.date),
+        date: parseDate(data.date)!,
         createdAt: new Date(data.created_at),
         updatedAt: new Date(data.updated_at)
       };
@@ -596,7 +597,7 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
           maintenance_type_id: updatedData.maintenanceTypeId,
           description: updatedData.description || null,
           material_used: updatedData.materialUsed,
-          date: updatedData.date?.toISOString(),
+          date: updatedData.date ? dateToDateString(updatedData.date) : undefined,
           machine_hours: updatedData.machineHours,
           cost: updatedData.cost,
           notes: updatedData.notes
@@ -619,7 +620,7 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
         machineHours: data.machine_hours,
         userId: data.user_id,
         institutionId: data.institution_id,
-        date: new Date(data.date),
+        date: parseDate(data.date)!,
         createdAt: new Date(data.created_at),
         updatedAt: new Date(data.updated_at)
       };

@@ -8,6 +8,7 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import MaintenanceCard from '../../components/machinery/MaintenanceCard';
 import { ArrowLeft, Wrench, Pencil, Trash2, Calendar, DollarSign, Plus, Clock } from 'lucide-react';
+import { formatDateForDisplay } from '../../utils/dateHelpers';
 
 const MachineryDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -54,8 +55,8 @@ const MachineryDetail = () => {
     }
   };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US');
+  const formatDate = (date: Date | string) => {
+    return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
 
   const formatCurrency = (amount: number) => {

@@ -8,6 +8,7 @@ import Button from '../ui/Button';
 import { Save, X, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
+import { dateToInputValue, inputValueToDate } from '../../utils/dateHelpers';
 
 interface MaintenanceFormProps {
   initialData?: Partial<Maintenance>;
@@ -31,8 +32,8 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
     description: initialData.description || '',
     materialUsed: initialData.materialUsed || '',
     date: initialData.date
-      ? new Date(initialData.date).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0],
+      ? dateToInputValue(initialData.date)
+      : dateToInputValue(new Date()),
     machineHours: initialData.machineHours?.toString() || '',
     cost: initialData.cost?.toString() || '0',
     notes: initialData.notes || '',
@@ -116,7 +117,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
       maintenanceTypeId: formData.maintenanceTypeId,
       description: formData.description || undefined,
       materialUsed: formData.materialUsed || undefined,
-      date: new Date(formData.date),
+      date: inputValueToDate(formData.date),
       machineHours: formData.machineHours ? Number(formData.machineHours) : undefined,
       cost: Number(formData.cost),
       notes: formData.notes || undefined,

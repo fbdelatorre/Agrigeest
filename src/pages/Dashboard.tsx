@@ -3,13 +3,13 @@ import { useAppContext } from '../context/AppContext';
 import { useMachineryContext } from '../context/MachineryContext';
 import Card from '../components/ui/Card';
 import { Link } from 'react-router-dom';
-import { 
-  Map, 
-  Tractor, 
-  Warehouse, 
-  AlertTriangle, 
-  Calendar, 
-  Eye, 
+import {
+  Map,
+  Tractor,
+  Warehouse,
+  AlertTriangle,
+  Calendar,
+  Eye,
   Plus,
   BarChart3,
   Download,
@@ -22,6 +22,7 @@ import { useLanguage } from '../context/LanguageContext';
 import PWAInstallPrompt from '../components/ui/PWAInstallPrompt';
 import { canInstallPWA } from '../pwa';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { formatDateForDisplay } from '../utils/dateHelpers';
 
 const Dashboard = () => {
   const { areas, operations, products, hasPendingSync, syncData, isOnline } = useAppContext();
@@ -70,12 +71,8 @@ const Dashboard = () => {
   }, {} as Record<string, { total: number; count: number }>);
   
   // Format date
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+  const formatDate = (date: Date | string) => {
+    return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
   
   // Get operation type label
