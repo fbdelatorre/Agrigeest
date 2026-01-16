@@ -57,7 +57,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
   const [showNewTypeInput, setShowNewTypeInput] = useState(false);
   const [newOperationType, setNewOperationType] = useState('');
   const [customOperationTypes, setCustomOperationTypes] = useState<string[]>([]);
-  const [isOperationSizeEditable, setIsOperationSizeEditable] = useState(isEditing);
+  const [isOperationSizeEditable, setIsOperationSizeEditable] = useState(false);
   const [wasOperationSizeManuallyEdited, setWasOperationSizeManuallyEdited] = useState(false);
 
   const handleChange = (
@@ -67,9 +67,14 @@ const OperationForm: React.FC<OperationFormProps> = ({
 
     if (name === 'areaId') {
       const selectedArea = areas.find(area => area.id === value);
-      const newSize = selectedArea?.size || parseNumber(formData.operationSize);
 
       setFormData(prev => {
+        // If the edit size checkbox is not checked, use the area size
+        // If the checkbox is checked, keep the current manual value
+        const newSize = isOperationSizeEditable
+          ? parseNumber(prev.operationSize)
+          : (selectedArea?.size || parseNumber(prev.operationSize));
+
         // Recalculate product quantities based on the new area size
         const updatedProducts = prev.productsUsed.map(usage => ({
           ...usage,
@@ -79,14 +84,11 @@ const OperationForm: React.FC<OperationFormProps> = ({
         return {
           ...prev,
           [name]: value,
-          ...(wasOperationSizeManuallyEdited ? {} : {
-            operationSize: newSize.toString()
-          }),
+          operationSize: newSize.toString(),
           productsUsed: updatedProducts
         };
       });
     } else if (name === 'operationSize') {
-      setWasOperationSizeManuallyEdited(true);
       const newSize = parseNumber(value);
       setFormData(prev => {
         // Update product quantities based on the new operation size
@@ -439,9 +441,24 @@ const OperationForm: React.FC<OperationFormProps> = ({
                 type="checkbox"
                 checked={isOperationSizeEditable}
                 onChange={(e) => {
-                  setIsOperationSizeEditable(e.target.checked);
-                  if (!e.target.checked) {
+                  const isChecked = e.target.checked;
+                  setIsOperationSizeEditable(isChecked);
+
+                  // If unchecking, reset to area size and recalculate products
+                  if (!isChecked) {
                     setWasOperationSizeManuallyEdited(false);
+                    const selectedArea = areas.find(area => area.id === formData.areaId);
+                    if (selectedArea) {
+                      const newSize = selectedArea.size;
+                      setFormData(prev => ({
+                        ...prev,
+                        operationSize: newSize.toString(),
+                        productsUsed: prev.productsUsed.map(usage => ({
+                          ...usage,
+                          quantity: (parseNumber(usage.dose) * newSize).toString().replace('.', ',')
+                        }))
+                      }));
+                    }
                   }
                 }}
                 className="rounded border-gray-300 text-green-600 shadow-sm focus:border-green-300 focus:ring focus:ring-green-200 focus:ring-opacity-50 mr-2"
