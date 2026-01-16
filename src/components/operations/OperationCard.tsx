@@ -91,7 +91,9 @@ const OperationCard: React.FC<OperationCardProps> = ({
       });
     }
 
-    const costPerHectare = operation.operationSize > 0 ? totalCost / operation.operationSize : 0;
+    // Use operationSize if > 0, otherwise fallback to area size
+    const areaSize = operation.operationSize > 0 ? operation.operationSize : (area?.size || 0);
+    const costPerHectare = areaSize > 0 ? totalCost / areaSize : 0;
 
     return { totalCost, costPerHectare };
   };
