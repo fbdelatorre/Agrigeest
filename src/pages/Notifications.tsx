@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
-import { Calendar, Map, AlertTriangle, Filter } from 'lucide-react';
+import { Calendar, Map, AlertTriangle, Clock, Package } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import Select from '../components/ui/Select';
@@ -10,26 +10,25 @@ import { useLanguage } from '../context/LanguageContext';
 import { formatDateForDisplay } from '../utils/dateHelpers';
 
 const Notifications = () => {
-  const { operations, areas, activeSeason } = useAppContext();
+  const { operations, areas, activeSeason, products, productLots, getProductById } = useAppContext();
   const { language } = useLanguage();
-  const [dateFilter, setDateFilter] = useState('week'); // 'week', 'month', 'custom'
+  const [dateFilter, setDateFilter] = useState('week');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  
-  // Get start and end dates based on filter
+
   const getFilterDates = () => {
     const today = new Date();
     const start = new Date(today);
     const end = new Date(today);
-    
+
     switch (dateFilter) {
       case 'week':
-        start.setDate(today.getDate() - today.getDay()); // Sunday
-        end.setDate(start.getDate() + 6); // Saturday
+        start.setDate(today.getDate() - today.getDay());
+        end.setDate(start.getDate() + 6);
         break;
       case 'month':
-        start.setDate(1); // First day of current month
-        end.setMonth(start.getMonth() + 1, 0); // Last day of current month
+        start.setDate(1);
+        end.setMonth(start.getMonth() + 1, 0);
         break;
       case 'custom':
         if (customStartDate && customEndDate) {
@@ -40,39 +39,34 @@ const Notifications = () => {
         }
         break;
     }
-    
+
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
-    
+
     return { start, end };
   };
-  
+
   const { start: startDate, end: endDate } = getFilterDates();
-  
-  // Filter operations for selected date range, active season, and exclude operations that have already been registered
+
   const filteredOperations = operations
     .filter(operation => {
       if (!operation.nextOperationDate || !activeSeason) return false;
-      
-      // Check if operation belongs to active season
       if (operation.season_id !== activeSeason.id) return false;
-      
-      // Check if there's a newer operation of the same type in the same area
-      const hasNewerOperation = operations.some(op => 
+
+      const hasNewerOperation = operations.some(op =>
         op.areaId === operation.areaId &&
         op.type === operation.type &&
         new Date(op.startDate) > new Date(operation.startDate) &&
         new Date(op.startDate) <= new Date(operation.nextOperationDate)
       );
-      
+
       const nextDate = new Date(operation.nextOperationDate);
-      return nextDate >= startDate && 
-             nextDate <= endDate && 
+      return nextDate >= startDate &&
+             nextDate <= endDate &&
              !hasNewerOperation;
     })
     .sort((a, b) => new Date(a.nextOperationDate!).getTime() - new Date(b.nextOperationDate!).getTime());
-  
-  // Group operations by day
+
   const operationsByDay = filteredOperations.reduce((acc, operation) => {
     const date = new Date(operation.nextOperationDate!).toDateString();
     if (!acc[date]) {
@@ -88,7 +82,7 @@ const Notifications = () => {
   const formatDate = (date: Date | string) => {
     return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
-  
+
   const getOperationTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       gradagem: language === 'pt' ? 'Gradagem' : 'Harrowing',
@@ -101,10 +95,52 @@ const Notifications = () => {
     };
     return labels[type] || type;
   };
-  
+
   const isToday = (date: Date) => {
     return date.toDateString() === new Date().toDateString();
   };
+
+  // --- Expiry warnings ---
+  const isExpired = (date?: Date): boolean => {
+    if (!date) return false;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return date < now;
+  };
+
+  const isExpiringSoon = (date?: Date): boolean => {
+    if (!date) return false;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 60;
+  };
+
+  const getDaysUntilExpiry = (date?: Date): number | null => {
+    if (!date) return null;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const expiringLots = useMemo(() => {
+    return productLots
+      .filter(lot => isExpired(lot.expirationDate) || isExpiringSoon(lot.expirationDate))
+      .map(lot => {
+        const product = getProductById(lot.productId);
+        const days = getDaysUntilExpiry(lot.expirationDate);
+        return { ...lot, product, days };
+      })
+      .filter(lot => lot.product)
+      .sort((a, b) => {
+        if (!a.expirationDate) return 1;
+        if (!b.expirationDate) return -1;
+        return a.expirationDate.getTime() - b.expirationDate.getTime();
+      });
+  }, [productLots, products]);
+
+  const expiredCount = expiringLots.filter(l => l.days !== null && l.days < 0).length;
+  const expiringSoonCount = expiringLots.filter(l => l.days !== null && l.days >= 0).length;
 
   if (!activeSeason) {
     return (
@@ -122,7 +158,7 @@ const Notifications = () => {
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       <div className="mb-6 pt-4 lg:pt-0">
         <h1 className="text-2xl font-bold text-gray-900">
           {language === 'pt' ? 'Notificações' : 'Notifications'}
@@ -133,7 +169,88 @@ const Notifications = () => {
             : `Operations scheduled for ${formatDate(startDate)} - ${formatDate(endDate)}`}
         </p>
       </div>
-      
+
+      {/* Expiry Warnings Section */}
+      {expiringLots.length > 0 && (
+        <Card>
+          <Card.Header>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <AlertTriangle className="w-5 h-5 mr-2 text-orange-600" />
+                <Card.Title>
+                  {language === 'pt' ? 'Avisos de Validade' : 'Expiration Warnings'}
+                </Card.Title>
+              </div>
+              <div className="flex items-center gap-2">
+                {expiredCount > 0 && (
+                  <Badge variant="danger">
+                    {expiredCount} {language === 'pt' ? 'vencido(s)' : 'expired'}
+                  </Badge>
+                )}
+                {expiringSoonCount > 0 && (
+                  <Badge variant="warning">
+                    {expiringSoonCount} {language === 'pt' ? 'vencendo' : 'expiring'}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </Card.Header>
+          <Card.Content>
+            <div className="space-y-2">
+              {expiringLots.map((lot) => {
+                const expired = lot.days !== null && lot.days < 0;
+                const days = lot.days;
+                return (
+                  <div
+                    key={lot.id}
+                    className={`p-3 rounded-lg border flex items-center justify-between ${
+                      expired
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-orange-50 border-orange-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-full ${expired ? 'bg-red-100' : 'bg-orange-100'}`}>
+                        <Package className={`w-4 h-4 ${expired ? 'text-red-600' : 'text-orange-600'}`} />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {lot.product!.name}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {language === 'pt' ? 'Lote' : 'Lot'}: {lot.lotNumber} • {lot.quantity} {lot.product!.unit}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-medium ${expired ? 'text-red-700' : 'text-orange-700'}`}>
+                        {lot.expirationDate ? formatDate(lot.expirationDate) : '—'}
+                      </div>
+                      <div className={`text-xs ${expired ? 'text-red-600' : 'text-orange-600'} flex items-center justify-end gap-1`}>
+                        <Clock size={12} />
+                        {expired
+                          ? (language === 'pt' ? `Vencido há ${Math.abs(days!)} dia(s)` : `Expired ${Math.abs(days!)} day(s) ago`)
+                          : days === 0
+                          ? (language === 'pt' ? 'Vence hoje' : 'Expires today')
+                          : (language === 'pt' ? `Vence em ${days} dia(s)` : `Expires in ${days} day(s)`)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-200">
+              <Link to="/inventory">
+                <Button variant="secondary" size="sm">
+                  {language === 'pt' ? 'Gerenciar Estoque' : 'Manage Inventory'}
+                </Button>
+              </Link>
+            </div>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Planned Operations Section */}
       <Card>
         <Card.Header>
           <div className="flex items-center justify-between flex-wrap gap-4">
@@ -143,7 +260,7 @@ const Notifications = () => {
                 {language === 'pt' ? 'Operações Planejadas' : 'Planned Operations'}
               </Card.Title>
             </div>
-            
+
             <div className="flex items-center gap-4">
               <Select
                 value={dateFilter}
@@ -155,7 +272,7 @@ const Notifications = () => {
                 ]}
                 className="w-48"
               />
-              
+
               {dateFilter === 'custom' && (
                 <div className="flex items-center gap-2">
                   <input
@@ -173,7 +290,7 @@ const Notifications = () => {
                   />
                 </div>
               )}
-              
+
               <Link to="/operations/new">
                 <Button size="sm">
                   {language === 'pt' ? 'Nova Operação' : 'New Operation'}
@@ -191,8 +308,8 @@ const Notifications = () => {
                 </h3>
                 <div className="space-y-4">
                   {dayOperations.map(operation => (
-                    <div 
-                      key={operation.id} 
+                    <div
+                      key={operation.id}
                       className={`p-4 rounded-lg border ${
                         isToday(new Date(date))
                           ? 'bg-yellow-50 border-yellow-200'
@@ -208,7 +325,7 @@ const Notifications = () => {
                                 {language === 'pt' ? 'Hoje' : 'Today'}
                               </div>
                             )}
-                            <Badge 
+                            <Badge
                               variant={isToday(new Date(date)) ? 'warning' : 'default'}
                             >
                               {getOperationTypeLabel(operation.type)}
@@ -228,7 +345,7 @@ const Notifications = () => {
                           </div>
                         </div>
                         <Link to={`/operations/new?areaId=${operation.areaId}`}>
-                          <Button 
+                          <Button
                             size="sm"
                             variant={isToday(new Date(date)) ? 'primary' : 'secondary'}
                           >

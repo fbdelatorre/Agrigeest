@@ -1,19 +1,28 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
-import ProductForm from '../../components/products/ProductForm';
+import ProductForm, { PendingLot } from '../../components/products/ProductForm';
 import { Product } from '../../types';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
+import { inputValueToDate } from '../../utils/dateHelpers';
 
 const ProductCreate = () => {
   const navigate = useNavigate();
   const { addProduct } = useAppContext();
   const { language } = useLanguage();
   
-  const handleSubmit = (productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
-    addProduct(productData);
+  const handleSubmit = (
+    productData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>,
+    pendingLots?: PendingLot[]
+  ) => {
+    const formattedLots = pendingLots?.map(l => ({
+      lotNumber: l.lotNumber,
+      quantity: Number(l.quantity),
+      expirationDate: l.expirationDate ? inputValueToDate(l.expirationDate) : undefined,
+    }));
+    addProduct(productData, formattedLots);
     navigate('/inventory');
   };
 

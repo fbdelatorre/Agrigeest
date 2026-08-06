@@ -6,9 +6,9 @@ import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
 import ProductSearchInput from '../ui/ProductSearchInput';
-import { Save, X, Plus } from 'lucide-react';
+import { Save, X, Plus, AlertTriangle } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-import { dateToInputValue, inputValueToDate } from '../../utils/dateHelpers';
+import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
 
 interface OperationFormProps {
   initialData?: Partial<Operation>;
@@ -22,12 +22,11 @@ const OperationForm: React.FC<OperationFormProps> = ({
   isEditing = false,
 }) => {
   const navigate = useNavigate();
-  const { areas, products, activeSeason } = useAppContext();
+  const { areas, products, activeSeason, getLotsByProductId } = useAppContext();
   const { language } = useLanguage();
-  
-  // Get the initial area to set the operation size
+
   const initialArea = areas.find(area => area.id === initialData.areaId);
-  
+
   const [formData, setFormData] = useState({
     areaId: initialData.areaId || '',
     type: initialData.type || 'gradagem',
@@ -58,7 +57,6 @@ const OperationForm: React.FC<OperationFormProps> = ({
   const [newOperationType, setNewOperationType] = useState('');
   const [customOperationTypes, setCustomOperationTypes] = useState<string[]>([]);
   const [isOperationSizeEditable, setIsOperationSizeEditable] = useState(false);
-  const [wasOperationSizeManuallyEdited, setWasOperationSizeManuallyEdited] = useState(false);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -69,13 +67,10 @@ const OperationForm: React.FC<OperationFormProps> = ({
       const selectedArea = areas.find(area => area.id === value);
 
       setFormData(prev => {
-        // If the edit size checkbox is not checked, use the area size
-        // If the checkbox is checked, keep the current manual value
         const newSize = isOperationSizeEditable
           ? parseNumber(prev.operationSize)
           : (selectedArea?.size || parseNumber(prev.operationSize));
 
-        // Recalculate product quantities based on the new area size
         const updatedProducts = prev.productsUsed.map(usage => ({
           ...usage,
           quantity: (parseNumber(usage.dose) * newSize).toString().replace('.', ',')
@@ -91,7 +86,6 @@ const OperationForm: React.FC<OperationFormProps> = ({
     } else if (name === 'operationSize') {
       const newSize = parseNumber(value);
       setFormData(prev => {
-        // Update product quantities based on the new operation size
         const updatedProducts = prev.productsUsed.map(usage => ({
           ...usage,
           quantity: (parseNumber(usage.dose) * newSize).toString().replace('.', ',')
@@ -127,15 +121,21 @@ const OperationForm: React.FC<OperationFormProps> = ({
   const handleProductChange = (index: number, field: string, value: string) => {
     const updatedProducts = [...formData.productsUsed];
     const operationSize = parseNumber(formData.operationSize);
-    
+
     if (field === 'productId') {
       updatedProducts[index] = {
         ...updatedProducts[index],
         productId: value,
+        lotId: '',
         dose: updatedProducts[index]?.dose || '0',
         quantity: updatedProducts[index]?.dose
           ? (parseNumber(updatedProducts[index].dose) * operationSize).toString().replace('.', ',')
           : '0'
+      };
+    } else if (field === 'lotId') {
+      updatedProducts[index] = {
+        ...updatedProducts[index],
+        lotId: value,
       };
     } else if (field === 'dose') {
       const formattedValue = formatNumber(value);
@@ -150,7 +150,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
         quantity: formatNumber(value)
       };
     }
-    
+
     setFormData((prev) => ({
       ...prev,
       productsUsed: updatedProducts,
@@ -183,21 +183,36 @@ const OperationForm: React.FC<OperationFormProps> = ({
     }
   };
 
+  const isExpiringSoon = (date?: Date): boolean => {
+    if (!date) return false;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 60;
+  };
+
+  const isExpired = (date?: Date): boolean => {
+    if (!date) return false;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return date < now;
+  };
+
   const validate = (): boolean => {
     const newErrors: { [key: string]: string } = {};
-    
+
     if (!formData.areaId) {
       newErrors.areaId = language === 'pt' ? 'Área é obrigatória' : 'Area is required';
     }
-    
+
     if (!formData.startDate) {
       newErrors.startDate = language === 'pt' ? 'Data inicial é obrigatória' : 'Start date is required';
     }
-    
+
     if (!formData.description.trim()) {
       newErrors.description = language === 'pt' ? 'Descrição é obrigatória' : 'Description is required';
     }
-    
+
     if (!formData.operatedBy.trim()) {
       newErrors.operatedBy = language === 'pt' ? 'Operador é obrigatório' : 'Operator is required';
     }
@@ -208,7 +223,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
       const size = parseNumber(formData.operationSize);
       const selectedArea = areas.find(area => area.id === formData.areaId);
       if (selectedArea && size > selectedArea.size) {
-        newErrors.operationSize = language === 'pt' 
+        newErrors.operationSize = language === 'pt'
           ? `Tamanho não pode ser maior que ${selectedArea.size} ${selectedArea.unit}`
           : `Size cannot be larger than ${selectedArea.size} ${selectedArea.unit}`;
       }
@@ -230,7 +245,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
         ? 'População de sementes por hectare é obrigatória'
         : 'Seeds per hectare is required';
     }
-    
+
     formData.productsUsed.forEach((usage, index) => {
       if (!usage.productId) {
         newErrors[`productId-${index}`] = language === 'pt' ? 'Produto é obrigatório' : 'Product is required';
@@ -242,14 +257,14 @@ const OperationForm: React.FC<OperationFormProps> = ({
         newErrors[`dose-${index}`] = language === 'pt' ? 'Dose não pode ser negativa' : 'Dose cannot be negative';
       }
     });
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validate()) return;
 
     const submissionData = {
@@ -266,7 +281,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
       yieldPerHectare: formData.yieldPerHectare ? parseNumber(formData.yieldPerHectare) : undefined,
       seedsPerHectare: formData.seedsPerHectare ? parseNumber(formData.seedsPerHectare) : undefined,
     };
-    
+
     onSubmit(submissionData);
   };
 
@@ -288,7 +303,6 @@ const OperationForm: React.FC<OperationFormProps> = ({
 
   const selectedArea = areas.find(area => area.id === formData.areaId);
 
-  // If no active season, show message
   if (!activeSeason) {
     return (
       <div className="text-center py-12 bg-gray-50 rounded-lg">
@@ -313,8 +327,8 @@ const OperationForm: React.FC<OperationFormProps> = ({
           value={formData.areaId}
           onChange={handleChange}
           options={[
-            { 
-              value: '', 
+            {
+              value: '',
               label: language === 'pt' ? 'Selecione uma área' : 'Select an area'
             },
             ...areaOptions
@@ -322,7 +336,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
           error={errors.areaId}
           required
         />
-        
+
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="block text-sm font-medium text-gray-700">
@@ -339,7 +353,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
               {language === 'pt' ? 'Novo Tipo' : 'New Type'}
             </Button>
           </div>
-          
+
           {showNewTypeInput ? (
             <div className="flex gap-2">
               <Input
@@ -378,7 +392,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
             />
           )}
         </div>
-        
+
         <Input
           name="description"
           label={language === 'pt' ? 'Descrição' : 'Description'}
@@ -388,7 +402,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
           error={errors.description}
           required
         />
-        
+
         <Input
           name="operatedBy"
           label={language === 'pt' ? 'Operador' : 'Operator'}
@@ -398,7 +412,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
           error={errors.operatedBy}
           required
         />
-        
+
         <Input
           name="startDate"
           label={language === 'pt' ? 'Data Inicial' : 'Start Date'}
@@ -408,14 +422,14 @@ const OperationForm: React.FC<OperationFormProps> = ({
           required
           error={errors.startDate}
         />
-        
+
         <Input
           name="endDate"
           label={language === 'pt' ? 'Data Final' : 'End Date'}
           type="date"
           value={formData.endDate}
           onChange={handleChange}
-          helperText={language === 'pt' 
+          helperText={language === 'pt'
             ? 'Deixe em branco se a operação foi concluída em um dia'
             : 'Leave blank if operation was completed in one day'}
         />
@@ -444,9 +458,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                   const isChecked = e.target.checked;
                   setIsOperationSizeEditable(isChecked);
 
-                  // If unchecking, reset to area size and recalculate products
                   if (!isChecked) {
-                    setWasOperationSizeManuallyEdited(false);
                     const selectedArea = areas.find(area => area.id === formData.areaId);
                     if (selectedArea) {
                       const newSize = selectedArea.size;
@@ -508,23 +520,23 @@ const OperationForm: React.FC<OperationFormProps> = ({
           />
         )}
       </div>
-      
+
       <div className="mt-6">
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-lg font-medium text-gray-900">
             {language === 'pt' ? 'Produtos Utilizados' : 'Products Used'}
           </h3>
-          <Button 
-            type="button" 
-            variant="secondary" 
-            size="sm" 
-            leftIcon={<Plus size={16} />} 
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            leftIcon={<Plus size={16} />}
             onClick={addProductUsage}
           >
             {language === 'pt' ? 'Adicionar Produto' : 'Add Product'}
           </Button>
         </div>
-        
+
         {formData.productsUsed.length === 0 && (
           <div className="bg-gray-50 p-4 rounded-md text-center text-gray-500">
             {language === 'pt'
@@ -532,13 +544,15 @@ const OperationForm: React.FC<OperationFormProps> = ({
               : 'No products added. Click "Add Product" to include products in this operation.'}
           </div>
         )}
-        
+
         {formData.productsUsed.map((usage, index) => {
           const product = products.find(p => p.id === usage.productId);
+          const availableLots = product ? getLotsByProductId(product.id) : [];
+          const selectedLot = availableLots.find(l => l.id === usage.lotId);
 
           return (
             <div key={index} className="flex items-start space-x-4 mb-4 p-4 bg-gray-50 rounded-md">
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
                 <ProductSearchInput
                   products={products}
                   value={usage.productId}
@@ -548,7 +562,54 @@ const OperationForm: React.FC<OperationFormProps> = ({
                   error={errors[`productId-${index}`]}
                   required
                 />
-                
+
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    {language === 'pt' ? 'Lote' : 'Lot'}
+                  </label>
+                  <select
+                    value={usage.lotId || ''}
+                    onChange={(e) => handleProductChange(index, 'lotId', e.target.value)}
+                    disabled={!product || availableLots.length === 0}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${(!product || availableLots.length === 0) ? 'bg-gray-100 text-gray-400' : ''}`}
+                  >
+                    <option value="">
+                      {availableLots.length === 0
+                        ? (language === 'pt' ? 'Sem lotes' : 'No lots')
+                        : (language === 'pt' ? 'Selecione um lote' : 'Select a lot')}
+                    </option>
+                    {availableLots.map(lot => {
+                      const expired = isExpired(lot.expirationDate);
+                      const expiringSoon = isExpiringSoon(lot.expirationDate);
+                      const expLabel = lot.expirationDate
+                        ? ` - ${formatDateForDisplay(lot.expirationDate, language === 'pt' ? 'pt-BR' : 'en-US')}`
+                        : '';
+                      const warningLabel = expired
+                        ? ` (${language === 'pt' ? 'Vencido' : 'Expired'})`
+                        : expiringSoon
+                        ? ` (${language === 'pt' ? 'Vence em breve' : 'Expiring soon'})`
+                        : '';
+                      return (
+                        <option key={lot.id} value={lot.id}>
+                          {lot.lotNumber} ({lot.quantity} {product?.unit}){expLabel}{warningLabel}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {selectedLot && isExpired(selectedLot.expirationDate) && (
+                    <p className="text-xs text-red-600 flex items-center gap-1">
+                      <AlertTriangle size={12} />
+                      {language === 'pt' ? 'Lote vencido' : 'Expired lot'}
+                    </p>
+                  )}
+                  {selectedLot && isExpiringSoon(selectedLot.expirationDate) && !isExpired(selectedLot.expirationDate) && (
+                    <p className="text-xs text-orange-600 flex items-center gap-1">
+                      <AlertTriangle size={12} />
+                      {language === 'pt' ? 'Vence em breve' : 'Expiring soon'}
+                    </p>
+                  )}
+                </div>
+
                 <Input
                   name={`dose-${index}`}
                   label={`${language === 'pt' ? 'Dose por' : 'Dose per'} ${selectedArea?.unit || 'hectare'}`}
@@ -559,7 +620,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                   helperText={product ? `${language === 'pt' ? 'em' : 'in'} ${product.unit}/${selectedArea?.unit || 'hectare'}` : ''}
                   error={errors[`dose-${index}`]}
                 />
-                
+
                 <Input
                   name={`quantity-${index}`}
                   label={language === 'pt' ? 'Quantidade Total' : 'Total Quantity'}
@@ -572,7 +633,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                   required
                 />
               </div>
-              
+
               <div className="pt-8">
                 <Button
                   type="button"
@@ -588,7 +649,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
           );
         })}
       </div>
-      
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           {language === 'pt' ? 'Observações' : 'Notes'}
@@ -604,7 +665,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
             : 'Enter any additional notes about this operation...'}
         />
       </div>
-      
+
       <div className="flex justify-end space-x-4">
         <Button
           type="button"
@@ -618,7 +679,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
           type="submit"
           leftIcon={<Save size={18} />}
         >
-          {isEditing 
+          {isEditing
             ? (language === 'pt' ? 'Atualizar Operação' : 'Update Operation')
             : (language === 'pt' ? 'Criar Operação' : 'Create Operation')}
         </Button>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -6,43 +6,64 @@ import ProductCard from '../../components/products/ProductCard';
 import Button from '../../components/ui/Button';
 import { Plus, Filter, AlertTriangle } from 'lucide-react';
 import Select from '../../components/ui/Select';
-import Badge from '../../components/ui/Badge';
 
 const InventoryList = () => {
-  const { products, deleteProduct } = useAppContext();
+  const { products, deleteProduct, productLots } = useAppContext();
   const { language } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterStock, setFilterStock] = useState('');
   const [sortBy, setSortBy] = useState('name');
 
-  // Get all unique categories from products in the database
-  const uniqueCategories = React.useMemo(() => {
+  const isExpiringSoon = (date?: Date): boolean => {
+    if (!date) return false;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 60;
+  };
+
+  const isExpired = (date?: Date): boolean => {
+    if (!date) return false;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return date < now;
+  };
+
+  // Products that have lots expiring within 60 days or already expired
+  const productsExpiringSoon = useMemo(() => {
+    return products.filter(product => {
+      const lots = productLots.filter(l => l.productId === product.id);
+      return lots.some(lot => isExpiringSoon(lot.expirationDate) || isExpired(lot.expirationDate));
+    });
+  }, [products, productLots]);
+
+  const uniqueCategories = useMemo(() => {
     const categories = products
       .map(product => product.category)
       .filter(category => category && category.trim() !== '');
     return [...new Set(categories)].sort();
   }, [products]);
-  
-  // Filter products
+
   const filteredProducts = products.filter((product) => {
-    const matchesSearch = 
+    const matchesSearch =
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (product.supplier && product.supplier.toLowerCase().includes(searchTerm.toLowerCase()));
-    
+
     const matchesCategory = filterCategory ? product.category === filterCategory : true;
-    
-    const matchesStock = 
-      filterStock === 'low' 
+
+    const matchesStock =
+      filterStock === 'low'
         ? product.quantityInStock <= product.minStockLevel
         : filterStock === 'normal'
         ? product.quantityInStock > product.minStockLevel
+        : filterStock === 'expiring'
+        ? productsExpiringSoon.some(p => p.id === product.id)
         : true;
-    
+
     return matchesSearch && matchesCategory && matchesStock;
   });
-  
-  // Sort products
+
   const sortedProducts = [...filteredProducts].sort((a, b) => {
     if (sortBy === 'name') {
       return a.name.localeCompare(b.name);
@@ -56,23 +77,22 @@ const InventoryList = () => {
       return b.price - a.price;
     }
   });
-  
+
   const handleDeleteProduct = (id: string) => {
     if (window.confirm(language === 'pt'
-      ? 'Tem certeza que deseja excluir este produto?'
-      : 'Are you sure you want to delete this product?'
+      ? 'Tem certeza que deseja excluir este produto? Todos os lotes serão excluídos também.'
+      : 'Are you sure you want to delete this product? All lots will be deleted as well.'
     )) {
       deleteProduct(id);
     }
   };
-  
+
   const handleClearFilters = () => {
     setSearchTerm('');
     setFilterCategory('');
     setFilterStock('');
   };
-  
-  // Count low stock items
+
   const lowStockCount = products.filter(
     (product) => product.quantityInStock <= product.minStockLevel
   ).length;
@@ -86,8 +106,8 @@ const InventoryList = () => {
           </h1>
           <p className="text-gray-600">
             {language === 'pt'
-              ? 'Gerencie seus produtos e suprimentos agrícolas'
-              : 'Manage your farm products and supplies'}
+              ? 'Gerencie seus produtos, lotes e validades'
+              : 'Manage your products, lots and expiration dates'}
           </p>
         </div>
         <Link to="/inventory/new">
@@ -96,9 +116,9 @@ const InventoryList = () => {
           </Button>
         </Link>
       </div>
-      
+
       {lowStockCount > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-start">
           <div className="p-2 bg-red-100 rounded-full mr-3">
             <AlertTriangle className="w-5 h-5 text-red-600" />
           </div>
@@ -112,19 +132,43 @@ const InventoryList = () => {
                 : `${lowStockCount} ${lowStockCount === 1 ? 'product is' : 'products are'} below the minimum stock level.`}
             </p>
           </div>
-          <Link to="?stock=low" className="ml-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-red-600 border-red-200 hover:bg-red-50"
-              onClick={() => setFilterStock('low')}
-            >
-              {language === 'pt' ? 'Ver Estoque Baixo' : 'View Low Stock'}
-            </Button>
-          </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto text-red-600 border-red-200 hover:bg-red-50"
+            onClick={() => setFilterStock('low')}
+          >
+            {language === 'pt' ? 'Ver Estoque Baixo' : 'View Low Stock'}
+          </Button>
         </div>
       )}
-      
+
+      {productsExpiringSoon.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6 flex items-start">
+          <div className="p-2 bg-orange-100 rounded-full mr-3">
+            <AlertTriangle className="w-5 h-5 text-orange-600" />
+          </div>
+          <div>
+            <h3 className="font-medium text-orange-800">
+              {language === 'pt' ? 'Alerta de Validade Próxima' : 'Expiring Soon Alert'}
+            </h3>
+            <p className="text-orange-700 text-sm">
+              {language === 'pt'
+                ? `${productsExpiringSoon.length} ${productsExpiringSoon.length === 1 ? 'produto tem lotes' : 'produtos têm lotes'} vencendo em até 60 dias.`
+                : `${productsExpiringSoon.length} ${productsExpiringSoon.length === 1 ? 'product has lots' : 'products have lots'} expiring within 60 days.`}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto text-orange-600 border-orange-200 hover:bg-orange-50"
+            onClick={() => setFilterStock('expiring')}
+          >
+            {language === 'pt' ? 'Ver Vencendo' : 'View Expiring'}
+          </Button>
+        </div>
+      )}
+
       <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <div className="relative md:col-span-2">
@@ -141,7 +185,7 @@ const InventoryList = () => {
               <Filter size={18} />
             </div>
           </div>
-          
+
           <Select
             label=""
             name="category"
@@ -158,29 +202,21 @@ const InventoryList = () => {
               }))
             ]}
           />
-          
+
           <Select
             label=""
             name="stock"
             value={filterStock}
             onChange={(e) => setFilterStock(e.target.value)}
             options={[
-              { 
-                value: '', 
-                label: language === 'pt' ? 'Todos os Níveis' : 'All Stock Levels'
-              },
-              { 
-                value: 'low', 
-                label: language === 'pt' ? 'Estoque Baixo' : 'Low Stock'
-              },
-              { 
-                value: 'normal', 
-                label: language === 'pt' ? 'Estoque Normal' : 'Normal Stock'
-              },
+              { value: '', label: language === 'pt' ? 'Todos os Níveis' : 'All Stock Levels' },
+              { value: 'low', label: language === 'pt' ? 'Estoque Baixo' : 'Low Stock' },
+              { value: 'normal', label: language === 'pt' ? 'Estoque Normal' : 'Normal Stock' },
+              { value: 'expiring', label: language === 'pt' ? 'Vencendo em 60 dias' : 'Expiring in 60 days' },
             ]}
           />
         </div>
-        
+
         <div className="flex justify-between items-center">
           <div className="flex items-center">
             <span className="text-sm text-gray-600 mr-2">
@@ -191,31 +227,16 @@ const InventoryList = () => {
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               options={[
-                { 
-                  value: 'name', 
-                  label: language === 'pt' ? 'Nome (A-Z)' : 'Name (A-Z)'
-                },
-                { 
-                  value: 'stock-asc', 
-                  label: language === 'pt' ? 'Estoque (Menor-Maior)' : 'Stock (Low to High)'
-                },
-                { 
-                  value: 'stock-desc', 
-                  label: language === 'pt' ? 'Estoque (Maior-Menor)' : 'Stock (High to Low)'
-                },
-                { 
-                  value: 'price-asc', 
-                  label: language === 'pt' ? 'Preço (Menor-Maior)' : 'Price (Low to High)'
-                },
-                { 
-                  value: 'price-desc', 
-                  label: language === 'pt' ? 'Preço (Maior-Menor)' : 'Price (High to Low)'
-                },
+                { value: 'name', label: language === 'pt' ? 'Nome (A-Z)' : 'Name (A-Z)' },
+                { value: 'stock-asc', label: language === 'pt' ? 'Estoque (Menor-Maior)' : 'Stock (Low to High)' },
+                { value: 'stock-desc', label: language === 'pt' ? 'Estoque (Maior-Menor)' : 'Stock (High to Low)' },
+                { value: 'price-asc', label: language === 'pt' ? 'Preço (Menor-Maior)' : 'Price (Low to High)' },
+                { value: 'price-desc', label: language === 'pt' ? 'Preço (Maior-Menor)' : 'Price (High to Low)' },
               ]}
               className="border-none text-sm font-medium text-gray-700 h-8 pl-0 pr-8 py-0 bg-transparent"
             />
           </div>
-          
+
           {(searchTerm || filterCategory || filterStock) && (
             <button
               className="text-sm text-gray-600 hover:text-gray-900"
@@ -226,7 +247,7 @@ const InventoryList = () => {
           )}
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {sortedProducts.length > 0 ? (
           sortedProducts.map((product) => (

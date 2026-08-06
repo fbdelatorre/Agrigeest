@@ -234,6 +234,35 @@ export interface Database {
           updated_at?: string | null
         }
       }
+      product_lots: {
+        Row: {
+          id: string
+          product_id: string
+          lot_number: string
+          quantity: number
+          expiration_date: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          lot_number: string
+          quantity?: number
+          expiration_date?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          lot_number?: string
+          quantity?: number
+          expiration_date?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
       machinery: {
         Row: {
           id: string

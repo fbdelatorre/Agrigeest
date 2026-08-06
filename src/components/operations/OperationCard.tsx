@@ -20,7 +20,7 @@ const OperationCard: React.FC<OperationCardProps> = ({
   showAreaName = false,
   onDelete,
 }) => {
-  const { getAreaById, getProductById } = useAppContext();
+  const { getAreaById, getProductById, getLotsByProductId } = useAppContext();
   const { language } = useLanguage();
   
   const area = getAreaById(operation.areaId);
@@ -73,9 +73,10 @@ const OperationCard: React.FC<OperationCardProps> = ({
 
     return (operation.productsUsed || []).map(usage => {
       const product = getProductById(usage.productId);
-      return product
-        ? `${usage.quantity} ${product.unit} ${language === 'pt' ? 'de' : 'of'} ${product.name}`
-        : language === 'pt' ? 'Produto desconhecido' : 'Unknown product';
+      const lot = usage.lotId ? getLotsByProductId(product?.id || '').find(l => l.id === usage.lotId) : undefined;
+      if (!product) return language === 'pt' ? 'Produto desconhecido' : 'Unknown product';
+      const lotText = lot ? ` ${language === 'pt' ? '(Lote' : '(Lot'} ${lot.lotNumber})` : '';
+      return `${usage.quantity} ${product.unit} ${language === 'pt' ? 'de' : 'of'} ${product.name}${lotText}`;
     }).join(', ');
   };
 

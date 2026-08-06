@@ -51,8 +51,19 @@ export interface Product {
   updatedAt: Date;
 }
 
+export interface ProductLot {
+  id: string;
+  productId: string;
+  lotNumber: string;
+  quantity: number;
+  expirationDate?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ProductUsage {
   productId: string;
   quantity: number;
   dose?: number; // Dose per hectare/acre
+  lotId?: string; // Which lot was used
 }
