@@ -6,6 +6,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { ArrowLeft, Pencil, Map, Plus, Calendar, Trash2, FileDown, DollarSign } from 'lucide-react';
 import Badge from '../../components/ui/Badge';
+import GeometryManager from '../../components/areas/GeometryManager';
 import { jsPDF } from 'jspdf';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatDateForDisplay } from '../../utils/dateHelpers';
@@ -603,7 +604,15 @@ const AreaDetail = () => {
           </Card.Footer>
         </Card>
       </div>
-      
+
+      <div className="mb-6">
+        <GeometryManager
+          areaId={area.id}
+          areaName={area.name}
+          currentGeometry={area.geometry}
+        />
+      </div>
+
       <div className="mb-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4">
           {language === 'pt' ? 'Todas as Operações' : 'All Operations'}

@@ -10,10 +10,12 @@ const OperationCreate = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const copyId = searchParams.get('copy');
+  const areaIdParam = searchParams.get('areaId');
   const { addOperation, activeSeason, areas, operations } = useAppContext();
   const { language } = useLanguage();
 
   const operationToCopy = copyId ? operations.find(op => op.id === copyId) : undefined;
+  const initialArea = areaIdParam ? areas.find(a => a.id === areaIdParam) : undefined;
   
   const handleSubmit = async (operationData: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
@@ -113,7 +115,7 @@ const OperationCreate = () => {
         <div className="bg-white p-6 rounded-lg shadow-sm">
           <OperationForm
             onSubmit={handleSubmit}
-            initialData={operationToCopy}
+            initialData={initialArea ? { areaId: initialArea.id, operationSize: initialArea.size } as Partial<Operation> : operationToCopy}
           />
         </div>
       )}

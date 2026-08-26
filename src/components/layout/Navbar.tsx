@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Tractor, Warehouse, LayoutDashboard, Map, PlaneTakeoff, Settings, FileText, Bell, BarChart3, Wrench, StickyNote } from 'lucide-react';
+import { Tractor, Warehouse, LayoutDashboard, Map, MapPinned, PlaneTakeoff, Settings, FileText, Bell, BarChart3, Wrench, StickyNote } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAppContext } from '../../context/AppContext';
@@ -101,6 +101,7 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onSignOut }) => {
         <ul className="space-y-1">
           <NavItem to="/" icon={<LayoutDashboard size={20} />} text={t('dashboard.title')} onClick={onClose} />
           <NavItem to="/areas" icon={<Map size={20} />} text={t('areas.title')} onClick={onClose} />
+          <NavItem to="/farm-map" icon={<MapPinned size={20} />} text={language === 'pt' ? 'Mapa da Fazenda' : 'Farm Map'} onClick={onClose} />
           <NavItem to="/operations" icon={<PlaneTakeoff size={20} />} text={t('operations.title')} onClick={onClose} />
           <NavItem to="/notifications" icon={<Bell size={20} />} text={t('notifications.title')} onClick={onClose} />
           <NavItem to="/inventory" icon={<Warehouse size={20} />} text={t('inventory.title')} onClick={onClose} />

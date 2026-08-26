@@ -11,6 +11,7 @@ export interface Area {
   description?: string;
   current_crop?: string;
   cultivar?: string;
+  geometry?: string | object;
   createdAt: Date;
   updatedAt: Date;
 }

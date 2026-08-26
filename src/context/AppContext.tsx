@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   Area,
@@ -7,6 +7,8 @@ import {
   ProductLot,
   ProductUsage
 } from '../types';
+import { AreaMapSummary } from '../types/farmMap';
+import { stripZCoordinates } from '../utils/farmMap/farmMapHelpers';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflineStorage } from '../hooks/useOfflineStorage';
 import { dateToISOString, dateToDateString, parseDate } from '../utils/dateHelpers';
@@ -67,6 +69,10 @@ interface AppContextType {
   isOnline: boolean;
   hasPendingSync: boolean;
   syncData: () => Promise<void>;
+
+  saveAreaGeometry: (areaId: string, geojson: string) => Promise<void>;
+  deleteAreaGeometry: (areaId: string) => Promise<void>;
+  getAreaMapSummary: (seasonId: string) => Promise<AreaMapSummary[]>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -1224,6 +1230,77 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     return () => window.removeEventListener('online', handleOnline);
   }, [hasPendingSync]);
 
+  const saveAreaGeometry = async (areaId: string, geojson: string) => {
+    try {
+      const parsed = JSON.parse(geojson);
+      const geom = parsed.geometry || parsed;
+
+      const cleanGeom = stripZCoordinates(geom);
+      const geomStr = JSON.stringify(cleanGeom);
+
+      const { error } = await supabase.rpc('save_area_geometry', {
+        area_id_param: areaId,
+        geojson_text: geomStr,
+      });
+
+      if (error) throw error;
+
+      setAreas(prev => prev.map(a =>
+        a.id === areaId ? { ...a, geometry: geomStr, updatedAt: new Date() } : a
+      ));
+    } catch (error) {
+      console.error('Error saving area geometry:', error);
+      throw error;
+    }
+  };
+
+  const deleteAreaGeometry = async (areaId: string) => {
+    try {
+      const { error } = await supabase
+        .from('areas')
+        .update({ geometry: null })
+        .eq('id', areaId);
+
+      if (error) throw error;
+
+      setAreas(prev => prev.map(a =>
+        a.id === areaId ? { ...a, geometry: undefined, updatedAt: new Date() } : a
+      ));
+    } catch (error) {
+      console.error('Error deleting area geometry:', error);
+      throw error;
+    }
+  };
+
+  const getAreaMapSummary = useCallback(async (seasonId: string): Promise<AreaMapSummary[]> => {
+    try {
+      const { data, error } = await supabase.rpc('get_area_map_summary', {
+        season_id_param: seasonId,
+      });
+
+      if (error) throw error;
+
+      return (data || []).map((row: Record<string, unknown>) => ({
+        areaId: row.area_id as string,
+        areaName: row.area_name as string,
+        areaSize: Number(row.area_size),
+        areaUnit: row.area_unit as string,
+        currentCrop: row.current_crop as string | null,
+        cultivar: row.cultivar as string | null,
+        geojson: row.geojson as string | null,
+        lastOperationDate: row.last_operation_date as string | null,
+        lastFungicideDate: row.last_fungicide_date as string | null,
+        lastInsecticideDate: row.last_insecticide_date as string | null,
+        lastHerbicideDate: row.last_herbicide_date as string | null,
+        lastDessecacaoDate: row.last_dessecacao_date as string | null,
+        nextOperationDate: row.next_operation_date as string | null,
+      }));
+    } catch (error) {
+      console.error('Error loading area map summary:', error);
+      return [];
+    }
+  }, []);
+
   const value: AppContextType = {
     profile,
     areas, addArea, updateArea, deleteArea, getAreaById,
@@ -1232,7 +1309,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     products, addProduct, updateProduct, deleteProduct, getProductById, useProducts,
     productLots, addLot, updateLot, deleteLot, getLotsByProductId,
     seasons, activeSeason, setActiveSeason,
-    isOnline, hasPendingSync, syncData
+    isOnline, hasPendingSync, syncData,
+    saveAreaGeometry, deleteAreaGeometry, getAreaMapSummary
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

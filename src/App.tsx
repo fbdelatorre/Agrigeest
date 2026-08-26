@@ -20,6 +20,9 @@ import AreaDetail from './pages/area/AreaDetail';
 import AreaCreate from './pages/area/AreaCreate';
 import AreaEdit from './pages/area/AreaEdit';
 
+// Farm Map
+import { FarmMapScreen } from './pages/farmMap/FarmMap';
+
 // Operation Pages
 import OperationsList from './pages/operation/OperationsList';
 import OperationCreate from './pages/operation/OperationCreate';
@@ -94,6 +97,9 @@ function App() {
                 <Route path="areas/:id" element={<AreaDetail />} />
                 <Route path="areas/new" element={<AreaCreate />} />
                 <Route path="areas/:id/edit" element={<AreaEdit />} />
+
+                {/* Farm Map */}
+                <Route path="farm-map" element={<FarmMapScreen />} />
                 
                 {/* Operations */}
                 <Route path="operations" element={<OperationsList />} />
