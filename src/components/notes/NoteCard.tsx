@@ -7,6 +7,7 @@ import { Calendar, CheckCircle2, Circle, Pencil, Trash2, StickyNote } from 'luci
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNotesContext } from '../../context/NotesContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { formatDateForDisplay } from '../../utils/dateHelpers';
 
 interface NoteCardProps {
@@ -17,6 +18,7 @@ interface NoteCardProps {
 const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete }) => {
   const { language } = useLanguage();
   const { toggleNoteComplete } = useNotesContext();
+  const { isOnline } = useNetworkStatus();
 
   const formatDate = (date: Date | string) => {
     return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
@@ -42,7 +44,7 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete }) => {
               >
                 {note.isCompleted ? (
                   <>
-                    <CheckCircle2 className="w-5 h-5 mr-1 text-green-600" />
+                    <CheckCircle2 className="w-5 h-5 mr-1 text-brand-600" />
                     <Badge variant="success">
                       {language === 'pt' ? 'Concluída' : 'Completed'}
                     </Badge>
@@ -78,7 +80,8 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete }) => {
               aria-label={language === 'pt' ? `Excluir ${note.title}` : `Delete ${note.title}`}
               leftIcon={<Trash2 size={16} />}
               onClick={() => onDelete(note.id)}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              disabled={!isOnline}
+              className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
             >
               {language === 'pt' ? 'Excluir' : 'Delete'}
             </Button>
@@ -100,7 +103,7 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete }) => {
           </div>
 
           {note.isCompleted && note.completedDate && (
-            <div className="flex items-center text-green-700 text-sm bg-green-50 p-2 rounded">
+            <div className="flex items-center text-brand-700 text-sm bg-brand-50 p-2 rounded">
               <CheckCircle2 size={16} className="mr-2" />
               <span>
                 {language === 'pt' ? 'Concluída em: ' : 'Completed on: '}

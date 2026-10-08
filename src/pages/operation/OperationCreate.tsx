@@ -24,13 +24,51 @@ const OperationCreate = () => {
     } catch (error: any) {
       console.error('Error creating operation:', error);
 
-      // Check if it's a stock error
-      if (error.message?.includes('Insufficient product quantity')) {
-        alert(language === 'pt'
+      const msg = error.message || '';
+      const isPt = language === 'pt';
+
+      if (msg.includes('INSUFFICIENT_UNTRACKED_STOCK')) {
+        alert(isPt
+          ? 'Estoque sem lote insuficiente. Selecione um lote com saldo disponível ou ajuste a quantidade.'
+          : 'Insufficient untracked stock. Select a lot with available balance or adjust the quantity.');
+      } else if (msg.includes('INSUFFICIENT_PRODUCT_STOCK') || msg.includes('INSUFFICIENT_LOT_STOCK')) {
+        alert(isPt
           ? 'Estoque insuficiente! Verifique a quantidade disponível dos produtos e tente novamente.'
           : 'Insufficient stock! Check the available quantity of products and try again.');
+      } else if (msg.includes('AUTH_REQUIRED') || msg.includes('PROFILE_NOT_FOUND') || msg.includes('PROFILE_NO_INSTITUTION')) {
+        alert(isPt
+          ? 'Erro de autenticação. Faça login novamente.'
+          : 'Authentication error. Please log in again.');
+      } else if (msg.includes('AREA_NOT_FOUND_OR_FORBIDDEN')) {
+        alert(isPt
+          ? 'Área não encontrada ou não pertence à sua instituição.'
+          : 'Area not found or does not belong to your institution.');
+      } else if (msg.includes('SEASON_NOT_FOUND_OR_FORBIDDEN')) {
+        alert(isPt
+          ? 'Safra não encontrada ou não pertence à sua instituição.'
+          : 'Season not found or does not belong to your institution.');
+      } else if (msg.includes('PRODUCT_NOT_FOUND_OR_FORBIDDEN')) {
+        alert(isPt
+          ? 'Um dos produtos não foi encontrado ou não pertence à sua instituição.'
+          : 'One of the products was not found or does not belong to your institution.');
+      } else if (msg.includes('LOT_NOT_FOUND_OR_MISMATCH')) {
+        alert(isPt
+          ? 'Lote não encontrado ou não corresponde ao produto informado.'
+          : 'Lot not found or does not match the specified product.');
+      } else if (msg.includes('LOT_ALLOCATIONS_TOTAL_MISMATCH')) {
+        alert(isPt
+          ? 'A soma das origens não corresponde à quantidade total do produto.'
+          : 'The sum of lot sources does not match the product total quantity.');
+      } else if (msg.includes('DUPLICATE_LOT_ALLOCATION')) {
+        alert(isPt
+          ? 'Um lote foi selecionado mais de uma vez para o mesmo produto.'
+          : 'A lot was selected more than once for the same product.');
+      } else if (msg.includes('INVALID_PRODUCTS_USED')) {
+        alert(isPt
+          ? 'Dados de produtos inválidos. Verifique as quantidades e tente novamente.'
+          : 'Invalid product data. Check quantities and try again.');
       } else {
-        alert(language === 'pt'
+        alert(isPt
           ? 'Erro ao criar operação. Tente novamente.'
           : 'Error creating operation. Please try again.');
       }
@@ -44,7 +82,7 @@ const OperationCreate = () => {
         <div className="mb-6 pt-4 lg:pt-0">
           <Link 
             to="/operations"
-            className="text-green-700 hover:text-green-800 font-medium text-sm flex items-center"
+            className="text-brand-700 hover:text-brand-800 font-medium text-sm flex items-center"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
             {language === 'pt' ? 'Voltar para Operações' : 'Back to Operations'}
@@ -62,7 +100,7 @@ const OperationCreate = () => {
           </p>
           <Link 
             to="/areas/new"
-            className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-700 hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            className="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-brand-700 hover:bg-brand-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500"
           >
             {language === 'pt' ? 'Cadastrar Área' : 'Register Area'}
           </Link>
@@ -76,7 +114,7 @@ const OperationCreate = () => {
       <div className="mb-6 pt-4 lg:pt-0">
         <Link 
           to="/operations"
-          className="text-green-700 hover:text-green-800 font-medium text-sm flex items-center"
+          className="text-brand-700 hover:text-brand-800 font-medium text-sm flex items-center"
         >
           <ArrowLeft className="w-4 h-4 mr-1" />
           {language === 'pt' ? 'Voltar para Operações' : 'Back to Operations'}

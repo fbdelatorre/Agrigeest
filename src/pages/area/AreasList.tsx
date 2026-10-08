@@ -4,11 +4,13 @@ import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 import AreaCard from '../../components/areas/AreaCard';
 import Button from '../../components/ui/Button';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Plus, Filter } from 'lucide-react';
 
 const AreasList = () => {
-  const { areas, deleteArea } = useAppContext();
+  const { areas, deleteArea, operations } = useAppContext();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
   const [searchTerm, setSearchTerm] = useState('');
   
   // Filter areas based on search term
@@ -19,9 +21,17 @@ const AreasList = () => {
   );
   
   const handleDeleteArea = (id: string) => {
+    const areaOperations = operations.filter((op) => op.areaId === id);
+    if (areaOperations.length > 0) {
+      alert(language === 'pt'
+        ? `Esta área possui ${areaOperations.length} operação(ões) registrada(s) e não pode ser excluída enquanto houver histórico vinculado a ela.`
+        : `This area has ${areaOperations.length} operation(s) registered and cannot be deleted while there is history linked to it.`
+      );
+      return;
+    }
     if (window.confirm(language === 'pt' 
-      ? 'Tem certeza que deseja excluir esta área? Todas as operações associadas permanecerão, mas não estarão mais vinculadas a esta área.'
-      : 'Are you sure you want to delete this area? All associated operations will remain but will no longer be linked to this area.'
+      ? 'Tem certeza que deseja excluir esta área?'
+      : 'Are you sure you want to delete this area?'
     )) {
       deleteArea(id);
     }
@@ -40,11 +50,13 @@ const AreasList = () => {
               : 'Manage your farming areas and fields'}
           </p>
         </div>
-        <Link to="/areas/new">
-          <Button leftIcon={<Plus size={18} />}>
-            {language === 'pt' ? 'Nova Área' : 'Add New Area'}
-          </Button>
-        </Link>
+        {isOnline && (
+          <Link to="/areas/new">
+            <Button leftIcon={<Plus size={18} />}>
+              {language === 'pt' ? 'Nova Área' : 'Add New Area'}
+            </Button>
+          </Link>
+        )}
       </div>
       
       <div className="mb-6">
@@ -54,7 +66,7 @@ const AreasList = () => {
             placeholder={language === 'pt'
               ? 'Buscar áreas por nome, localização ou cultivo...'
               : 'Search areas by name, location, or crop...'}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -87,13 +99,15 @@ const AreasList = () => {
                 ? "Você ainda não adicionou nenhuma área de cultivo"
                 : "You haven't added any farming areas yet"}
             </p>
-            <Link to="/areas/new">
-              <Button leftIcon={<Plus size={18} />}>
-                {language === 'pt' 
-                  ? 'Adicionar Primeira Área'
-                  : 'Add Your First Area'}
-              </Button>
-            </Link>
+            {isOnline && (
+              <Link to="/areas/new">
+                <Button leftIcon={<Plus size={18} />}>
+                  {language === 'pt' 
+                    ? 'Adicionar Primeira Área'
+                    : 'Add Your First Area'}
+                </Button>
+              </Link>
+            )}
           </div>
         )}
       </div>

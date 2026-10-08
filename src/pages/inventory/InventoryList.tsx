@@ -4,12 +4,14 @@ import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 import ProductCard from '../../components/products/ProductCard';
 import Button from '../../components/ui/Button';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Plus, Filter, AlertTriangle } from 'lucide-react';
 import Select from '../../components/ui/Select';
 
 const InventoryList = () => {
-  const { products, deleteProduct, productLots } = useAppContext();
+  const { products, deleteProduct, productLots: allProductLots, operations } = useAppContext();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterStock, setFilterStock] = useState('');
@@ -33,10 +35,10 @@ const InventoryList = () => {
   // Products that have lots expiring within 60 days or already expired
   const productsExpiringSoon = useMemo(() => {
     return products.filter(product => {
-      const lots = productLots.filter(l => l.productId === product.id);
+      const lots = allProductLots.filter(l => l.productId === product.id);
       return lots.some(lot => isExpiringSoon(lot.expirationDate) || isExpired(lot.expirationDate));
     });
-  }, [products, productLots]);
+  }, [products, allProductLots]);
 
   const uniqueCategories = useMemo(() => {
     const categories = products
@@ -78,12 +80,53 @@ const InventoryList = () => {
     }
   });
 
-  const handleDeleteProduct = (id: string) => {
+  const handleDeleteProduct = async (id: string) => {
+    const productLotsForProduct = allProductLots.filter(l => l.productId === id);
+    const opsWithProduct = operations.filter(op =>
+      op.productsUsed && op.productsUsed.some(u => u.productId === id)
+    );
+
+    if (productLotsForProduct.length > 0 && opsWithProduct.length > 0) {
+      alert(language === 'pt'
+        ? `Este produto possui ${productLotsForProduct.length} lote(s) registrado(s) e foi utilizado em ${opsWithProduct.length} operação(ões). Não pode ser excluído porque faz parte do histórico de estoque e operacional.`
+        : `This product has ${productLotsForProduct.length} lot(s) registered and was used in ${opsWithProduct.length} operation(s). It cannot be deleted because it is part of the stock and operational history.`
+      );
+      return;
+    }
+
+    if (productLotsForProduct.length > 0) {
+      alert(language === 'pt'
+        ? `Este produto possui ${productLotsForProduct.length} lote(s) registrado(s) e não pode ser excluído porque faz parte do histórico de estoque.`
+        : `This product has ${productLotsForProduct.length} lot(s) registered and cannot be deleted because it is part of the stock history.`
+      );
+      return;
+    }
+
+    if (opsWithProduct.length > 0) {
+      alert(language === 'pt'
+        ? `Este produto foi utilizado em ${opsWithProduct.length} operação(ões) e não pode ser excluído porque faz parte do histórico operacional.`
+        : `This product was used in ${opsWithProduct.length} operation(s) and cannot be deleted because it is part of the operational history.`
+      );
+      return;
+    }
+
     if (window.confirm(language === 'pt'
-      ? 'Tem certeza que deseja excluir este produto? Todos os lotes serão excluídos também.'
-      : 'Are you sure you want to delete this product? All lots will be deleted as well.'
+      ? 'Tem certeza que deseja excluir este produto?'
+      : 'Are you sure you want to delete this product?'
     )) {
-      deleteProduct(id);
+      try {
+        await deleteProduct(id);
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT') || msg.includes('depende')) {
+          alert(language === 'pt'
+            ? 'Não é possível excluir este produto porque existem dados dependentes (lotes ou operações vinculadas).'
+            : 'Cannot delete this product because there are dependent data (lots or linked operations).'
+          );
+        } else {
+          alert(language === 'pt' ? 'Erro ao excluir produto.' : 'Error deleting product.');
+        }
+      }
     }
   };
 
@@ -110,23 +153,25 @@ const InventoryList = () => {
               : 'Manage your products, lots and expiration dates'}
           </p>
         </div>
-        <Link to="/inventory/new">
-          <Button leftIcon={<Plus size={18} />}>
-            {language === 'pt' ? 'Adicionar Produto' : 'Add New Product'}
-          </Button>
-        </Link>
+        {isOnline && (
+          <Link to="/inventory/new">
+            <Button leftIcon={<Plus size={18} />}>
+              {language === 'pt' ? 'Adicionar Produto' : 'Add New Product'}
+            </Button>
+          </Link>
+        )}
       </div>
 
       {lowStockCount > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 flex items-start">
-          <div className="p-2 bg-red-100 rounded-full mr-3">
-            <AlertTriangle className="w-5 h-5 text-red-600" />
+        <div className="bg-danger-50 border border-danger-100 rounded-lg p-4 mb-4 flex items-start">
+          <div className="p-2 bg-danger-100 rounded-full mr-3">
+            <AlertTriangle className="w-5 h-5 text-danger-600" />
           </div>
           <div>
-            <h3 className="font-medium text-red-800">
+            <h3 className="font-medium text-danger-700">
               {language === 'pt' ? 'Alerta de Estoque Baixo' : 'Low Stock Alert'}
             </h3>
-            <p className="text-red-700 text-sm">
+            <p className="text-danger-700 text-sm">
               {language === 'pt'
                 ? `${lowStockCount} ${lowStockCount === 1 ? 'produto está' : 'produtos estão'} abaixo do nível mínimo.`
                 : `${lowStockCount} ${lowStockCount === 1 ? 'product is' : 'products are'} below the minimum stock level.`}
@@ -135,7 +180,7 @@ const InventoryList = () => {
           <Button
             variant="outline"
             size="sm"
-            className="ml-auto text-red-600 border-red-200 hover:bg-red-50"
+            className="ml-auto text-danger-600 border-danger-100 hover:bg-danger-50"
             onClick={() => setFilterStock('low')}
           >
             {language === 'pt' ? 'Ver Estoque Baixo' : 'View Low Stock'}
@@ -177,7 +222,7 @@ const InventoryList = () => {
               placeholder={language === 'pt'
                 ? 'Buscar produtos...'
                 : 'Search products...'}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -275,7 +320,7 @@ const InventoryList = () => {
               <Button onClick={handleClearFilters}>
                 {language === 'pt' ? 'Limpar Filtros' : 'Clear Filters'}
               </Button>
-            ) : (
+            ) : isOnline ? (
               <Link to="/inventory/new">
                 <Button leftIcon={<Plus size={18} />}>
                   {language === 'pt'
@@ -283,7 +328,7 @@ const InventoryList = () => {
                     : 'Add Your First Product'}
                 </Button>
               </Link>
-            )}
+            ) : null}
           </div>
         )}
       </div>

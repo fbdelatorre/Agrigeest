@@ -1,6 +1,6 @@
 import React, { HTMLAttributes } from 'react';
 
-type BadgeVariant = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
+type BadgeVariant = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info';
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   children: React.ReactNode;
@@ -14,12 +14,13 @@ const Badge: React.FC<BadgeProps> = ({
   ...props
 }) => {
   const variantStyles = {
-    default: 'bg-gray-100 text-gray-800',
-    primary: 'bg-green-100 text-green-800',
+    default: 'bg-gray-100 text-gray-700',
+    primary: 'bg-brand-100 text-brand-700',
     secondary: 'bg-amber-100 text-amber-800',
-    success: 'bg-emerald-100 text-emerald-800',
-    warning: 'bg-orange-100 text-orange-800',
-    danger: 'bg-red-100 text-red-800',
+    success: 'bg-success-50 text-success-700 border border-success-100',
+    warning: 'bg-warning-50 text-warning-700 border border-warning-100',
+    danger: 'bg-danger-50 text-danger-700 border border-danger-100',
+    info: 'bg-info-50 text-info-700 border border-info-100',
   };
 
   return (

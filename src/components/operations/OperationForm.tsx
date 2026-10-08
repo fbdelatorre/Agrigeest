@@ -1,19 +1,34 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
-import { Operation, ProductUsage } from '../../types';
+import { Operation, ProductUsage, LotAllocation, ProductLot } from '../../types';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
 import ProductSearchInput from '../ui/ProductSearchInput';
-import { Save, X, Plus, AlertTriangle } from 'lucide-react';
+import { Save, X, Plus, AlertTriangle, Layers } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
 
 interface OperationFormProps {
   initialData?: Partial<Operation>;
   onSubmit: (data: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => void;
   isEditing?: boolean;
+}
+
+interface FormProductUsage {
+  productId: string;
+  quantity: string;
+  dose: string;
+  lotId?: string;
+  lotAllocations?: FormLotAllocation[];
+  isLegacy: boolean;
+}
+
+interface FormLotAllocation {
+  lotId: string;
+  quantity: string;
 }
 
 const OperationForm: React.FC<OperationFormProps> = ({
@@ -24,6 +39,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
   const navigate = useNavigate();
   const { areas, products, activeSeason, getLotsByProductId } = useAppContext();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
 
   const initialArea = areas.find(area => area.id === initialData.areaId);
 
@@ -41,11 +57,29 @@ const OperationForm: React.FC<OperationFormProps> = ({
       : '',
     description: initialData.description || '',
     operatedBy: initialData.operatedBy || '',
-    productsUsed: (initialData.productsUsed || []).map(usage => ({
-      ...usage,
-      dose: usage.dose?.toString().replace('.', ',') || '0',
-      quantity: usage.quantity.toString().replace('.', ',')
-    })),
+    productsUsed: (initialData.productsUsed || []).map(usage => {
+      const isLegacy = !usage.lotAllocations;
+      if (isLegacy) {
+        return {
+          productId: usage.productId,
+          dose: usage.dose?.toString().replace('.', ',') || '0',
+          quantity: usage.quantity.toString().replace('.', ','),
+          lotId: usage.lotId,
+          isLegacy: true,
+        };
+      }
+      return {
+        productId: usage.productId,
+        dose: usage.dose?.toString().replace('.', ',') || '0',
+        quantity: usage.quantity.toString().replace('.', ','),
+        lotId: usage.lotId,
+        lotAllocations: (usage.lotAllocations || []).map(alloc => ({
+          lotId: alloc.lotId || '',
+          quantity: alloc.quantity.toString().replace('.', ','),
+        })),
+        isLegacy: false,
+      };
+    }),
     notes: initialData.notes || '',
     operationSize: initialData.operationSize?.toString() || initialArea?.size.toString() || '',
     yieldPerHectare: initialData.yieldPerHectare?.toString() || '',
@@ -57,6 +91,22 @@ const OperationForm: React.FC<OperationFormProps> = ({
   const [newOperationType, setNewOperationType] = useState('');
   const [customOperationTypes, setCustomOperationTypes] = useState<string[]>([]);
   const [isOperationSizeEditable, setIsOperationSizeEditable] = useState(false);
+  const [fefoChecked, setFefoChecked] = useState<boolean[]>([]);
+  const [fefoApplied, setFefoApplied] = useState<boolean[]>([]);
+  const [showFefoWarning, setShowFefoWarning] = useState(false);
+  const [fefoPendingIndex, setFefoPendingIndex] = useState<number | null>(null);
+  const [showFefoReconfirm, setShowFefoReconfirm] = useState(false);
+  const [fefoReconfirmIndex, setFefoReconfirmIndex] = useState<number | null>(null);
+  const [dontShowFefoWarning, setDontShowFefoWarning] = useState(false);
+  const hideFefoWarningStored = typeof localStorage !== 'undefined' && localStorage.getItem('agriGest_hide_fefo_warning') === 'true';
+
+  const formatNumber = (value: string): string => {
+    return value.replace(/[^\d,]/g, '');
+  };
+
+  const parseNumber = (value: string): number => {
+    return Number(value.replace(',', '.'));
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -110,14 +160,6 @@ const OperationForm: React.FC<OperationFormProps> = ({
     }
   };
 
-  const formatNumber = (value: string): string => {
-    return value.replace(/[^\d,]/g, '');
-  };
-
-  const parseNumber = (value: string): number => {
-    return Number(value.replace(',', '.'));
-  };
-
   const handleProductChange = (index: number, field: string, value: string) => {
     const updatedProducts = [...formData.productsUsed];
     const operationSize = parseNumber(formData.operationSize);
@@ -130,12 +172,8 @@ const OperationForm: React.FC<OperationFormProps> = ({
         dose: updatedProducts[index]?.dose || '0',
         quantity: updatedProducts[index]?.dose
           ? (parseNumber(updatedProducts[index].dose) * operationSize).toString().replace('.', ',')
-          : '0'
-      };
-    } else if (field === 'lotId') {
-      updatedProducts[index] = {
-        ...updatedProducts[index],
-        lotId: value,
+          : '0',
+        lotAllocations: updatedProducts[index].isLegacy ? undefined : [],
       };
     } else if (field === 'dose') {
       const formattedValue = formatNumber(value);
@@ -149,6 +187,11 @@ const OperationForm: React.FC<OperationFormProps> = ({
         ...updatedProducts[index],
         quantity: formatNumber(value)
       };
+    } else if (field === 'lotId') {
+      updatedProducts[index] = {
+        ...updatedProducts[index],
+        lotId: value,
+      };
     }
 
     setFormData((prev) => ({
@@ -157,12 +200,64 @@ const OperationForm: React.FC<OperationFormProps> = ({
     }));
   };
 
+  const convertToAllocations = (index: number) => {
+    const updatedProducts = [...formData.productsUsed];
+    const usage = updatedProducts[index];
+    if (usage.isLegacy) {
+      if (usage.lotId) {
+        updatedProducts[index] = {
+          ...usage,
+          isLegacy: false,
+          lotAllocations: [{ lotId: usage.lotId, quantity: usage.quantity }],
+          lotId: undefined,
+        };
+      } else {
+        updatedProducts[index] = {
+          ...usage,
+          isLegacy: false,
+          lotAllocations: [{ lotId: '', quantity: usage.quantity }],
+          lotId: undefined,
+        };
+      }
+    }
+    setFormData((prev) => ({ ...prev, productsUsed: updatedProducts }));
+  };
+
+  const handleAllocationChange = (productIndex: number, allocIndex: number, field: 'lotId' | 'quantity', value: string) => {
+    const updatedProducts = [...formData.productsUsed];
+    const allocations = [...(updatedProducts[productIndex].lotAllocations || [])];
+
+    if (field === 'lotId') {
+      allocations[allocIndex] = { ...allocations[allocIndex], lotId: value };
+    } else if (field === 'quantity') {
+      allocations[allocIndex] = { ...allocations[allocIndex], quantity: formatNumber(value) };
+    }
+
+    updatedProducts[productIndex] = { ...updatedProducts[productIndex], lotAllocations: allocations };
+    setFormData((prev) => ({ ...prev, productsUsed: updatedProducts }));
+  };
+
+  const addAllocation = (productIndex: number) => {
+    const updatedProducts = [...formData.productsUsed];
+    const allocations = [...(updatedProducts[productIndex].lotAllocations || [])];
+    allocations.push({ lotId: '', quantity: '0' });
+    updatedProducts[productIndex] = { ...updatedProducts[productIndex], lotAllocations: allocations };
+    setFormData((prev) => ({ ...prev, productsUsed: updatedProducts }));
+  };
+
+  const removeAllocation = (productIndex: number, allocIndex: number) => {
+    const updatedProducts = [...formData.productsUsed];
+    const allocations = (updatedProducts[productIndex].lotAllocations || []).filter((_, i) => i !== allocIndex);
+    updatedProducts[productIndex] = { ...updatedProducts[productIndex], lotAllocations: allocations };
+    setFormData((prev) => ({ ...prev, productsUsed: updatedProducts }));
+  };
+
   const addProductUsage = () => {
     setFormData((prev) => ({
       ...prev,
       productsUsed: [
         ...prev.productsUsed,
-        { productId: '', quantity: '0', dose: '0' },
+        { productId: '', quantity: '0', dose: '0', lotAllocations: [], isLegacy: false },
       ],
     }));
   };
@@ -183,19 +278,201 @@ const OperationForm: React.FC<OperationFormProps> = ({
     }
   };
 
-  const isExpiringSoon = (date?: Date): boolean => {
-    if (!date) return false;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const diffDays = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    return diffDays >= 0 && diffDays <= 60;
+  const getDaysUntilExpiration = (date?: Date): number | null => {
+    if (!date) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const exp = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffMs = exp.getTime() - today.getTime();
+    return Math.round(diffMs / (1000 * 60 * 60 * 24));
+  };
+
+  const getExpirationLabel = (date?: Date): string => {
+    const days = getDaysUntilExpiration(date);
+    if (days === null) return language === 'pt' ? 'sem validade' : 'no expiry';
+    if (days < 0) return language === 'pt' ? `vencido há ${Math.abs(days)} dias` : `expired ${Math.abs(days)} days ago`;
+    if (days === 0) return language === 'pt' ? 'vence hoje' : 'expires today';
+    if (days <= 30) return language === 'pt' ? `vence em ${days} dias` : `expires in ${days} days`;
+    return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
+  };
+
+  const getExpirationDetail = (date?: Date): { label: string; className: string } => {
+    const days = getDaysUntilExpiration(date);
+    if (days === null) return { label: language === 'pt' ? 'Sem data de validade' : 'No expiration date', className: 'text-gray-500' };
+    if (days < 0) return { label: language === 'pt' ? `Vencido há ${Math.abs(days)} dias` : `Expired ${Math.abs(days)} days ago`, className: 'text-danger-600' };
+    if (days === 0) return { label: language === 'pt' ? 'Vence hoje' : 'Expires today', className: 'text-warning-600' };
+    if (days <= 30) return { label: language === 'pt' ? `Vence em ${days} dias` : `Expires in ${days} days`, className: 'text-warning-600' };
+    return { label: formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US'), className: 'text-gray-600' };
   };
 
   const isExpired = (date?: Date): boolean => {
-    if (!date) return false;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    return date < now;
+    const days = getDaysUntilExpiration(date);
+    return days !== null && days < 0;
+  };
+
+  const isExpiringSoon = (date?: Date): boolean => {
+    const days = getDaysUntilExpiration(date);
+    return days !== null && days >= 0 && days <= 30;
+  };
+
+  const sortLotsForDisplay = (lots: ProductLot[]): ProductLot[] => {
+    return [...lots].sort((a, b) => {
+      const aDays = getDaysUntilExpiration(a.expirationDate);
+      const bDays = getDaysUntilExpiration(b.expirationDate);
+
+      const aExpired = aDays !== null && aDays < 0;
+      const bExpired = bDays !== null && bDays < 0;
+      if (aExpired && !bExpired) return -1;
+      if (!aExpired && bExpired) return 1;
+
+      const aNear = aDays !== null && aDays >= 0 && aDays <= 30;
+      const bNear = bDays !== null && bDays >= 0 && bDays <= 30;
+      if (aNear && !bNear) return -1;
+      if (!aNear && bNear) return 1;
+
+      if (aDays !== null && bDays !== null) {
+        if (aExpired && bExpired) return bDays - aDays;
+        return aDays - bDays;
+      }
+      if (aDays !== null && bDays === null) return -1;
+      if (aDays === null && bDays !== null) return 1;
+
+      return a.lotNumber.localeCompare(b.lotNumber);
+    });
+  };
+
+  const getSelectableLots = (allLots: ProductLot[], currentLotId?: string): ProductLot[] => {
+    return allLots.filter(lot => lot.quantity > 0 || lot.id === currentLotId);
+  };
+
+  const getUntrackedAvailable = (productId: string): number => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return 0;
+    const tracked = getLotsByProductId(productId).reduce((sum, l) => sum + l.quantity, 0);
+    const untracked = product.quantityInStock - tracked;
+    return untracked < 0 ? 0 : untracked;
+  };
+
+  const getAllocationsTotal = (usage: FormProductUsage): number => {
+    if (!usage.lotAllocations) return 0;
+    return usage.lotAllocations.reduce((sum, a) => sum + parseNumber(a.quantity), 0);
+  };
+
+  const applyFEFO = (index: number) => {
+    const usage = formData.productsUsed[index];
+    const product = products.find(p => p.id === usage.productId);
+    if (!product) return;
+
+    const needed = parseNumber(usage.quantity);
+    if (needed <= 0) return;
+
+    const allLots = getLotsByProductId(product.id);
+    const availableLots = allLots.filter(l => l.quantity > 0);
+
+    const sortedLots = [...availableLots].sort((a, b) => {
+      const aDays = getDaysUntilExpiration(a.expirationDate);
+      const bDays = getDaysUntilExpiration(b.expirationDate);
+      if (aDays !== null && bDays !== null) return aDays - bDays;
+      if (aDays !== null && bDays === null) return -1;
+      if (aDays === null && bDays !== null) return 1;
+      return a.lotNumber.localeCompare(b.lotNumber);
+    });
+
+    const allocations: FormLotAllocation[] = [];
+    let remaining = needed;
+
+    for (const lot of sortedLots) {
+      if (remaining <= 0) break;
+      const take = Math.min(lot.quantity, remaining);
+      allocations.push({ lotId: lot.id, quantity: take.toString().replace('.', ',') });
+      remaining -= take;
+    }
+
+    if (remaining > 0) {
+      const untracked = getUntrackedAvailable(product.id);
+      if (untracked > 0) {
+        const take = Math.min(untracked, remaining);
+        allocations.push({ lotId: '', quantity: take.toString().replace('.', ',') });
+        remaining -= take;
+      }
+    }
+
+    const updatedProducts = [...formData.productsUsed];
+    updatedProducts[index] = {
+      ...usage,
+      lotAllocations: allocations,
+    };
+    setFormData(prev => ({ ...prev, productsUsed: updatedProducts }));
+  };
+
+  const handleFefoToggle = (index: number) => {
+    const isChecked = fefoChecked[index] || false;
+
+    if (isChecked) {
+      setFefoChecked(prev => { const n = [...prev]; n[index] = false; return n; });
+      setFefoApplied(prev => { const n = [...prev]; n[index] = false; return n; });
+      return;
+    }
+
+    const usage = formData.productsUsed[index];
+    if (!usage.productId || usage.isLegacy) return;
+
+    const hasAllocations = (usage.lotAllocations || []).some(a => parseNumber(a.quantity) > 0);
+
+    if (hasAllocations) {
+      setShowFefoReconfirm(true);
+      setFefoReconfirmIndex(index);
+      return;
+    }
+
+    if (hideFefoWarningStored) {
+      setFefoChecked(prev => { const n = [...prev]; n[index] = true; return n; });
+      applyFEFO(index);
+      setFefoApplied(prev => { const n = [...prev]; n[index] = true; return n; });
+    } else {
+      setShowFefoWarning(true);
+      setFefoPendingIndex(index);
+    }
+  };
+
+  const handleFefoWarningContinue = () => {
+    const index = fefoPendingIndex;
+    if (index === null) return;
+
+    if (dontShowFefoWarning) {
+      try { localStorage.setItem('agriGest_hide_fefo_warning', 'true'); } catch { /* ignore */ }
+    }
+
+    setFefoChecked(prev => { const n = [...prev]; n[index] = true; return n; });
+    applyFEFO(index);
+    setFefoApplied(prev => { const n = [...prev]; n[index] = true; return n; });
+
+    setShowFefoWarning(false);
+    setFefoPendingIndex(null);
+    setDontShowFefoWarning(false);
+  };
+
+  const handleFefoWarningCancel = () => {
+    setShowFefoWarning(false);
+    setFefoPendingIndex(null);
+    setDontShowFefoWarning(false);
+  };
+
+  const handleFefoReconfirmContinue = () => {
+    const index = fefoReconfirmIndex;
+    if (index === null) return;
+
+    setFefoChecked(prev => { const n = [...prev]; n[index] = true; return n; });
+    applyFEFO(index);
+    setFefoApplied(prev => { const n = [...prev]; n[index] = true; return n; });
+
+    setShowFefoReconfirm(false);
+    setFefoReconfirmIndex(null);
+  };
+
+  const handleFefoReconfirmCancel = () => {
+    setShowFefoReconfirm(false);
+    setFefoReconfirmIndex(null);
   };
 
   const validate = (): boolean => {
@@ -256,6 +533,35 @@ const OperationForm: React.FC<OperationFormProps> = ({
       if (parseNumber(usage.dose.toString()) < 0) {
         newErrors[`dose-${index}`] = language === 'pt' ? 'Dose não pode ser negativa' : 'Dose cannot be negative';
       }
+
+      if (!usage.isLegacy && usage.lotAllocations && usage.lotAllocations.length > 0) {
+        const allocTotal = getAllocationsTotal(usage);
+        const qtyTotal = parseNumber(usage.quantity);
+        if (Math.abs(allocTotal - qtyTotal) > 0.000001) {
+          newErrors[`allocTotal-${index}`] = language === 'pt'
+            ? `Distribuição (${allocTotal}) não corresponde à quantidade (${qtyTotal})`
+            : `Distribution (${allocTotal}) does not match quantity (${qtyTotal})`;
+        }
+
+        const seenLotIds: string[] = [];
+        let nullCount = 0;
+        usage.lotAllocations.forEach((alloc, aIdx) => {
+          if (parseNumber(alloc.quantity) <= 0) {
+            newErrors[`allocQty-${index}-${aIdx}`] = language === 'pt' ? 'Quantidade deve ser maior que 0' : 'Quantity must be greater than 0';
+          }
+          if (!alloc.lotId) {
+            nullCount++;
+            if (nullCount > 1) {
+              newErrors[`allocLot-${index}-${aIdx}`] = language === 'pt' ? 'Apenas uma origem sem lote' : 'Only one no-lot source';
+            }
+          } else {
+            if (seenLotIds.includes(alloc.lotId)) {
+              newErrors[`allocLot-${index}-${aIdx}`] = language === 'pt' ? 'Lote duplicado' : 'Duplicate lot';
+            }
+            seenLotIds.push(alloc.lotId);
+          }
+        });
+      }
     });
 
     setErrors(newErrors);
@@ -272,11 +578,25 @@ const OperationForm: React.FC<OperationFormProps> = ({
       startDate: inputValueToDate(formData.startDate),
       endDate: formData.endDate ? inputValueToDate(formData.endDate) : undefined,
       nextOperationDate: formData.nextOperationDate ? inputValueToDate(formData.nextOperationDate) : undefined,
-      productsUsed: formData.productsUsed.map(usage => ({
-        ...usage,
-        quantity: parseNumber(usage.quantity.toString()),
-        dose: parseNumber(usage.dose.toString())
-      })),
+      productsUsed: formData.productsUsed.map(usage => {
+        if (usage.isLegacy) {
+          return {
+            productId: usage.productId,
+            quantity: parseNumber(usage.quantity),
+            dose: parseNumber(usage.dose),
+            lotId: usage.lotId,
+          };
+        }
+        return {
+          productId: usage.productId,
+          quantity: parseNumber(usage.quantity),
+          dose: parseNumber(usage.dose),
+          lotAllocations: (usage.lotAllocations || []).map(alloc => ({
+            lotId: alloc.lotId || null,
+            quantity: parseNumber(alloc.quantity),
+          })).filter(alloc => alloc.quantity > 0),
+        };
+      }) as ProductUsage[],
       operationSize: parseNumber(formData.operationSize),
       yieldPerHectare: formData.yieldPerHectare ? parseNumber(formData.yieldPerHectare) : undefined,
       seedsPerHectare: formData.seedsPerHectare ? parseNumber(formData.seedsPerHectare) : undefined,
@@ -348,7 +668,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
               size="sm"
               onClick={() => setShowNewTypeInput(true)}
               leftIcon={<Plus size={16} />}
-              className="text-green-700 hover:text-green-800"
+              className="text-brand-700 hover:text-brand-800"
             >
               {language === 'pt' ? 'Novo Tipo' : 'New Type'}
             </Button>
@@ -473,7 +793,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                     }
                   }
                 }}
-                className="rounded border-gray-300 text-green-600 shadow-sm focus:border-green-300 focus:ring focus:ring-green-200 focus:ring-opacity-50 mr-2"
+                className="rounded border-gray-300 text-brand-600 shadow-sm focus:border-brand-300 focus:ring focus:ring-brand-200 focus:ring-opacity-50 mr-2"
               />
               {language === 'pt' ? 'Editar tamanho' : 'Edit size'}
             </label>
@@ -548,103 +868,306 @@ const OperationForm: React.FC<OperationFormProps> = ({
         {formData.productsUsed.map((usage, index) => {
           const product = products.find(p => p.id === usage.productId);
           const availableLots = product ? getLotsByProductId(product.id) : [];
-          const selectedLot = availableLots.find(l => l.id === usage.lotId);
 
           return (
-            <div key={index} className="flex items-start space-x-4 mb-4 p-4 bg-gray-50 rounded-md">
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
-                <ProductSearchInput
-                  products={products}
-                  value={usage.productId}
-                  onChange={(productId) => handleProductChange(index, 'productId', productId)}
-                  label={language === 'pt' ? 'Produto' : 'Product'}
-                  placeholder={language === 'pt' ? 'Buscar produto...' : 'Search product...'}
-                  error={errors[`productId-${index}`]}
-                  required
-                />
+            <div key={index} className="mb-4 p-4 bg-gray-50 rounded-md">
+              <div className="flex items-start space-x-4 mb-3">
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <ProductSearchInput
+                    products={products}
+                    value={usage.productId}
+                    onChange={(productId) => handleProductChange(index, 'productId', productId)}
+                    label={language === 'pt' ? 'Produto' : 'Product'}
+                    placeholder={language === 'pt' ? 'Buscar produto...' : 'Search product...'}
+                    error={errors[`productId-${index}`]}
+                    required
+                  />
 
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">
-                    {language === 'pt' ? 'Lote' : 'Lot'}
-                  </label>
-                  <select
-                    value={usage.lotId || ''}
-                    onChange={(e) => handleProductChange(index, 'lotId', e.target.value)}
-                    disabled={!product || availableLots.length === 0}
-                    className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 ${(!product || availableLots.length === 0) ? 'bg-gray-100 text-gray-400' : ''}`}
-                  >
-                    <option value="">
-                      {availableLots.length === 0
-                        ? (language === 'pt' ? 'Sem lotes' : 'No lots')
-                        : (language === 'pt' ? 'Selecione um lote' : 'Select a lot')}
-                    </option>
-                    {availableLots.map(lot => {
-                      const expired = isExpired(lot.expirationDate);
-                      const expiringSoon = isExpiringSoon(lot.expirationDate);
-                      const expLabel = lot.expirationDate
-                        ? ` - ${formatDateForDisplay(lot.expirationDate, language === 'pt' ? 'pt-BR' : 'en-US')}`
-                        : '';
-                      const warningLabel = expired
-                        ? ` (${language === 'pt' ? 'Vencido' : 'Expired'})`
-                        : expiringSoon
-                        ? ` (${language === 'pt' ? 'Vence em breve' : 'Expiring soon'})`
-                        : '';
-                      return (
-                        <option key={lot.id} value={lot.id}>
-                          {lot.lotNumber} ({lot.quantity} {product?.unit}){expLabel}{warningLabel}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {selectedLot && isExpired(selectedLot.expirationDate) && (
-                    <p className="text-xs text-red-600 flex items-center gap-1">
-                      <AlertTriangle size={12} />
-                      {language === 'pt' ? 'Lote vencido' : 'Expired lot'}
-                    </p>
-                  )}
-                  {selectedLot && isExpiringSoon(selectedLot.expirationDate) && !isExpired(selectedLot.expirationDate) && (
-                    <p className="text-xs text-orange-600 flex items-center gap-1">
-                      <AlertTriangle size={12} />
-                      {language === 'pt' ? 'Vence em breve' : 'Expiring soon'}
-                    </p>
-                  )}
+                  <Input
+                    name={`dose-${index}`}
+                    label={`${language === 'pt' ? 'Dose por' : 'Dose per'} ${selectedArea?.unit || 'hectare'}`}
+                    type="text"
+                    inputMode="decimal"
+                    value={usage.dose?.toString() || '0'}
+                    onChange={(e) => handleProductChange(index, 'dose', e.target.value)}
+                    helperText={product ? `${language === 'pt' ? 'em' : 'in'} ${product.unit}/${selectedArea?.unit || 'hectare'}` : ''}
+                    error={errors[`dose-${index}`]}
+                  />
+
+                  <Input
+                    name={`quantity-${index}`}
+                    label={language === 'pt' ? 'Quantidade Total' : 'Total Quantity'}
+                    type="text"
+                    inputMode="decimal"
+                    value={usage.quantity.toString()}
+                    onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                    error={errors[`quantity-${index}`]}
+                    helperText={product ? product.unit : ''}
+                    required
+                  />
                 </div>
 
-                <Input
-                  name={`dose-${index}`}
-                  label={`${language === 'pt' ? 'Dose por' : 'Dose per'} ${selectedArea?.unit || 'hectare'}`}
-                  type="text"
-                  inputMode="decimal"
-                  value={usage.dose?.toString() || '0'}
-                  onChange={(e) => handleProductChange(index, 'dose', e.target.value)}
-                  helperText={product ? `${language === 'pt' ? 'em' : 'in'} ${product.unit}/${selectedArea?.unit || 'hectare'}` : ''}
-                  error={errors[`dose-${index}`]}
-                />
-
-                <Input
-                  name={`quantity-${index}`}
-                  label={language === 'pt' ? 'Quantidade Total' : 'Total Quantity'}
-                  type="text"
-                  inputMode="decimal"
-                  value={usage.quantity.toString()}
-                  onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
-                  error={errors[`quantity-${index}`]}
-                  helperText={product ? product.unit : ''}
-                  required
-                />
+                <div className="pt-8">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={language === 'pt' ? 'Remover produto' : 'Remove product'}
+                    leftIcon={<X size={16} />}
+                    onClick={() => removeProductUsage(index)}
+                    className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
+                  />
+                </div>
               </div>
 
-              <div className="pt-8">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-label={language === 'pt' ? 'Remover produto' : 'Remove product'}
-                  leftIcon={<X size={16} />}
-                  onClick={() => removeProductUsage(index)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                />
-              </div>
+              {product && (
+                <p className="text-xs text-gray-500 mb-2">
+                  {language === 'pt' ? 'Produto histórico indisponível' : 'Historical product unavailable'}
+                </p>
+              )}
+
+              {usage.isLegacy ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {language === 'pt' ? 'Lote' : 'Lot'}
+                      </label>
+                      <select
+                        value={usage.lotId || ''}
+                        onChange={(e) => handleProductChange(index, 'lotId', e.target.value)}
+                        disabled={!product || availableLots.length === 0}
+                        className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 ${(!product || availableLots.length === 0) ? 'bg-gray-100 text-gray-400' : ''}`}
+                      >
+                        <option value="">
+                          {availableLots.length === 0
+                            ? (language === 'pt' ? 'Sem lotes' : 'No lots')
+                            : (language === 'pt' ? 'Selecione um lote' : 'Select a lot')}
+                        </option>
+                        {sortLotsForDisplay(getSelectableLots(availableLots, usage.lotId)).map(lot => {
+                          const expLabel = getExpirationLabel(lot.expirationDate);
+                          return (
+                            <option key={lot.id} value={lot.id}>
+                              {lot.lotNumber} — {lot.quantity} {product?.unit} — {expLabel}
+                            </option>
+                          );
+                        })}
+                        {usage.lotId && !availableLots.find(l => l.id === usage.lotId) && (
+                          <option value={usage.lotId}>
+                            {language === 'pt' ? 'Lote histórico indisponível' : 'Historical lot unavailable'}
+                          </option>
+                        )}
+                      </select>
+                      {(() => {
+                        if (!usage.lotId) return null;
+                        const selectedLot = availableLots.find(l => l.id === usage.lotId);
+                        if (!selectedLot) return null;
+                        const expDetail = getExpirationDetail(selectedLot.expirationDate);
+                        return (
+                          <div className="mt-1 text-xs space-y-0.5">
+                            <p className="text-gray-600">{language === 'pt' ? 'Lote' : 'Lot'}: {selectedLot.lotNumber}</p>
+                            <p className="text-gray-600">{language === 'pt' ? 'Disponível' : 'Available'}: {selectedLot.quantity} {product?.unit}</p>
+                            {selectedLot.expirationDate && (
+                              <p className="text-gray-600">{language === 'pt' ? 'Validade' : 'Expiry'}: {formatDateForDisplay(selectedLot.expirationDate, language === 'pt' ? 'pt-BR' : 'en-US')}</p>
+                            )}
+                            <p className={expDetail.className}>{expDetail.label}</p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    <div className="pt-7">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        leftIcon={<Layers size={14} />}
+                        onClick={() => convertToAllocations(index)}
+                      >
+                        {language === 'pt' ? 'Distribuir entre lotes' : 'Split across lots'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 border-t border-gray-200 pt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">
+                      {language === 'pt' ? 'Origem do estoque' : 'Stock source'}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Plus size={14} />}
+                      onClick={() => addAllocation(index)}
+                      disabled={!product}
+                    >
+                      {language === 'pt' ? 'Adicionar origem' : 'Add source'}
+                    </Button>
+                  </div>
+
+                  {product && !usage.isLegacy && (
+                    <div className="flex items-center gap-2 py-1">
+                      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={fefoChecked[index] || false}
+                          onChange={() => handleFefoToggle(index)}
+                          className="rounded border-gray-300 text-brand-600 shadow-sm focus:border-brand-300 focus:ring focus:ring-brand-200 focus:ring-opacity-50"
+                        />
+                        {language === 'pt'
+                          ? 'Distribuir automaticamente pelos lotes (prioriza os que vencem primeiro)'
+                          : 'Auto-distribute across lots (prioritizes soonest expiry)'}
+                      </label>
+                    </div>
+                  )}
+
+                  {fefoApplied[index] && (() => {
+                    const total = getAllocationsTotal(usage);
+                    const needed = parseNumber(usage.quantity);
+                    if (total < needed - 0.000001) {
+                      return (
+                        <p className="text-xs text-warning-700 bg-warning-50 px-3 py-1.5 rounded">
+                          {language === 'pt'
+                            ? `Estoque disponível insuficiente para distribuir a quantidade necessária. Distribuído: ${total} de ${needed}`
+                            : `Insufficient stock to distribute the required quantity. Distributed: ${total} of ${needed}`}
+                        </p>
+                      );
+                    }
+                    return (
+                      <p className="text-xs text-brand-600 bg-brand-50 px-3 py-1.5 rounded">
+                        {language === 'pt'
+                          ? 'Distribuição automática FEFO aplicada. Confira os lotes antes de salvar.'
+                          : 'Automatic FEFO distribution applied. Review lots before saving.'}
+                      </p>
+                    );
+                  })()}
+
+                  {(usage.lotAllocations || []).map((alloc, aIdx) => {
+                    const allocLot = alloc.lotId ? availableLots.find(l => l.id === alloc.lotId) : null;
+                    const isHistoricalLot = alloc.lotId && !allocLot;
+                    const isNoLot = !alloc.lotId;
+
+                    return (
+                      <div key={aIdx} className="flex items-start gap-2">
+                        <div className="flex-1">
+                          <select
+                            value={alloc.lotId}
+                            onChange={(e) => handleAllocationChange(index, aIdx, 'lotId', e.target.value)}
+                            disabled={!product}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
+                          >
+                            <option value="">
+                              {language === 'pt' ? 'Sem lote' : 'No lot'}
+                            </option>
+                            {sortLotsForDisplay(getSelectableLots(availableLots, alloc.lotId)).map(lot => {
+                              const expLabel = getExpirationLabel(lot.expirationDate);
+                              return (
+                                <option key={lot.id} value={lot.id}>
+                                  {lot.lotNumber} — {lot.quantity} {product?.unit} — {expLabel}
+                                </option>
+                              );
+                            })}
+                            {isHistoricalLot && (
+                              <option value={alloc.lotId}>
+                                {language === 'pt' ? 'Lote histórico indisponível' : 'Historical lot unavailable'}
+                              </option>
+                            )}
+                          </select>
+                          {isNoLot && (
+                            <div className="mt-1 text-xs space-y-0.5">
+                              <p className="text-gray-600">{language === 'pt' ? 'Sem lote identificado' : 'No lot identified'}</p>
+                              <p className="text-gray-600">{language === 'pt' ? 'Disponível' : 'Available'}: {getUntrackedAvailable(usage.productId)} {product?.unit || ''}</p>
+                            </div>
+                          )}
+                          {allocLot && (() => {
+                            const expDetail = getExpirationDetail(allocLot.expirationDate);
+                            return (
+                              <div className="mt-1 text-xs space-y-0.5">
+                                <p className="text-gray-600">{language === 'pt' ? 'Lote' : 'Lot'}: {allocLot.lotNumber}</p>
+                                <p className="text-gray-600">{language === 'pt' ? 'Disponível' : 'Available'}: {allocLot.quantity} {product?.unit || ''}</p>
+                                {allocLot.expirationDate && (
+                                  <p className="text-gray-600">{language === 'pt' ? 'Validade' : 'Expiry'}: {formatDateForDisplay(allocLot.expirationDate, language === 'pt' ? 'pt-BR' : 'en-US')}</p>
+                                )}
+                                <p className={expDetail.className}>{expDetail.label}</p>
+                              </div>
+                            );
+                          })()}
+                          {isHistoricalLot && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {language === 'pt' ? 'Lote histórico indisponível' : 'Historical lot unavailable'}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="w-32">
+                          <Input
+                            name={`allocQty-${index}-${aIdx}`}
+                            type="text"
+                            inputMode="decimal"
+                            value={alloc.quantity}
+                            onChange={(e) => handleAllocationChange(index, aIdx, 'quantity', e.target.value)}
+                            error={errors[`allocQty-${index}-${aIdx}`]}
+                            className="text-sm"
+                          />
+                        </div>
+
+                        <div className="pt-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label={language === 'pt' ? 'Remover origem' : 'Remove source'}
+                            leftIcon={<X size={14} />}
+                            onClick={() => removeAllocation(index, aIdx)}
+                            className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {(usage.lotAllocations || []).length === 0 && (
+                    <p className="text-sm text-gray-500 italic">
+                      {language === 'pt'
+                        ? 'Nenhuma origem adicionada. Adicione pelo menos uma origem.'
+                        : 'No source added. Add at least one source.'}
+                    </p>
+                  )}
+
+                  {(() => {
+                    const total = getAllocationsTotal(usage);
+                    const qty = parseNumber(usage.quantity);
+                    const diff = total - qty;
+                    if (usage.lotAllocations && usage.lotAllocations.length > 0) {
+                      if (Math.abs(diff) < 0.000001) {
+                        return (
+                          <p className="text-sm text-green-600 font-medium">
+                            {language === 'pt' ? 'Distribuição completa' : 'Distribution complete'}: {total} / {qty} {product?.unit || ''}
+                          </p>
+                        );
+                      } else if (diff < 0) {
+                        return (
+                          <p className="text-sm text-orange-600 font-medium">
+                            {language === 'pt' ? `Falta distribuir ${Math.abs(diff).toFixed(2)}` : `Missing ${Math.abs(diff).toFixed(2)}`}: {total} / {qty} {product?.unit || ''}
+                          </p>
+                        );
+                      } else {
+                        return (
+                          <p className="text-sm text-danger-600 font-medium">
+                            {language === 'pt' ? `Excede em ${diff.toFixed(2)}` : `Exceeds by ${diff.toFixed(2)}`}: {total} / {qty} {product?.unit || ''}
+                          </p>
+                        );
+                      }
+                    }
+                    return null;
+                  })()}
+
+                  {errors[`allocTotal-${index}`] && (
+                    <p className="text-sm text-danger-600">{errors[`allocTotal-${index}`]}</p>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -659,7 +1182,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
           value={formData.notes}
           onChange={handleChange}
           rows={3}
-          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           placeholder={language === 'pt'
             ? 'Digite quaisquer observações adicionais sobre esta operação...'
             : 'Enter any additional notes about this operation...'}
@@ -678,12 +1201,68 @@ const OperationForm: React.FC<OperationFormProps> = ({
         <Button
           type="submit"
           leftIcon={<Save size={18} />}
+          disabled={!isOnline}
         >
           {isEditing
             ? (language === 'pt' ? 'Atualizar Operação' : 'Update Operation')
             : (language === 'pt' ? 'Criar Operação' : 'Create Operation')}
         </Button>
       </div>
+
+      {showFefoWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={handleFefoWarningCancel}>
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <AlertTriangle size={24} className="text-warning-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-gray-700">
+                {language === 'pt'
+                  ? 'A seleção será automática, portanto atente-se a usar produtos com prazo de validade mais curto primeiro.'
+                  : 'The selection will be automatic, so please pay attention to using products with shorter expiration dates first.'}
+              </p>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+              <input
+                type="checkbox"
+                checked={dontShowFefoWarning}
+                onChange={(e) => setDontShowFefoWarning(e.target.checked)}
+                className="rounded border-gray-300 text-brand-600 shadow-sm focus:border-brand-300 focus:ring focus:ring-brand-200 focus:ring-opacity-50"
+              />
+              {language === 'pt' ? 'Não exibir novamente este aviso' : "Don't show this warning again"}
+            </label>
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" size="sm" onClick={handleFefoWarningCancel}>
+                {language === 'pt' ? 'Cancelar' : 'Cancel'}
+              </Button>
+              <Button type="button" size="sm" onClick={handleFefoWarningContinue}>
+                {language === 'pt' ? 'Continuar' : 'Continue'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFefoReconfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={handleFefoReconfirmCancel}>
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start gap-3 mb-4">
+              <AlertTriangle size={24} className="text-warning-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-gray-700">
+                {language === 'pt'
+                  ? 'A distribuição automática substituirá a distribuição atual deste produto. Deseja continuar?'
+                  : 'Automatic distribution will replace the current distribution for this product. Continue?'}
+              </p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" size="sm" onClick={handleFefoReconfirmCancel}>
+                {language === 'pt' ? 'Cancelar' : 'Cancel'}
+              </Button>
+              <Button type="button" size="sm" onClick={handleFefoReconfirmContinue}>
+                {language === 'pt' ? 'Redistribuir' : 'Redistribute'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 };

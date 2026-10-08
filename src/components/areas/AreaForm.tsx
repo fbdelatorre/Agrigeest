@@ -6,6 +6,7 @@ import Button from '../ui/Button';
 import { Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 
 interface AreaFormProps {
   initialData?: Partial<Area>;
@@ -20,6 +21,7 @@ const AreaForm: React.FC<AreaFormProps> = ({
 }) => {
   const navigate = useNavigate();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
   const [formData, setFormData] = useState({
     name: initialData.name || '',
     size: initialData.size?.toString() || '',
@@ -151,7 +153,7 @@ const AreaForm: React.FC<AreaFormProps> = ({
           value={formData.description}
           onChange={handleChange}
           rows={3}
-          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           placeholder={language === 'pt' 
             ? 'Digite detalhes adicionais sobre esta área...'
             : 'Enter any additional details about this area...'}
@@ -169,6 +171,7 @@ const AreaForm: React.FC<AreaFormProps> = ({
         </Button>
         <Button
           type="submit"
+          disabled={!isOnline}
           leftIcon={<Save size={18} />}
         >
           {isEditing 

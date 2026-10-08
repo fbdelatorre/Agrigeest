@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ProductLot } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Badge from '../ui/Badge';
-import { Plus, Pencil, Trash2, X, Save, AlertTriangle, Package } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Save, AlertTriangle, Package, Archive } from 'lucide-react';
 import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 
 interface LotManagerProps {
   productId: string;
@@ -20,19 +21,49 @@ interface LotFormData {
 }
 
 const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
-  const { getLotsByProductId, addLot, updateLot, deleteLot } = useAppContext();
+  const { getLotsByProductId, addLot, updateLot, deleteLot, getProductById, archiveLot } = useAppContext();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
 
   const lots = getLotsByProductId(productId);
+  const product = getProductById(productId);
+  const totalStock = product?.quantityInStock ?? 0;
+  const trackedStock = lots.reduce((sum, lot) => sum + lot.quantity, 0);
+  const untrackedStock = totalStock - trackedStock;
 
   const [showForm, setShowForm] = useState(false);
   const [editingLotId, setEditingLotId] = useState<string | null>(null);
+  const [editingOriginalQuantity, setEditingOriginalQuantity] = useState<number | null>(null);
   const [lotForm, setLotForm] = useState<LotFormData>({
     lotNumber: '',
     quantity: '',
     expirationDate: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+
+  const [isArchiving, setIsArchiving] = useState(false);
+
+  const handleArchiveLot = async (lotId: string) => {
+    if (window.confirm(language === 'pt' ? 'Arquivar este lote? O lote deve estar com quantidade zero. O histórico do ledger será preservado.' : 'Archive this lot? The lot must have zero quantity. Ledger history will be preserved.')) {
+      setIsArchiving(true);
+      try {
+        await archiveLot(lotId);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : '';
+        if (msg.includes('LOT_NOT_EMPTY')) {
+          alert(language === 'pt' ? 'Não é possível arquivar um lote com quantidade maior que zero.' : 'Cannot archive a lot with quantity greater than zero.');
+        } else if (msg.includes('LOT_ALREADY_ARCHIVED')) {
+          alert(language === 'pt' ? 'Este lote já está arquivado.' : 'This lot is already archived.');
+        } else {
+          console.error('Error archiving lot:', error);
+        }
+      } finally {
+        setIsArchiving(false);
+      }
+    }
+  };
 
   const isExpiringSoon = (date?: Date): boolean => {
     if (!date) return false;
@@ -58,6 +89,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
 
   const handleEditLot = (lot: ProductLot) => {
     setEditingLotId(lot.id);
+    setEditingOriginalQuantity(lot.quantity);
     setLotForm({
       id: lot.id,
       lotNumber: lot.lotNumber,
@@ -71,14 +103,25 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
   const handleCancelForm = () => {
     setShowForm(false);
     setEditingLotId(null);
+    setEditingOriginalQuantity(null);
     setLotForm({ lotNumber: '', quantity: '', expirationDate: '' });
     setErrors({});
   };
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!lotForm.lotNumber.trim()) {
+    const trimmedNumber = lotForm.lotNumber.trim();
+    if (!trimmedNumber) {
       newErrors.lotNumber = language === 'pt' ? 'Número do lote é obrigatório' : 'Lot number is required';
+    } else {
+      const duplicateLot = lots.find(l => 
+        l.lotNumber.trim().toLowerCase() === trimmedNumber.toLowerCase() && l.id !== editingLotId
+      );
+      if (duplicateLot) {
+        newErrors.lotNumber = language === 'pt'
+          ? 'Já existe um lote com esse número para este produto.'
+          : 'A lot with this number already exists for this product.';
+      }
     }
     if (!lotForm.quantity.trim()) {
       newErrors.quantity = language === 'pt' ? 'Quantidade é obrigatória' : 'Quantity is required';
@@ -90,7 +133,10 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
   };
 
   const handleSubmitLot = async () => {
+    if (submittingRef.current) return;
     if (!validate()) return;
+    submittingRef.current = true;
+    setIsSubmitting(true);
 
     try {
       const lotData = {
@@ -101,13 +147,31 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
       };
 
       if (editingLotId) {
-        await updateLot(editingLotId, lotData);
+        await updateLot(editingLotId, lotData, editingOriginalQuantity ?? undefined);
       } else {
         await addLot(lotData);
       }
       handleCancelForm();
     } catch (error) {
-      console.error('Error saving lot:', error);
+      const errorMsg = error instanceof Error ? error.message : '';
+      if (errorMsg.includes('LOT_NUMBER_ALREADY_EXISTS')) {
+        setErrors({
+          lotNumber: language === 'pt'
+            ? 'Já existe um lote com esse número para este produto.'
+            : 'A lot with this number already exists for this product.',
+        });
+      } else if (errorMsg.includes('LOT_QUANTITY_STALE')) {
+        setErrors({
+          quantity: language === 'pt'
+            ? 'O saldo deste lote foi alterado enquanto você estava editando. O estoque foi atualizado. Confira o novo saldo antes de fazer a alteração novamente.'
+            : 'This lot balance changed while you were editing. The stock has been refreshed. Review the new balance before making the change again.',
+        });
+      } else {
+        console.error('Error saving lot:', error);
+      }
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -125,11 +189,11 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium text-gray-900 flex items-center">
-          <Package size={20} className="mr-2 text-green-700" />
+          <Package size={20} className="mr-2 text-brand-700" />
           {language === 'pt' ? 'Lotes do Produto' : 'Product Lots'}
         </h3>
         {!showForm && (
-          <Button type="button" variant="secondary" size="sm" leftIcon={<Plus size={16} />} onClick={handleAddLot}>
+          <Button type="button" variant="secondary" size="sm" leftIcon={<Plus size={16} />} onClick={handleAddLot} disabled={!isOnline}>
             {language === 'pt' ? 'Adicionar Lote' : 'Add Lot'}
           </Button>
         )}
@@ -170,7 +234,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
             <Button type="button" variant="outline" size="sm" leftIcon={<X size={16} />} onClick={handleCancelForm}>
               {language === 'pt' ? 'Cancelar' : 'Cancel'}
             </Button>
-            <Button type="button" size="sm" leftIcon={<Save size={16} />} onClick={handleSubmitLot}>
+            <Button type="button" size="sm" leftIcon={<Save size={16} />} onClick={handleSubmitLot} disabled={!isOnline || isSubmitting}>
               {editingLotId
                 ? (language === 'pt' ? 'Atualizar Lote' : 'Update Lot')
                 : (language === 'pt' ? 'Salvar Lote' : 'Save Lot')}
@@ -230,6 +294,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
                     aria-label={language === 'pt' ? 'Editar lote' : 'Edit lot'}
                     leftIcon={<Pencil size={14} />}
                     onClick={() => handleEditLot(lot)}
+                    disabled={!isOnline}
                   />
                   <Button
                     type="button"
@@ -238,7 +303,18 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
                     aria-label={language === 'pt' ? 'Excluir lote' : 'Delete lot'}
                     leftIcon={<Trash2 size={14} />}
                     onClick={() => handleDeleteLot(lot.id)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    disabled={!isOnline}
+                    className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={language === 'pt' ? 'Arquivar lote' : 'Archive lot'}
+                    leftIcon={<Archive size={14} />}
+                    onClick={() => handleArchiveLot(lot.id)}
+                    disabled={!isOnline || isArchiving || lot.quantity > 0}
+                    title={lot.quantity > 0 ? (language === 'pt' ? 'Lote deve estar zerado para arquivar' : 'Lot must be zero to archive') : ''}
                   />
                 </div>
               </div>
@@ -246,8 +322,30 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
           })}
           <div className="flex justify-end pt-2 border-t border-gray-200">
             <div className="text-sm font-medium text-gray-700">
-              {language === 'pt' ? 'Quantidade Total: ' : 'Total Quantity: '}
-              {lots.reduce((sum, lot) => sum + lot.quantity, 0)}
+              {language === 'pt' ? 'Em lotes: ' : 'Tracked in lots: '}
+              {trackedStock} {product?.unit}
+            </div>
+          </div>
+          {untrackedStock >= 0 ? (
+            <div className="flex justify-end">
+              <div className="text-sm text-gray-500">
+                {language === 'pt' ? 'Sem lote: ' : 'Untracked: '}
+                {untrackedStock} {product?.unit}
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <div className="text-sm text-amber-600">
+                {language === 'pt'
+                  ? 'Quantidade em lotes excede o estoque total. Dados históricos precisam de revisão.'
+                  : 'Lot quantity exceeds total stock. Historical data needs review.'}
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <div className="text-sm font-medium text-gray-900">
+              {language === 'pt' ? 'Estoque total: ' : 'Total stock: '}
+              {totalStock} {product?.unit}
             </div>
           </div>
         </div>

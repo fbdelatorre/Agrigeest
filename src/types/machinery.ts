@@ -8,7 +8,7 @@ export interface Machinery {
   year?: number;
   createdAt: Date;
   updatedAt: Date;
-  userId: string;
+  userId: string | null;
   institutionId: string;
 }
 
@@ -17,7 +17,7 @@ export interface MaintenanceType {
   name: string;
   description?: string;
   createdAt: Date;
-  userId: string;
+  userId: string | null;
   institutionId: string;
 }
 
@@ -33,7 +33,7 @@ export interface Maintenance {
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
-  userId: string;
+  userId: string | null;
   institutionId: string;
 }
 

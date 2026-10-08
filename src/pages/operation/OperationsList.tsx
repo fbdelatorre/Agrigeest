@@ -4,6 +4,7 @@ import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 import OperationCard from '../../components/operations/OperationCard';
 import Button from '../../components/ui/Button';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Plus, Filter, ChevronDown } from 'lucide-react';
 import Select from '../../components/ui/Select';
 
@@ -11,6 +12,7 @@ const OperationsList = () => {
   const navigate = useNavigate();
   const { operations, areas, deleteOperation, activeSeason } = useAppContext();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterArea, setFilterArea] = useState('');
@@ -38,12 +40,38 @@ const OperationsList = () => {
     return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
   });
   
-  const handleDeleteOperation = (id: string) => {
+  const handleDeleteOperation = async (id: string) => {
     if (window.confirm(language === 'pt'
       ? 'Tem certeza que deseja excluir esta operação?'
       : 'Are you sure you want to delete this operation?'
     )) {
-      deleteOperation(id);
+      try {
+        await deleteOperation(id);
+      } catch (error: any) {
+        console.error('Error deleting operation:', error);
+
+        const msg = error?.message || '';
+        const isPt = language === 'pt';
+
+        const errorMessages: Record<string, { pt: string; en: string }> = {
+          AUTH_REQUIRED: { pt: 'Você precisa estar autenticado.', en: 'You must be authenticated.' },
+          PROFILE_NOT_FOUND: { pt: 'Perfil de usuário não encontrado.', en: 'User profile not found.' },
+          PROFILE_NO_INSTITUTION: { pt: 'Você não pertence a uma instituição.', en: 'You do not belong to an institution.' },
+          OPERATION_NOT_FOUND_OR_FORBIDDEN: { pt: 'Operação não encontrada ou acesso negado.', en: 'Operation not found or access denied.' },
+          PRODUCT_NOT_FOUND_OR_FORBIDDEN: { pt: 'Produto não encontrado ou acesso negado.', en: 'Product not found or access denied.' },
+          LOT_NOT_FOUND_OR_MISMATCH: { pt: 'Lote não encontrado ou não corresponde ao produto.', en: 'Lot not found or does not match the product.' },
+          OPERATION_DELETE_FAILED: { pt: 'Falha ao excluir a operação. Tente novamente.', en: 'Failed to delete the operation. Please try again.' },
+        };
+
+        const matched = Object.keys(errorMessages).find(key => msg.includes(key));
+        if (matched) {
+          alert(isPt ? errorMessages[matched].pt : errorMessages[matched].en);
+        } else {
+          alert(isPt
+            ? 'Erro ao excluir operação. Tente novamente.'
+            : 'Error deleting operation. Please try again.');
+        }
+      }
     }
   };
   
@@ -102,12 +130,14 @@ const OperationsList = () => {
               : 'Manage and track all farming activities'}
           </p>
         </div>
-        <Button 
-          leftIcon={<Plus size={18} />}
-          onClick={handleAddOperation}
-        >
-          {language === 'pt' ? 'Nova Operação' : 'New Operation'}
-        </Button>
+        {isOnline && (
+          <Button 
+            leftIcon={<Plus size={18} />}
+            onClick={handleAddOperation}
+          >
+            {language === 'pt' ? 'Nova Operação' : 'New Operation'}
+          </Button>
+        )}
       </div>
       
       {!activeSeason ? (
@@ -131,7 +161,7 @@ const OperationsList = () => {
                   placeholder={language === 'pt'
                     ? 'Buscar operações...'
                     : 'Search operations...'}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-gray-900 placeholder-gray-400"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -181,7 +211,7 @@ const OperationsList = () => {
                   {language === 'pt' ? 'Ordenar:' : 'Sort:'}
                 </span>
                 <button
-                  className="flex items-center text-sm font-medium text-gray-700 hover:text-green-600"
+                  className="flex items-center text-sm font-medium text-gray-700 hover:text-brand-600"
                   onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
                 >
                   {language === 'pt' ? 'Data ' : 'Date '}
@@ -236,7 +266,7 @@ const OperationsList = () => {
                   <Button onClick={handleClearFilters}>
                     {language === 'pt' ? 'Limpar Filtros' : 'Clear Filters'}
                   </Button>
-                ) : (
+                ) : isOnline ? (
                   <Button 
                     leftIcon={<Plus size={18} />}
                     onClick={handleAddOperation}
@@ -245,7 +275,7 @@ const OperationsList = () => {
                       ? 'Registrar Primeira Operação'
                       : 'Record First Operation'}
                   </Button>
-                )}
+                ) : null}
               </div>
             )}
           </div>

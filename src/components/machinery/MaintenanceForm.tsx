@@ -8,6 +8,7 @@ import Button from '../ui/Button';
 import { Save, X, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { dateToInputValue, inputValueToDate } from '../../utils/dateHelpers';
 
 interface MaintenanceFormProps {
@@ -24,6 +25,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
   const navigate = useNavigate();
   const { machinery, maintenanceTypes, addMaintenanceType } = useMachineryContext();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
   const [searchParams] = useSearchParams();
   
   const [formData, setFormData] = useState({
@@ -164,7 +166,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
               size="sm"
               onClick={() => setShowNewTypeInput(true)}
               leftIcon={<Plus size={16} />}
-              className="text-green-700 hover:text-green-800"
+              className="text-brand-700 hover:text-brand-800"
             >
               {language === 'pt' ? 'Novo Tipo' : 'New Type'}
             </Button>
@@ -271,7 +273,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
           value={formData.description}
           onChange={handleChange}
           rows={3}
-          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           placeholder={language === 'pt'
             ? 'Descreva a manutenção realizada...'
             : 'Describe the maintenance performed...'}
@@ -287,7 +289,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
           value={formData.materialUsed}
           onChange={handleChange}
           rows={2}
-          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           placeholder={language === 'pt'
             ? 'ex: Óleo 15W40, Filtro de óleo, Parafusos'
             : 'e.g., 15W40 Oil, Oil filter, Bolts'}
@@ -303,7 +305,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
           value={formData.notes}
           onChange={handleChange}
           rows={2}
-          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           placeholder={language === 'pt'
             ? 'Digite observações adicionais sobre esta manutenção...'
             : 'Enter any additional notes about this maintenance...'}
@@ -322,6 +324,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
         <Button
           type="submit"
           leftIcon={<Save size={18} />}
+          disabled={!isOnline}
         >
           {isEditing 
             ? (language === 'pt' ? 'Atualizar Manutenção' : 'Update Maintenance')

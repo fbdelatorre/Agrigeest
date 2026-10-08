@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import Button from '../ui/Button';
 import { useLanguage } from '../../context/LanguageContext';
 import { useMachineryContext } from '../../context/MachineryContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { formatDateForDisplay } from '../../utils/dateHelpers';
 
 interface MaintenanceCardProps {
@@ -20,6 +21,7 @@ const MaintenanceCard: React.FC<MaintenanceCardProps> = ({
 }) => {
   const { machinery, maintenanceTypes } = useMachineryContext();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
   
   const machine = machinery.find(m => m.id === maintenance.machineryId);
   const type = maintenanceTypes.find(t => t.id === maintenance.maintenanceTypeId);
@@ -71,7 +73,8 @@ const MaintenanceCard: React.FC<MaintenanceCardProps> = ({
               aria-label={language === 'pt' ? 'Excluir manutenção' : 'Delete maintenance'}
               leftIcon={<Trash2 size={16} />}
               onClick={() => onDelete(maintenance.id)}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              disabled={!isOnline}
+              className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
             >
               {language === 'pt' ? 'Excluir' : 'Delete'}
             </Button>

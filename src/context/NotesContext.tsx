@@ -5,6 +5,8 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflineStorage } from '../hooks/useOfflineStorage';
 import { dateToInputValue } from '../utils/dateHelpers';
 
+const READ_ONLY_MSG = 'Sem conexão. O AgriGest está em modo somente leitura.';
+
 interface NotesContextType {
   notes: Note[];
   addNote: (note: Omit<Note, 'id' | 'createdAt' | 'updatedAt' | 'userId' | 'institutionId'>) => Promise<void>;
@@ -13,8 +15,6 @@ interface NotesContextType {
   getNoteById: (id: string) => Note | undefined;
   toggleNoteComplete: (id: string) => Promise<void>;
   isOnline: boolean;
-  hasPendingSync: boolean;
-  syncData: () => Promise<void>;
 }
 
 const NotesContext = createContext<NotesContextType | undefined>(undefined);
@@ -33,26 +33,19 @@ interface NotesProviderProps {
 
 export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [hasPendingSync, setHasPendingSync] = useState(false);
 
   const { isOnline } = useNetworkStatus();
 
   const {
-    data: offlineNotes,
-    setData: setOfflineNotes,
-    pendingSync: notesPendingSync,
-    markAsSynced: markNotesSynced
+    data: cachedNotes,
+    setData: setCachedNotes,
   } = useOfflineStorage<Note[]>('notes', []);
 
   useEffect(() => {
     if (isOnline) {
       loadNotes();
-      if (notesPendingSync) {
-        setHasPendingSync(true);
-      }
     } else {
-      setNotes(offlineNotes);
-      setHasPendingSync(notesPendingSync);
+      if (cachedNotes.length > 0) setNotes(cachedNotes);
     }
   }, [isOnline]);
 
@@ -80,52 +73,26 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
       }));
 
       setNotes(formattedNotes);
-      setOfflineNotes(formattedNotes, false);
+      setCachedNotes(formattedNotes);
     } catch (error) {
       console.error('Error loading notes:', error);
     }
   };
 
   const addNote = async (noteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt' | 'userId' | 'institutionId'>) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
+
     try {
-      console.log('Starting addNote with data:', noteData);
-
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('User:', user?.id);
+      if (!user) throw new Error('User must be authenticated to add note');
 
-      if (!user) {
-        throw new Error('User must be authenticated to add note');
-      }
-
-      if (!isOnline) {
-        const newNote: Note = {
-          ...noteData,
-          id: `local-${Date.now()}`,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          userId: user.id,
-          institutionId: 'temp'
-        };
-
-        const updatedNotes = [newNote, ...notes];
-        setNotes(updatedNotes);
-        setOfflineNotes(updatedNotes, true);
-        setHasPendingSync(true);
-        return;
-      }
-
-      console.log('Fetching user profile...');
       const { data: userProfile, error: userError } = await supabase
         .from('user_profiles')
         .select('institution_id')
         .eq('id', user.id)
         .single();
 
-      console.log('User profile:', userProfile);
-      console.log('User profile error:', userError);
-
       if (userError) {
-        console.error('Error fetching user profile:', userError);
         throw new Error(`Failed to fetch user profile: ${userError.message || JSON.stringify(userError)}`);
       }
 
@@ -133,7 +100,6 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         throw new Error('User must belong to an institution to add note. Please set up your institution first.');
       }
 
-      console.log('Inserting note into database...');
       const insertData = {
         title: noteData.title,
         content: noteData.content,
@@ -143,7 +109,6 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         user_id: user.id,
         institution_id: userProfile.institution_id
       };
-      console.log('Insert data:', insertData);
 
       const { data, error } = await supabase
         .from('notes')
@@ -151,10 +116,7 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         .select()
         .single();
 
-      console.log('Insert result:', { data, error });
-
       if (error) {
-        console.error('Error adding note to database:', error);
         throw new Error(`Failed to add note: ${error.message || JSON.stringify(error)}`);
       }
 
@@ -171,30 +133,18 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
 
       const updatedNotes = [newNote, ...notes];
       setNotes(updatedNotes);
-      setOfflineNotes(updatedNotes, false);
-      console.log('Note added successfully!');
+      setCachedNotes(updatedNotes);
     } catch (error) {
-      console.error('Error adding note (full error):', error);
-      console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
-      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+      console.error('Error adding note:', error);
       throw error;
     }
   };
 
   const updateNote = async (id: string, updatedData: Partial<Note>) => {
-    if (!isOnline) {
-      const updatedNotes = notes.map(note =>
-        note.id === id ? { ...note, ...updatedData, updatedAt: new Date() } : note
-      );
-
-      setNotes(updatedNotes);
-      setOfflineNotes(updatedNotes, true);
-      setHasPendingSync(true);
-      return;
-    }
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const updatePayload: any = {};
+      const updatePayload: Record<string, unknown> = {};
 
       if (updatedData.title !== undefined) updatePayload.title = updatedData.title;
       if (updatedData.content !== undefined) updatePayload.content = updatedData.content;
@@ -213,10 +163,7 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         .select()
         .single();
 
-      if (error) {
-        console.error('Error updating note:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       const updatedNote: Note = {
         ...data,
@@ -234,7 +181,7 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
       );
 
       setNotes(updatedNotes);
-      setOfflineNotes(updatedNotes, false);
+      setCachedNotes(updatedNotes);
     } catch (error) {
       console.error('Error updating note:', error);
       throw error;
@@ -242,13 +189,7 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
   };
 
   const deleteNote = async (id: string) => {
-    if (!isOnline) {
-      const updatedNotes = notes.filter(note => note.id !== id);
-      setNotes(updatedNotes);
-      setOfflineNotes(updatedNotes, true);
-      setHasPendingSync(true);
-      return;
-    }
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
       const { error } = await supabase
@@ -256,14 +197,11 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         .delete()
         .eq('id', id);
 
-      if (error) {
-        console.error('Error deleting note:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       const updatedNotes = notes.filter(note => note.id !== id);
       setNotes(updatedNotes);
-      setOfflineNotes(updatedNotes, false);
+      setCachedNotes(updatedNotes);
     } catch (error) {
       console.error('Error deleting note:', error);
       throw error;
@@ -287,28 +225,6 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
     });
   };
 
-  const syncData = async () => {
-    if (!isOnline) {
-      console.log('Não é possível sincronizar dados offline');
-      return;
-    }
-
-    try {
-      console.log('Iniciando sincronização de anotações...');
-
-      if (notesPendingSync) {
-        await loadNotes();
-        markNotesSynced();
-      }
-
-      setHasPendingSync(false);
-      console.log('Sincronização de anotações concluída com sucesso');
-    } catch (error) {
-      console.error('Erro ao sincronizar anotações:', error);
-      throw error;
-    }
-  };
-
   const value = {
     notes,
     addNote,
@@ -317,8 +233,6 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
     getNoteById,
     toggleNoteComplete,
     isOnline,
-    hasPendingSync,
-    syncData
   };
 
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>;

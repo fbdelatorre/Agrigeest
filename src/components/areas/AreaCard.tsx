@@ -6,6 +6,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAppContext } from '../../context/AppContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { formatDateForDisplay } from '../../utils/dateHelpers';
 
 interface AreaCardProps {
@@ -16,6 +17,7 @@ interface AreaCardProps {
 const AreaCard: React.FC<AreaCardProps> = ({ area, onDelete }) => {
   const { language } = useLanguage();
   const { activeSeason } = useAppContext();
+  const { isOnline } = useNetworkStatus();
   const navigate = useNavigate();
 
   const formatDate = (date: Date | string) => {
@@ -51,10 +53,11 @@ const AreaCard: React.FC<AreaCardProps> = ({ area, onDelete }) => {
             <Button
               variant="ghost"
               size="sm"
+              disabled={!isOnline}
               aria-label={language === 'pt' ? `Excluir ${area.name}` : `Delete ${area.name}`}
               leftIcon={<Trash2 size={16} />}
               onClick={() => onDelete(area.id)}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
             >
               {language === 'pt' ? 'Excluir' : 'Delete'}
             </Button>
@@ -65,7 +68,7 @@ const AreaCard: React.FC<AreaCardProps> = ({ area, onDelete }) => {
         </Card.Description>
       </Card.Header>
       <Card.Content>
-        <div className="flex items-center mb-2 text-green-800">
+        <div className="flex items-center mb-2 text-brand-800">
           <Map size={18} className="mr-2" />
           <div>
             <span className="font-medium">
@@ -89,14 +92,14 @@ const AreaCard: React.FC<AreaCardProps> = ({ area, onDelete }) => {
       <Card.Footer className="flex justify-between">
         <Link
           to={`/areas/${area.id}`}
-          className="text-green-700 hover:text-green-800 font-medium text-sm"
+          className="text-brand-700 hover:text-brand-800 font-medium text-sm"
         >
           {language === 'pt' ? 'Ver Detalhes' : 'View Details'}
         </Link>
         <Button
           variant="ghost"
           size="sm"
-          className="text-green-700 hover:text-green-800 font-medium"
+          className="text-brand-700 hover:text-brand-800 font-medium"
           onClick={handleAddOperation}
         >
           {language === 'pt' ? 'Adicionar Operação' : 'Add Operation'}

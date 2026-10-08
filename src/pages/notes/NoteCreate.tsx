@@ -29,7 +29,7 @@ const NoteCreate = () => {
       <div className="mb-6 pt-4 lg:pt-0">
         <Link
           to="/notes"
-          className="text-green-700 hover:text-green-800 font-medium text-sm flex items-center"
+          className="text-brand-700 hover:text-brand-800 font-medium text-sm flex items-center"
         >
           <ArrowLeft className="w-4 h-4 mr-1" />
           {language === 'pt' ? 'Voltar para Anotações' : 'Back to Notes'}

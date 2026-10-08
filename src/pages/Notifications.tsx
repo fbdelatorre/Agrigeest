@@ -205,13 +205,13 @@ const Notifications = () => {
                     key={lot.id}
                     className={`p-3 rounded-lg border flex items-center justify-between ${
                       expired
-                        ? 'bg-red-50 border-red-200'
+                        ? 'bg-danger-50 border-danger-100'
                         : 'bg-orange-50 border-orange-200'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full ${expired ? 'bg-red-100' : 'bg-orange-100'}`}>
-                        <Package className={`w-4 h-4 ${expired ? 'text-red-600' : 'text-orange-600'}`} />
+                      <div className={`p-2 rounded-full ${expired ? 'bg-danger-100' : 'bg-orange-100'}`}>
+                        <Package className={`w-4 h-4 ${expired ? 'text-danger-600' : 'text-orange-600'}`} />
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">
@@ -223,10 +223,10 @@ const Notifications = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-sm font-medium ${expired ? 'text-red-700' : 'text-orange-700'}`}>
+                      <div className={`text-sm font-medium ${expired ? 'text-danger-700' : 'text-orange-700'}`}>
                         {lot.expirationDate ? formatDate(lot.expirationDate) : '—'}
                       </div>
-                      <div className={`text-xs ${expired ? 'text-red-600' : 'text-orange-600'} flex items-center justify-end gap-1`}>
+                      <div className={`text-xs ${expired ? 'text-danger-600' : 'text-orange-600'} flex items-center justify-end gap-1`}>
                         <Clock size={12} />
                         {expired
                           ? (language === 'pt' ? `Vencido há ${Math.abs(days!)} dia(s)` : `Expired ${Math.abs(days!)} day(s) ago`)
@@ -255,7 +255,7 @@ const Notifications = () => {
         <Card.Header>
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center">
-              <Calendar className="w-5 h-5 mr-2 text-green-700" />
+              <Calendar className="w-5 h-5 mr-2 text-brand-700" />
               <Card.Title>
                 {language === 'pt' ? 'Operações Planejadas' : 'Planned Operations'}
               </Card.Title>

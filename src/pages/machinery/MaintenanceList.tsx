@@ -68,7 +68,7 @@ const MaintenanceList = () => {
       <div className="flex justify-between items-center mb-6 pt-4 lg:pt-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-            <Settings className="w-7 h-7 mr-3 text-green-700" />
+            <Settings className="w-7 h-7 mr-3 text-brand-700" />
             {language === 'pt' ? 'Manutenções' : 'Maintenances'}
           </h1>
           <p className="text-gray-600">
@@ -93,21 +93,21 @@ const MaintenanceList = () => {
 
       {/* Resumo de custos */}
       {sortedMaintenances.length > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-medium text-green-800">
+              <h3 className="font-medium text-brand-800">
                 {language === 'pt' ? 'Resumo de Custos' : 'Cost Summary'}
               </h3>
-              <p className="text-green-700 text-sm">
+              <p className="text-brand-700 text-sm">
                 {language === 'pt'
                   ? `Total gasto em manutenções: ${formatCurrency(totalCost)}`
                   : `Total spent on maintenances: ${formatCurrency(totalCost)}`}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-green-800">{formatCurrency(totalCost)}</p>
-              <p className="text-sm text-green-600">
+              <p className="text-2xl font-bold text-brand-800">{formatCurrency(totalCost)}</p>
+              <p className="text-sm text-brand-600">
                 {sortedMaintenances.length} {language === 'pt' ? 'manutenções' : 'maintenances'}
               </p>
             </div>
@@ -123,7 +123,7 @@ const MaintenanceList = () => {
               placeholder={language === 'pt'
                 ? 'Buscar manutenções...'
                 : 'Search maintenances...'}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -173,7 +173,7 @@ const MaintenanceList = () => {
               {language === 'pt' ? 'Ordenar:' : 'Sort:'}
             </span>
             <button
-              className="flex items-center text-sm font-medium text-gray-700 hover:text-green-600"
+              className="flex items-center text-sm font-medium text-gray-700 hover:text-brand-600"
               onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
             >
               <Calendar size={16} className="mr-1" />

@@ -8,6 +8,7 @@ import { Save, X, Plus, Pencil, Trash2, Package, AlertTriangle, Calendar } from 
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAppContext } from '../../context/AppContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import LotManager from './LotManager';
 import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
 
@@ -20,8 +21,9 @@ export interface PendingLot {
 
 interface ProductFormProps {
   initialData?: Partial<Product>;
-  onSubmit: (data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>, pendingLots?: PendingLot[]) => void;
+  onSubmit: (data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>, pendingLots?: PendingLot[], untrackedQuantity?: number) => void;
   isEditing?: boolean;
+  isSubmitting?: boolean;
 }
 
 interface LotFormData {
@@ -35,10 +37,12 @@ const ProductForm: React.FC<ProductFormProps> = ({
   initialData = {},
   onSubmit,
   isEditing = false,
+  isSubmitting = false,
 }) => {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const { products, productLots } = useAppContext();
+  const { isOnline } = useNetworkStatus();
 
   const [formData, setFormData] = useState({
     name: initialData.name || '',
@@ -48,6 +52,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
     price: initialData.price?.toString() || '',
     supplier: initialData.supplier || '',
     description: initialData.description || '',
+    untrackedQuantity: '0',
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -138,8 +143,19 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
   const validateLot = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!lotForm.lotNumber.trim()) {
+    const trimmedNumber = lotForm.lotNumber.trim();
+    if (!trimmedNumber) {
       newErrors.lotNumber = language === 'pt' ? 'Número do lote é obrigatório' : 'Lot number is required';
+    } else {
+      const duplicate = pendingLots.find(l =>
+        l.tempId !== editingLotTempId &&
+        l.lotNumber.trim().toLowerCase() === trimmedNumber.toLowerCase()
+      );
+      if (duplicate) {
+        newErrors.lotNumber = language === 'pt'
+          ? 'Já existe um lote com esse número para este produto.'
+          : 'A lot with this number already exists for this product.';
+      }
     }
     if (!lotForm.quantity.trim()) {
       newErrors.quantity = language === 'pt' ? 'Quantidade é obrigatória' : 'Quantity is required';
@@ -213,18 +229,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
     if (!validate()) return;
 
-    const totalFromLots = isEditing && initialData.id
-      ? productLots
-          .filter(l => l.productId === initialData.id)
-          .reduce((sum, l) => sum + l.quantity, 0)
-      : pendingLotsTotal;
-
     onSubmit({
       ...formData,
-      quantityInStock: totalFromLots,
       minStockLevel: Number(formData.minStockLevel),
       price: Number(formData.price),
-    }, !isEditing ? pendingLots : undefined);
+    }, !isEditing ? pendingLots : undefined, !isEditing ? Number(formData.untrackedQuantity) || 0 : undefined);
   };
 
   const categoryOptions = existingCategories.map(category => ({
@@ -256,7 +265,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               size="sm"
               onClick={() => setShowNewCategoryInput(true)}
               leftIcon={<Plus size={16} />}
-              className="text-green-700 hover:text-green-800"
+              className="text-brand-700 hover:text-brand-800"
             >
               {language === 'pt' ? 'Nova Categoria' : 'New Category'}
             </Button>
@@ -360,7 +369,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           value={formData.description}
           onChange={handleChange}
           rows={3}
-          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           placeholder={language === 'pt' ? 'Digite detalhes adicionais sobre este produto...' : 'Enter any additional details about this product...'}
         />
       </div>
@@ -371,15 +380,15 @@ const ProductForm: React.FC<ProductFormProps> = ({
           <LotManager productId={initialData.id} />
           <p className="text-sm text-gray-500 mt-3">
             {language === 'pt'
-              ? 'A quantidade total em estoque é calculada automaticamente pela soma dos lotes.'
-              : 'The total stock quantity is automatically calculated from the sum of all lots.'}
+              ? 'Os lotes representam uma parcela do estoque total. Criar, editar ou excluir um lote não altera o estoque total do produto.'
+              : 'Lots represent a portion of total stock. Creating, editing, or deleting a lot does not change the product total stock.'}
           </p>
         </div>
       ) : (
         <div className="border-t border-gray-200 pt-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-gray-900 flex items-center">
-              <Package size={20} className="mr-2 text-green-700" />
+              <Package size={20} className="mr-2 text-brand-700" />
               {language === 'pt' ? 'Lotes do Produto' : 'Product Lots'}
             </h3>
             {!showLotForm && (
@@ -492,7 +501,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                         aria-label={language === 'pt' ? 'Excluir lote' : 'Delete lot'}
                         leftIcon={<Trash2 size={14} />}
                         onClick={() => handleDeletePendingLot(lot.tempId)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
                       />
                     </div>
                   </div>
@@ -500,7 +509,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
               })}
               <div className="flex justify-end pt-2 border-t border-gray-200">
                 <div className="text-sm font-medium text-gray-700">
-                  {language === 'pt' ? 'Quantidade Total: ' : 'Total Quantity: '}
+                  {language === 'pt' ? 'Em lotes: ' : 'In lots: '}
                   {pendingLotsTotal} {formData.unit}
                 </div>
               </div>
@@ -519,9 +528,38 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
           <p className="text-sm text-gray-500">
             {language === 'pt'
-              ? 'A quantidade total em estoque será calculada automaticamente pela soma dos lotes.'
-              : 'The total stock quantity will be automatically calculated from the sum of all lots.'}
+              ? 'Os lotes representam uma parcela do estoque total. A quantidade total em estoque será definida na criação do produto.'
+              : 'Lots represent a portion of total stock. The total stock quantity will be set during product creation.'}
           </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <Input
+              name="untrackedQuantity"
+              label={language === 'pt' ? 'Estoque sem lote' : 'Untracked stock'}
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.untrackedQuantity}
+              onChange={(e) => setFormData(prev => ({ ...prev, untrackedQuantity: e.target.value }))}
+              placeholder="0"
+            />
+            <div className="flex items-end">
+              <div className="text-sm text-gray-600 w-full pb-2">
+                <div className="flex justify-between py-1">
+                  <span>{language === 'pt' ? 'Em lotes:' : 'In lots:'}</span>
+                  <span className="font-medium">{pendingLotsTotal} {formData.unit}</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span>{language === 'pt' ? 'Sem lote:' : 'Untracked:'}</span>
+                  <span className="font-medium">{Number(formData.untrackedQuantity) || 0} {formData.unit}</span>
+                </div>
+                <div className="flex justify-between py-1 border-t border-gray-200 mt-1 pt-1">
+                  <span className="font-semibold">{language === 'pt' ? 'Estoque inicial total:' : 'Total initial stock:'}</span>
+                  <span className="font-semibold text-brand-700">{(pendingLotsTotal + (Number(formData.untrackedQuantity) || 0))} {formData.unit}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -536,6 +574,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         </Button>
         <Button
           type="submit"
+          disabled={!isOnline || isSubmitting}
           leftIcon={<Save size={18} />}
         >
           {isEditing

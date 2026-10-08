@@ -563,7 +563,7 @@ export const FarmMapScreen: React.FC = () => {
           {/* Stats bar */}
           <div className="bg-white rounded-lg shadow-md px-3 py-2 flex items-center gap-4 text-xs">
             <div className="flex items-center gap-1">
-              <MapIcon size={14} className="text-green-700" />
+              <MapIcon size={14} className="text-brand-700" />
               <span className="font-medium text-gray-700">{stats.areaCount}</span>
               <span className="text-gray-500">{language === 'pt' ? 'areas' : 'areas'}</span>
             </div>
@@ -575,7 +575,7 @@ export const FarmMapScreen: React.FC = () => {
               </div>
             )}
             <div className="flex items-center gap-1">
-              <Sprout size={14} className="text-green-700" />
+              <Sprout size={14} className="text-brand-700" />
               <span className="font-medium text-gray-700">{stats.totalArea.toFixed(1)}</span>
               <span className="text-gray-500">ha</span>
             </div>
@@ -586,9 +586,9 @@ export const FarmMapScreen: React.FC = () => {
             </div>
             {stats.overdueCount > 0 && (
               <div className="flex items-center gap-1">
-                <AlertTriangle size={14} className="text-red-600" />
-                <span className="font-medium text-red-600">{stats.overdueCount}</span>
-                <span className="text-red-500">{language === 'pt' ? 'atrasadas' : 'overdue'}</span>
+                <AlertTriangle size={14} className="text-danger-600" />
+                <span className="font-medium text-danger-600">{stats.overdueCount}</span>
+                <span className="text-danger-500">{language === 'pt' ? 'atrasadas' : 'overdue'}</span>
               </div>
             )}
             {stats.noFungicideCount > 0 && (
@@ -606,7 +606,7 @@ export const FarmMapScreen: React.FC = () => {
               onClick={() => setShowViewModeDropdown(!showViewModeDropdown)}
               className="bg-white rounded-lg shadow-md px-3 py-2 flex items-center gap-2 text-sm hover:bg-gray-50 transition-colors"
             >
-              <Layers size={16} className="text-green-700" />
+              <Layers size={16} className="text-brand-700" />
               <span className="text-gray-700">{getViewModeLabel(viewMode, language)}</span>
               <ChevronDown size={14} className="text-gray-400" />
             </button>
@@ -616,7 +616,7 @@ export const FarmMapScreen: React.FC = () => {
                   <button
                     key={mode}
                     onClick={() => { setViewMode(mode); setShowViewModeDropdown(false); }}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${mode === viewMode ? 'bg-green-50 text-green-700 font-medium' : 'text-gray-700'}`}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${mode === viewMode ? 'bg-brand-50 text-brand-700 font-medium' : 'text-gray-700'}`}
                   >
                     {getViewModeLabel(mode, language)}
                   </button>
@@ -632,7 +632,7 @@ export const FarmMapScreen: React.FC = () => {
               placeholder={language === 'pt' ? 'Buscar area...' : 'Search area...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 text-sm bg-white rounded-lg shadow-md border-0 focus:ring-2 focus:ring-green-500"
+              className="w-full pl-8 pr-3 py-2 text-sm bg-white rounded-lg shadow-md border-0 focus:ring-2 focus:ring-brand-500"
             />
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
             {searchTerm && (
@@ -658,14 +658,14 @@ export const FarmMapScreen: React.FC = () => {
           {/* Action buttons */}
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`bg-white rounded-lg shadow-md p-2 hover:bg-gray-50 transition-colors ${showFilters ? 'ring-2 ring-green-500' : ''}`}
+            className={`bg-white rounded-lg shadow-md p-2 hover:bg-gray-50 transition-colors ${showFilters ? 'ring-2 ring-brand-500' : ''}`}
             title={language === 'pt' ? 'Filtros' : 'Filters'}
           >
             <Filter size={18} className="text-gray-700" />
           </button>
           <button
             onClick={() => setShowLayerControl(!showLayerControl)}
-            className={`bg-white rounded-lg shadow-md p-2 hover:bg-gray-50 transition-colors ${showLayerControl ? 'ring-2 ring-green-500' : ''}`}
+            className={`bg-white rounded-lg shadow-md p-2 hover:bg-gray-50 transition-colors ${showLayerControl ? 'ring-2 ring-brand-500' : ''}`}
             title={language === 'pt' ? 'Camadas' : 'Layers'}
           >
             <Layers size={18} className="text-gray-700" />
@@ -693,7 +693,7 @@ export const FarmMapScreen: React.FC = () => {
               className="bg-white rounded-lg shadow-md p-2 hover:bg-gray-50 transition-colors"
               title={language === 'pt' ? 'Centralizar nas areas' : 'Fit to areas'}
             >
-              <MapIcon size={18} className="text-green-700" />
+              <MapIcon size={18} className="text-brand-700" />
             </button>
           )}
         </div>
@@ -742,7 +742,7 @@ export const FarmMapScreen: React.FC = () => {
                 <select
                   value={filters.crop}
                   onChange={(e) => setFilters({ ...filters, crop: e.target.value })}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-500"
                 >
                   <option value="">{language === 'pt' ? 'Todas' : 'All'}</option>
                   {uniqueCrops.map(c => <option key={c} value={c}>{c}</option>)}
@@ -753,7 +753,7 @@ export const FarmMapScreen: React.FC = () => {
                 <select
                   value={filters.cultivar}
                   onChange={(e) => setFilters({ ...filters, cultivar: e.target.value })}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500"
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-500"
                 >
                   <option value="">{language === 'pt' ? 'Todos' : 'All'}</option>
                   {uniqueCultivars.map(c => <option key={c} value={c}>{c}</option>)}
@@ -775,7 +775,7 @@ export const FarmMapScreen: React.FC = () => {
         {loading && (
           <div className="absolute inset-0 bg-white/70 flex items-center justify-center z-20">
             <div className="text-center">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-green-700 border-t-transparent"></div>
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-brand-700 border-t-transparent"></div>
               <p className="mt-2 text-sm text-gray-600">
                 {language === 'pt' ? 'Carregando mapa...' : 'Loading map...'}
               </p>

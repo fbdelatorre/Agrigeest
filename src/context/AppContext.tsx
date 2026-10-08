@@ -4,14 +4,15 @@ import {
   Area,
   Operation,
   Product,
-  ProductLot,
-  ProductUsage
+  ProductLot
 } from '../types';
 import { AreaMapSummary } from '../types/farmMap';
 import { stripZCoordinates } from '../utils/farmMap/farmMapHelpers';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflineStorage } from '../hooks/useOfflineStorage';
 import { dateToISOString, dateToDateString, parseDate } from '../utils/dateHelpers';
+
+const READ_ONLY_MSG = 'Sem conexão. O AgriGest está em modo somente leitura.';
 
 interface Season {
   id: string;
@@ -36,6 +37,7 @@ interface UserProfile {
 
 interface AppContextType {
   profile: UserProfile | null;
+  reloadProfile: () => Promise<void>;
 
   areas: Area[];
   addArea: (area: Omit<Area, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
@@ -50,25 +52,24 @@ interface AppContextType {
   getOperationsByAreaId: (areaId: string) => Operation[];
 
   products: Product[];
-  addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>, pendingLots?: { lotNumber: string; quantity: number; expirationDate?: Date }[]) => Promise<void>;
-  updateProduct: (id: string, product: Partial<Product>) => Promise<void>;
+  addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>, pendingLots?: { lotNumber: string; quantity: number; expirationDate?: Date }[], untrackedQuantity?: number) => Promise<void>;
+  updateProduct: (id: string, product: Partial<Product>, expectedUpdatedAt?: Date) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   getProductById: (id: string) => Product | undefined;
-  useProducts: (usages: ProductUsage[]) => Promise<boolean>;
-
   productLots: ProductLot[];
   addLot: (lot: Omit<ProductLot, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  updateLot: (id: string, lot: Partial<ProductLot>) => Promise<void>;
+  updateLot: (id: string, lot: Partial<ProductLot>, expectedQuantity?: number) => Promise<void>;
   deleteLot: (id: string) => Promise<void>;
   getLotsByProductId: (productId: string) => ProductLot[];
+  addInventoryStock: (productId: string, quantity: number, idempotencyKey: string, lotId?: string | null, reason?: string | null, notes?: string | null, unitCost?: number | null) => Promise<void>;
+  adjustInventoryStock: (productId: string, targetQuantity: number, reason: string, idempotencyKey: string, lotId?: string | null, notes?: string | null) => Promise<void>;
+  archiveLot: (lotId: string) => Promise<void>;
 
   seasons: Season[];
   activeSeason: Season | null;
   setActiveSeason: (season: Season | null) => void;
 
   isOnline: boolean;
-  hasPendingSync: boolean;
-  syncData: () => Promise<void>;
 
   saveAreaGeometry: (areaId: string, geojson: string) => Promise<void>;
   deleteAreaGeometry: (areaId: string) => Promise<void>;
@@ -97,36 +98,27 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [productLots, setProductLots] = useState<ProductLot[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [activeSeason, setActiveSeason] = useState<Season | null>(null);
-  const [hasPendingSync, setHasPendingSync] = useState(false);
 
   const { isOnline } = useNetworkStatus();
 
   const {
-    data: offlineAreas,
-    setData: setOfflineAreas,
-    pendingSync: areasPendingSync,
-    markAsSynced: markAreasSynced
+    data: cachedAreas,
+    setData: setCachedAreas,
   } = useOfflineStorage<Area[]>('areas', []);
 
   const {
-    data: offlineOperations,
-    setData: setOfflineOperations,
-    pendingSync: operationsPendingSync,
-    markAsSynced: markOperationsSynced
+    data: cachedOperations,
+    setData: setCachedOperations,
   } = useOfflineStorage<Operation[]>('operations', []);
 
   const {
-    data: offlineProducts,
-    setData: setOfflineProducts,
-    pendingSync: productsPendingSync,
-    markAsSynced: markProductsSynced
+    data: cachedProducts,
+    setData: setCachedProducts,
   } = useOfflineStorage<Product[]>('products', []);
 
   const {
-    data: offlineSeasons,
-    setData: setOfflineSeasons,
-    pendingSync: seasonsPendingSync,
-    markAsSynced: markSeasonsSynced
+    data: cachedSeasons,
+    setData: setCachedSeasons,
   } = useOfflineStorage<Season[]>('seasons', []);
 
   useEffect(() => {
@@ -138,16 +130,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       loadProducts();
       loadProductLots();
       loadSeasons();
-
-      if (areasPendingSync || operationsPendingSync || productsPendingSync || seasonsPendingSync) {
-        setHasPendingSync(true);
-      }
     } else {
-      setAreas(offlineAreas);
-      setOperations(offlineOperations);
-      setProducts(offlineProducts);
-      setSeasons(offlineSeasons);
-      setHasPendingSync(areasPendingSync || operationsPendingSync || productsPendingSync || seasonsPendingSync);
+      if (cachedAreas.length > 0) setAreas(cachedAreas);
+      if (cachedOperations.length > 0) setOperations(cachedOperations);
+      if (cachedProducts.length > 0) setProducts(cachedProducts);
+      if (cachedSeasons.length > 0) setSeasons(cachedSeasons);
     }
   }, [isOnline]);
 
@@ -201,7 +188,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }));
 
       setAreas(formattedAreas);
-      setOfflineAreas(formattedAreas, false);
+      setCachedAreas(formattedAreas);
     } catch (error) {
       console.error('Error loading areas:', error);
     }
@@ -212,6 +199,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       const { data, error } = await supabase
         .from('operations')
         .select('*')
+        .neq('status', 'cancelled')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -235,7 +223,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }));
 
       setOperations(formattedOperations);
-      setOfflineOperations(formattedOperations, false);
+      setCachedOperations(formattedOperations);
     } catch (error) {
       console.error('Error loading operations:', error);
     }
@@ -262,7 +250,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }));
 
       setProducts(formattedProducts);
-      setOfflineProducts(formattedProducts, false);
+      setCachedProducts(formattedProducts);
     } catch (error) {
       console.error('Error loading products:', error);
     }
@@ -287,7 +275,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         quantity: Number(lot.quantity),
         expirationDate: lot.expiration_date ? parseDate(lot.expiration_date) : undefined,
         createdAt: new Date(lot.created_at),
-        updatedAt: new Date(lot.updated_at)
+        updatedAt: new Date(lot.updated_at),
+        archivedAt: lot.archived_at ? new Date(lot.archived_at) : undefined
       }));
 
       setProductLots(formattedLots);
@@ -307,14 +296,14 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         console.error('Error loading seasons:', error);
         if (error.code === 'PGRST205') {
           setSeasons([]);
-          setOfflineSeasons([], false);
+          setCachedSeasons([]);
           return;
         }
         throw error;
       }
 
       setSeasons(data || []);
-      setOfflineSeasons(data || [], false);
+      setCachedSeasons(data || []);
 
       const activeSeasonData = data?.find(season => season.status === 'active');
       if (activeSeasonData) {
@@ -323,23 +312,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error loading seasons:', error);
       setSeasons([]);
-      setOfflineSeasons([], false);
+      setCachedSeasons([]);
     }
   };
 
   const addArea = async (area: Omit<Area, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User must be authenticated to add an area');
-
-      if (!isOnline) {
-        const newArea: Area = { ...area, id: `local-${Date.now()}`, createdAt: new Date(), updatedAt: new Date() };
-        const updatedAreas = [newArea, ...areas];
-        setAreas(updatedAreas);
-        setOfflineAreas(updatedAreas, true);
-        setHasPendingSync(true);
-        return;
-      }
 
       const { data: userProfile, error: userError } = await supabase
         .from('user_profiles')
@@ -370,7 +352,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       const updatedAreas = [newArea, ...areas];
       setAreas(updatedAreas);
-      setOfflineAreas(updatedAreas, false);
+      setCachedAreas(updatedAreas);
     } catch (error) {
       console.error('Error adding area:', error);
       throw error;
@@ -378,15 +360,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const updateArea = async (id: string, updatedData: Partial<Area>) => {
-    if (!isOnline) {
-      const updatedAreas = areas.map(area =>
-        area.id === id ? { ...area, ...updatedData, updatedAt: new Date() } : area
-      );
-      setAreas(updatedAreas);
-      setOfflineAreas(updatedAreas, true);
-      setHasPendingSync(true);
-      return;
-    }
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
       const { data, error } = await supabase
@@ -409,7 +383,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       const updatedAreas = areas.map(area => area.id === id ? updatedArea : area);
       setAreas(updatedAreas);
-      setOfflineAreas(updatedAreas, false);
+      setCachedAreas(updatedAreas);
     } catch (error) {
       console.error('Error updating area:', error);
       throw error;
@@ -417,13 +391,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const deleteArea = async (id: string) => {
-    if (!isOnline) {
-      const updatedAreas = areas.filter(area => area.id !== id);
-      setAreas(updatedAreas);
-      setOfflineAreas(updatedAreas, true);
-      setHasPendingSync(true);
-      return;
-    }
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
       const { error } = await supabase.from('areas').delete().eq('id', id);
@@ -431,8 +399,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       const updatedAreas = areas.filter(area => area.id !== id);
       setAreas(updatedAreas);
-      setOfflineAreas(updatedAreas, false);
-    } catch (error) {
+      setCachedAreas(updatedAreas);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT')) {
+        throw new Error('Esta área possui operações vinculadas e não pode ser excluída.');
+      }
       console.error('Error deleting area:', error);
       throw error;
     }
@@ -441,53 +413,25 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const getAreaById = (id: string) => areas.find((area) => area.id === id);
 
   const addOperation = async (operation: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
     if (!activeSeason) throw new Error('No active season selected');
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User must be authenticated to add an operation');
-
-      if (operation.productsUsed && operation.productsUsed.length > 0) {
-        await useProducts(operation.productsUsed);
-      }
-
-      if (!isOnline) {
-        const newOperation: Operation = {
-          ...operation, id: `local-${Date.now()}`, season_id: activeSeason.id,
-          createdAt: new Date(), updatedAt: new Date()
-        };
-        const updatedOperations = [newOperation, ...operations];
-        setOperations(updatedOperations);
-        setOfflineOperations(updatedOperations, true);
-        setHasPendingSync(true);
-        return;
-      }
-
-      const { data: userProfile, error: userError } = await supabase
-        .from('user_profiles')
-        .select('institution_id')
-        .eq('id', user.id)
-        .single();
-
-      if (userError || !userProfile?.institution_id) {
-        throw new Error('User must belong to an institution to add an operation');
-      }
-
-      const { data, error } = await supabase
-        .from('operations')
-        .insert([{
-          area_id: operation.areaId, season_id: activeSeason.id, type: operation.type,
-          start_date: dateToDateString(operation.startDate),
-          end_date: dateToDateString(operation.endDate),
-          next_operation_date: dateToDateString(operation.nextOperationDate),
-          description: operation.description, operated_by: operation.operatedBy,
-          notes: operation.notes, products_used: operation.productsUsed || [],
-          operation_size: operation.operationSize, yield_per_hectare: operation.yieldPerHectare,
-          seeds_per_hectare: operation.seedsPerHectare, user_id: user.id,
-          institution_id: userProfile.institution_id
-        }])
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('create_operation_with_stock', {
+        p_area_id: operation.areaId,
+        p_type: operation.type,
+        p_start_date: dateToDateString(operation.startDate),
+        p_description: operation.description,
+        p_operated_by: operation.operatedBy,
+        p_season_id: activeSeason.id,
+        p_end_date: operation.endDate ? dateToDateString(operation.endDate) : null,
+        p_next_operation_date: operation.nextOperationDate ? dateToDateString(operation.nextOperationDate) : null,
+        p_notes: operation.notes || null,
+        p_products_used: operation.productsUsed || [],
+        p_operation_size: operation.operationSize ?? null,
+        p_yield_per_hectare: operation.yieldPerHectare ?? null,
+        p_seeds_per_hectare: operation.seedsPerHectare ?? null,
+      });
 
       if (error) throw error;
 
@@ -502,7 +446,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       const updatedOperations = [newOperation, ...operations];
       setOperations(updatedOperations);
-      setOfflineOperations(updatedOperations, false);
+      setCachedOperations(updatedOperations);
+
+      await loadProducts();
+      await loadProductLots();
     } catch (error) {
       console.error('Error adding operation:', error);
       throw error;
@@ -510,51 +457,28 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const updateOperation = async (id: string, updatedData: Partial<Operation>) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
+
     try {
       const originalOperation = operations.find(op => op.id === id);
       if (!originalOperation) throw new Error('Operation not found');
 
-      if (updatedData.productsUsed) {
-        const oldProducts = originalOperation.productsUsed || [];
-        const newProducts = updatedData.productsUsed || [];
-        const productsChanged = JSON.stringify(oldProducts) !== JSON.stringify(newProducts);
-
-        if (productsChanged) {
-          if (oldProducts.length > 0) await returnProducts(oldProducts);
-          if (newProducts.length > 0) await useProducts(newProducts);
-        }
-      }
-
-      if (!isOnline) {
-        const updatedOperations = operations.map(operation =>
-          operation.id === id ? { ...operation, ...updatedData, updatedAt: new Date() } : operation
-        );
-        setOperations(updatedOperations);
-        setOfflineOperations(updatedOperations, true);
-        setHasPendingSync(true);
-        return;
-      }
-
-      const updateFields: Record<string, unknown> = {};
-      if (updatedData.areaId !== undefined) updateFields.area_id = updatedData.areaId;
-      if (updatedData.type !== undefined) updateFields.type = updatedData.type;
-      if (updatedData.startDate !== undefined) updateFields.start_date = dateToDateString(updatedData.startDate);
-      if (updatedData.endDate !== undefined) updateFields.end_date = dateToDateString(updatedData.endDate);
-      if (updatedData.nextOperationDate !== undefined) updateFields.next_operation_date = dateToDateString(updatedData.nextOperationDate);
-      if (updatedData.description !== undefined) updateFields.description = updatedData.description;
-      if (updatedData.operatedBy !== undefined) updateFields.operated_by = updatedData.operatedBy;
-      if (updatedData.notes !== undefined) updateFields.notes = updatedData.notes;
-      if (updatedData.productsUsed !== undefined) updateFields.products_used = updatedData.productsUsed;
-      if (updatedData.operationSize !== undefined) updateFields.operation_size = updatedData.operationSize;
-      if (updatedData.yieldPerHectare !== undefined) updateFields.yield_per_hectare = updatedData.yieldPerHectare;
-      if (updatedData.seedsPerHectare !== undefined) updateFields.seeds_per_hectare = updatedData.seedsPerHectare;
-
-      const { data, error } = await supabase
-        .from('operations')
-        .update(updateFields)
-        .eq('id', id)
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('update_operation_with_stock', {
+        p_operation_id: id,
+        p_area_id: updatedData.areaId ?? originalOperation.areaId,
+        p_type: updatedData.type ?? originalOperation.type,
+        p_start_date: dateToDateString(updatedData.startDate ?? originalOperation.startDate),
+        p_description: updatedData.description ?? originalOperation.description,
+        p_operated_by: updatedData.operatedBy ?? originalOperation.operatedBy,
+        p_season_id: (originalOperation as Record<string, unknown>).season_id as string | null,
+        p_end_date: updatedData.endDate !== undefined ? (updatedData.endDate ? dateToDateString(updatedData.endDate) : null) : (originalOperation.endDate ? dateToDateString(originalOperation.endDate) : null),
+        p_next_operation_date: updatedData.nextOperationDate !== undefined ? (updatedData.nextOperationDate ? dateToDateString(updatedData.nextOperationDate) : null) : (originalOperation.nextOperationDate ? dateToDateString(originalOperation.nextOperationDate) : null),
+        p_notes: updatedData.notes !== undefined ? updatedData.notes : (originalOperation.notes || null),
+        p_products_used: updatedData.productsUsed ?? (originalOperation.productsUsed || []),
+        p_operation_size: updatedData.operationSize ?? originalOperation.operationSize ?? null,
+        p_yield_per_hectare: updatedData.yieldPerHectare !== undefined ? updatedData.yieldPerHectare ?? null : (originalOperation.yieldPerHectare ?? null),
+        p_seeds_per_hectare: updatedData.seedsPerHectare !== undefined ? updatedData.seedsPerHectare ?? null : (originalOperation.seedsPerHectare ?? null),
+      });
 
       if (error) throw error;
 
@@ -571,7 +495,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         operation.id === id ? updatedOperation : operation
       );
       setOperations(updatedOperations);
-      setOfflineOperations(updatedOperations, false);
+      setCachedOperations(updatedOperations);
+
+      await loadProducts();
+      await loadProductLots();
     } catch (error) {
       console.error('Error updating operation:', error);
       throw error;
@@ -579,26 +506,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const deleteOperation = async (id: string) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
+
     try {
-      const operation = operations.find(op => op.id === id);
-      if (operation && operation.productsUsed && operation.productsUsed.length > 0) {
-        await returnProducts(operation.productsUsed);
-      }
+      const { error } = await supabase.rpc('delete_operation_with_stock', {
+        p_operation_id: id,
+      });
 
-      if (!isOnline) {
-        const updatedOperations = operations.filter(operation => operation.id !== id);
-        setOperations(updatedOperations);
-        setOfflineOperations(updatedOperations, true);
-        setHasPendingSync(true);
-        return;
-      }
-
-      const { error } = await supabase.from('operations').delete().eq('id', id);
       if (error) throw error;
 
-      const updatedOperations = operations.filter(operation => operation.id !== id);
-      setOperations(updatedOperations);
-      setOfflineOperations(updatedOperations, false);
+      await loadOperations();
+      await loadProducts();
+      await loadProductLots();
     } catch (error) {
       console.error('Error deleting operation:', error);
       throw error;
@@ -614,93 +533,54 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const addProduct = async (
     product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>,
-    pendingLots?: { lotNumber: string; quantity: number; expirationDate?: Date }[]
+    pendingLots?: { lotNumber: string; quantity: number; expirationDate?: Date }[],
+    untrackedQuantity?: number
   ) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User must be authenticated to add a product');
+      const lotsJsonb = (pendingLots || []).map(l => ({
+        lot_number: l.lotNumber,
+        quantity: l.quantity,
+        expiration_date: l.expirationDate ? dateToDateString(l.expirationDate) : null,
+      }));
 
-      if (!isOnline) {
-        const newProduct: Product = { ...product, id: `local-${Date.now()}`, createdAt: new Date(), updatedAt: new Date() };
-        const updatedProducts = [newProduct, ...products];
-        setProducts(updatedProducts);
-        setOfflineProducts(updatedProducts, true);
-        setHasPendingSync(true);
-        return;
-      }
-
-      const { data: userProfile, error: userError } = await supabase
-        .from('user_profiles')
-        .select('institution_id')
-        .eq('id', user.id)
-        .single();
-
-      if (userError || !userProfile?.institution_id) {
-        throw new Error('User must belong to an institution to add a product');
-      }
-
-      const { data, error } = await supabase
-        .from('products')
-        .insert([{
-          name: product.name, category: product.category, unit: product.unit,
-          quantity_in_stock: product.quantityInStock, min_stock_level: product.minStockLevel,
-          price: product.price, supplier: product.supplier, description: product.description,
-          institution_id: userProfile.institution_id
-        }])
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('create_product_with_lots', {
+        p_name: product.name,
+        p_category: product.category,
+        p_unit: product.unit,
+        p_min_stock_level: product.minStockLevel,
+        p_price: product.price,
+        p_supplier: product.supplier ?? null,
+        p_description: product.description ?? null,
+        p_untracked_quantity: untrackedQuantity ?? 0,
+        p_lots: lotsJsonb,
+      });
 
       if (error) throw error;
 
+      const p = data.product;
       const newProduct: Product = {
-        ...data, quantityInStock: data.quantity_in_stock, minStockLevel: data.min_stock_level,
-        createdAt: new Date(data.created_at), updatedAt: new Date(data.updated_at)
+        ...p, quantityInStock: Number(p.quantity_in_stock), minStockLevel: Number(p.min_stock_level),
+        createdAt: new Date(p.created_at), updatedAt: new Date(p.updated_at)
       };
 
       const updatedProducts = [newProduct, ...products];
       setProducts(updatedProducts);
-      setOfflineProducts(updatedProducts, false);
+      setCachedProducts(updatedProducts);
 
-      // Insert pending lots if provided
-      if (pendingLots && pendingLots.length > 0) {
-        const lotInserts = pendingLots.map(l => ({
-          product_id: newProduct.id,
-          lot_number: l.lotNumber,
-          quantity: l.quantity,
-          expiration_date: l.expirationDate ? dateToDateString(l.expirationDate) : null
-        }));
-
-        const { data: lotData, error: lotError } = await supabase
-          .from('product_lots')
-          .insert(lotInserts)
-          .select('*');
-
-        if (lotError) throw lotError;
-
-        const newLots: ProductLot[] = (lotData || []).map(lot => ({
-          id: lot.id,
-          productId: lot.product_id,
-          lotNumber: lot.lot_number,
+      if (data.lots && Array.isArray(data.lots) && data.lots.length > 0) {
+        const newLots: ProductLot[] = data.lots.map((lot: Record<string, string | number | null>) => ({
+          id: lot.id as string,
+          productId: lot.product_id as string,
+          lotNumber: lot.lot_number as string,
           quantity: Number(lot.quantity),
-          expirationDate: lot.expiration_date ? parseDate(lot.expiration_date) : undefined,
-          createdAt: new Date(lot.created_at),
-          updatedAt: new Date(lot.updated_at)
+          expirationDate: lot.expiration_date ? parseDate(lot.expiration_date as string) : undefined,
+          createdAt: new Date(lot.created_at as string),
+          updatedAt: new Date(lot.updated_at as string),
         }));
 
-        const updatedLots = [...newLots, ...productLots];
-        setProductLots(updatedLots);
-
-        const totalFromLots = newLots.reduce((sum, l) => sum + l.quantity, 0);
-        const updatedProductsWithLots = updatedProducts.map(p =>
-          p.id === newProduct.id ? { ...p, quantityInStock: totalFromLots, updatedAt: new Date() } : p
-        );
-        setProducts(updatedProductsWithLots);
-        setOfflineProducts(updatedProductsWithLots, false);
-
-        await supabase
-          .from('products')
-          .update({ quantity_in_stock: totalFromLots })
-          .eq('id', newProduct.id);
+        setProductLots(prev => [...newLots, ...prev]);
       }
     } catch (error) {
       console.error('Error adding product:', error);
@@ -708,39 +588,32 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
-  const updateProduct = async (id: string, updatedData: Partial<Product>) => {
-    if (!isOnline) {
-      const updatedProducts = products.map(product =>
-        product.id === id ? { ...product, ...updatedData, updatedAt: new Date() } : product
-      );
-      setProducts(updatedProducts);
-      setOfflineProducts(updatedProducts, true);
-      setHasPendingSync(true);
-      return;
-    }
+  const updateProduct = async (id: string, updatedData: Partial<Product>, expectedUpdatedAt?: Date) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .update({
-          name: updatedData.name, category: updatedData.category, unit: updatedData.unit,
-          quantity_in_stock: updatedData.quantityInStock, min_stock_level: updatedData.minStockLevel,
-          price: updatedData.price, supplier: updatedData.supplier, description: updatedData.description,
-        })
-        .eq('id', id)
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('update_product_details', {
+        p_product_id: id,
+        p_name: updatedData.name,
+        p_category: updatedData.category,
+        p_unit: updatedData.unit,
+        p_min_stock_level: updatedData.minStockLevel,
+        p_price: updatedData.price,
+        p_supplier: updatedData.supplier ?? null,
+        p_description: updatedData.description ?? null,
+        p_expected_updated_at: expectedUpdatedAt?.toISOString() ?? null,
+      });
 
       if (error) throw error;
 
       const updatedProduct: Product = {
-        ...data, quantityInStock: data.quantity_in_stock, minStockLevel: data.min_stock_level,
+        ...data, quantityInStock: Number(data.quantity_in_stock), minStockLevel: Number(data.min_stock_level),
         createdAt: new Date(data.created_at), updatedAt: new Date(data.updated_at)
       };
 
       const updatedProducts = products.map(product => product.id === id ? updatedProduct : product);
       setProducts(updatedProducts);
-      setOfflineProducts(updatedProducts, false);
+      setCachedProducts(updatedProducts);
     } catch (error) {
       console.error('Error updating product:', error);
       throw error;
@@ -748,13 +621,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const deleteProduct = async (id: string) => {
-    if (!isOnline) {
-      const updatedProducts = products.filter(product => product.id !== id);
-      setProducts(updatedProducts);
-      setOfflineProducts(updatedProducts, true);
-      setHasPendingSync(true);
-      return;
-    }
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
       const { error } = await supabase.from('products').delete().eq('id', id);
@@ -762,8 +629,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       const updatedProducts = products.filter(product => product.id !== id);
       setProducts(updatedProducts);
-      setOfflineProducts(updatedProducts, false);
-    } catch (error) {
+      setCachedProducts(updatedProducts);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT')) {
+        throw new Error('Não é possível excluir este produto porque existem dados dependentes (lotes ou operações vinculadas).');
+      }
       console.error('Error deleting product:', error);
       throw error;
     }
@@ -771,37 +642,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const getProductById = (id: string) => products.find((product) => product.id === id);
 
-  // --- Product Lots ---
-
-  const recomputeProductQuantity = (productId: string, lots: ProductLot[]) => {
-    const totalFromLots = lots
-      .filter(l => l.productId === productId)
-      .reduce((sum, l) => sum + l.quantity, 0);
-    setProducts(prev => prev.map(p =>
-      p.id === productId ? { ...p, quantityInStock: totalFromLots, updatedAt: new Date() } : p
-    ));
-    return totalFromLots;
-  };
-
-  const syncProductTotalToDb = async (productId: string, total: number) => {
-    await supabase
-      .from('products')
-      .update({ quantity_in_stock: total })
-      .eq('id', productId);
-  };
-
   const addLot = async (lot: Omit<ProductLot, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
+
     try {
-      const { data, error } = await supabase
-        .from('product_lots')
-        .insert([{
-          product_id: lot.productId,
-          lot_number: lot.lotNumber,
-          quantity: lot.quantity,
-          expiration_date: lot.expirationDate ? dateToDateString(lot.expirationDate) : null
-        }])
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('create_product_lot', {
+        p_product_id: lot.productId,
+        p_lot_number: lot.lotNumber,
+        p_quantity: lot.quantity,
+        p_expiration_date: lot.expirationDate ? dateToDateString(lot.expirationDate) : null,
+      });
 
       if (error) throw error;
 
@@ -812,32 +662,26 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         createdAt: new Date(data.created_at), updatedAt: new Date(data.updated_at)
       };
 
-      const updatedLots = [newLot, ...productLots];
-      setProductLots(updatedLots);
-      const total = recomputeProductQuantity(lot.productId, updatedLots);
-      await syncProductTotalToDb(lot.productId, total);
+      setProductLots(prev => [newLot, ...prev]);
     } catch (error) {
       console.error('Error adding lot:', error);
       throw error;
     }
   };
 
-  const updateLot = async (id: string, updatedData: Partial<ProductLot>) => {
-    try {
-      const updateFields: Record<string, unknown> = {};
-      if (updatedData.lotNumber !== undefined) updateFields.lot_number = updatedData.lotNumber;
-      if (updatedData.quantity !== undefined) updateFields.quantity = updatedData.quantity;
-      if (updatedData.expirationDate !== undefined) {
-        updateFields.expiration_date = updatedData.expirationDate
-          ? dateToDateString(updatedData.expirationDate) : null;
-      }
+  const updateLot = async (id: string, updatedData: Partial<ProductLot>, expectedQuantity?: number) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
 
-      const { data, error } = await supabase
-        .from('product_lots')
-        .update(updateFields)
-        .eq('id', id)
-        .select()
-        .single();
+    try {
+      const { data, error } = await supabase.rpc('update_product_lot', {
+        p_lot_id: id,
+        p_lot_number: updatedData.lotNumber ?? null,
+        p_quantity: updatedData.quantity ?? null,
+        p_expiration_date: updatedData.expirationDate !== undefined
+          ? (updatedData.expirationDate ? dateToDateString(updatedData.expirationDate) : null)
+          : null,
+        p_expected_quantity: updatedData.quantity !== undefined ? (expectedQuantity ?? null) : null,
+      });
 
       if (error) throw error;
 
@@ -848,28 +692,29 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         createdAt: new Date(data.created_at), updatedAt: new Date(data.updated_at)
       };
 
-      const updatedLots = productLots.map(l => l.id === id ? updatedLot : l);
-      setProductLots(updatedLots);
-      const total = recomputeProductQuantity(updatedLot.productId, updatedLots);
-      await syncProductTotalToDb(updatedLot.productId, total);
+      setProductLots(prev => prev.map(l => l.id === id ? updatedLot : l));
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : '';
+      if (errMsg.includes('LOT_QUANTITY_STALE')) {
+        await loadProductLots();
+        await loadProducts();
+      }
       console.error('Error updating lot:', error);
       throw error;
     }
   };
 
   const deleteLot = async (id: string) => {
-    try {
-      const lot = productLots.find(l => l.id === id);
-      if (!lot) return;
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
 
-      const { error } = await supabase.from('product_lots').delete().eq('id', id);
+    try {
+      const { error } = await supabase.rpc('delete_product_lot', {
+        p_lot_id: id,
+      });
+
       if (error) throw error;
 
-      const updatedLots = productLots.filter(l => l.id !== id);
-      setProductLots(updatedLots);
-      const total = recomputeProductQuantity(lot.productId, updatedLots);
-      await syncProductTotalToDb(lot.productId, total);
+      setProductLots(prev => prev.filter(l => l.id !== id));
     } catch (error) {
       console.error('Error deleting lot:', error);
       throw error;
@@ -877,360 +722,91 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const getLotsByProductId = (productId: string) => {
-    return productLots.filter(lot => lot.productId === productId);
+    return productLots.filter(lot => lot.productId === productId && !lot.archivedAt);
   };
 
-  // --- Stock adjustment helpers ---
-
-  const returnProducts = async (usages: ProductUsage[]): Promise<boolean> => {
-    if (usages.length === 0) return true;
-
-    try {
-      // Return quantity to specific lot if lotId is provided
-      const lotUpdatePromises = usages.map(async (usage) => {
-        if (!usage.lotId) return;
-        const lot = productLots.find(l => l.id === usage.lotId);
-        if (!lot) return;
-        await supabase
-          .from('product_lots')
-          .update({ quantity: lot.quantity + usage.quantity })
-          .eq('id', lot.id);
-      });
-      await Promise.all(lotUpdatePromises);
-
-      const updatedLots = productLots.map(lot => {
-        const usage = usages.find(u => u.lotId === lot.id);
-        if (usage) return { ...lot, quantity: lot.quantity + usage.quantity, updatedAt: new Date() };
-        return lot;
-      });
-      setProductLots(updatedLots);
-
-      const updatedProducts = products.map(product => {
-        const usage = usages.find(u => u.productId === product.id);
-        if (usage) return { ...product, quantityInStock: product.quantityInStock + usage.quantity, updatedAt: new Date() };
-        return product;
-      });
-
-      if (!isOnline) {
-        setProducts(updatedProducts);
-        setOfflineProducts(updatedProducts, true);
-        setHasPendingSync(true);
-        return true;
-      }
-
-      const updatePromises = usages.map(async (usage) => {
-        const product = products.find(p => p.id === usage.productId);
-        if (!product) return;
-        const { error } = await supabase
-          .from('products')
-          .update({ quantity_in_stock: product.quantityInStock + usage.quantity })
-          .eq('id', product.id);
-        if (error) throw error;
-      });
-      await Promise.all(updatePromises);
-
-      setProducts(updatedProducts);
-      setOfflineProducts(updatedProducts, false);
-      return true;
-    } catch (error) {
-      console.error('Error returning products:', error);
-      throw error;
-    }
-  };
-
-  const useProducts = async (usages: ProductUsage[]): Promise<boolean> => {
-    if (usages.length === 0) return true;
+  const addInventoryStock = async (
+    productId: string,
+    quantity: number,
+    idempotencyKey: string,
+    lotId?: string | null,
+    reason?: string | null,
+    notes?: string | null,
+    unitCost?: number | null
+  ) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      // Check if we have enough (per lot if lotId is specified)
-      const insufficientProducts: string[] = [];
-      for (const usage of usages) {
-        const product = products.find(p => p.id === usage.productId);
-        if (!product) {
-          insufficientProducts.push('Produto desconhecido');
-          continue;
-        }
-        if (usage.lotId) {
-          const lot = productLots.find(l => l.id === usage.lotId);
-          if (!lot) {
-            insufficientProducts.push(`${product.name} (lote não encontrado)`);
-            continue;
-          }
-          if (lot.quantity < usage.quantity) {
-            insufficientProducts.push(`${product.name} - Lote ${lot.lotNumber} (disponível: ${lot.quantity} ${product.unit}, necessário: ${usage.quantity} ${product.unit})`);
-          }
-        } else {
-          if (product.quantityInStock < usage.quantity) {
-            insufficientProducts.push(`${product.name} (disponível: ${product.quantityInStock} ${product.unit}, necessário: ${usage.quantity} ${product.unit})`);
-          }
-        }
-      }
-
-      if (insufficientProducts.length > 0) {
-        throw new Error(`Insufficient product quantity in stock: ${insufficientProducts.join(', ')}`);
-      }
-
-      // Deduct from specific lot if lotId is provided
-      const lotUpdatePromises = usages.map(async (usage) => {
-        if (!usage.lotId) return;
-        const lot = productLots.find(l => l.id === usage.lotId);
-        if (!lot) return;
-        await supabase
-          .from('product_lots')
-          .update({ quantity: lot.quantity - usage.quantity })
-          .eq('id', lot.id);
-      });
-      await Promise.all(lotUpdatePromises);
-
-      const updatedLots = productLots.map(lot => {
-        const usage = usages.find(u => u.lotId === lot.id);
-        if (usage) return { ...lot, quantity: lot.quantity - usage.quantity, updatedAt: new Date() };
-        return lot;
-      });
-      setProductLots(updatedLots);
-
-      const updatedProducts = products.map(product => {
-        const usage = usages.find(u => u.productId === product.id);
-        if (usage) return { ...product, quantityInStock: product.quantityInStock - usage.quantity, updatedAt: new Date() };
-        return product;
+      const { error } = await supabase.rpc('add_inventory_stock', {
+        p_product_id: productId,
+        p_quantity: quantity,
+        p_idempotency_key: idempotencyKey,
+        p_lot_id: lotId ?? null,
+        p_reason: reason ?? null,
+        p_notes: notes ?? null,
+        p_unit_cost: unitCost ?? null,
       });
 
-      if (!isOnline) {
-        setProducts(updatedProducts);
-        setOfflineProducts(updatedProducts, true);
-        setHasPendingSync(true);
-        return true;
-      }
+      if (error) throw error;
 
-      const updatePromises = usages.map(async (usage) => {
-        const product = products.find(p => p.id === usage.productId);
-        if (!product) return;
-        const { error } = await supabase
-          .from('products')
-          .update({ quantity_in_stock: product.quantityInStock - usage.quantity })
-          .eq('id', product.id);
-        if (error) throw error;
-      });
-      await Promise.all(updatePromises);
-
-      setProducts(updatedProducts);
-      setOfflineProducts(updatedProducts, false);
-      return true;
-    } catch (error) {
-      console.error('Error using products:', error);
-      throw error;
-    }
-  };
-
-  // --- Sync functions ---
-
-  const syncData = async () => {
-    if (!isOnline) return;
-    try {
-      if (areasPendingSync) await syncAreas();
-      if (operationsPendingSync) await syncOperations();
-      if (productsPendingSync) await syncProducts();
-      if (seasonsPendingSync) await syncSeasons();
-      setHasPendingSync(false);
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ type: 'SYNC_COMPLETE' });
-      }
-      window.dispatchEvent(new CustomEvent('sync:complete'));
-    } catch (error) {
-      console.error('Erro ao sincronizar dados:', error);
-      throw error;
-    }
-  };
-
-  const syncAreas = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User must be authenticated to sync areas');
-
-      const { data: userProfile, error: userError } = await supabase
-        .from('user_profiles')
-        .select('institution_id')
-        .eq('id', user.id)
-        .single();
-      if (userError || !userProfile?.institution_id) throw new Error('User must belong to an institution to sync areas');
-
-      for (const area of offlineAreas) {
-        if (area.id.startsWith('local-')) {
-          const { error } = await supabase.from('areas').insert([{
-            name: area.name, size: area.size, unit: area.unit, location: area.location,
-            description: area.description, current_crop: area.current_crop, cultivar: area.cultivar,
-            user_id: user.id, institution_id: userProfile.institution_id
-          }]);
-          if (error) console.error('Error syncing new area:', error);
-        } else {
-          const { error } = await supabase.from('areas').update({
-            name: area.name, size: area.size, unit: area.unit, location: area.location,
-            description: area.description, current_crop: area.current_crop, cultivar: area.cultivar
-          }).eq('id', area.id);
-          if (error) console.error('Error syncing updated area:', error);
-        }
-      }
-      await loadAreas();
-      markAreasSynced();
-    } catch (error) {
-      console.error('Error syncing areas:', error);
-      throw error;
-    }
-  };
-
-  const syncOperations = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User must be authenticated to sync operations');
-
-      const { data: userProfile, error: userError } = await supabase
-        .from('user_profiles')
-        .select('institution_id')
-        .eq('id', user.id)
-        .single();
-      if (userError || !userProfile?.institution_id) throw new Error('User must belong to an institution to sync operations');
-
-      for (const operation of offlineOperations) {
-        if (operation.id.startsWith('local-')) {
-          const { error } = await supabase.from('operations').insert([{
-            area_id: operation.areaId, season_id: operation.season_id, type: operation.type,
-            start_date: dateToDateString(operation.startDate),
-            end_date: dateToDateString(operation.endDate),
-            next_operation_date: dateToDateString(operation.nextOperationDate),
-            description: operation.description, operated_by: operation.operatedBy,
-            notes: operation.notes, products_used: operation.productsUsed || [],
-            operation_size: operation.operationSize, yield_per_hectare: operation.yieldPerHectare,
-            seeds_per_hectare: operation.seedsPerHectare, user_id: user.id,
-            institution_id: userProfile.institution_id
-          }]);
-          if (error) console.error('Error syncing new operation:', error);
-        } else {
-          const { error } = await supabase.from('operations').update({
-            area_id: operation.areaId, type: operation.type,
-            start_date: dateToDateString(operation.startDate),
-            end_date: dateToDateString(operation.endDate),
-            next_operation_date: dateToDateString(operation.nextOperationDate),
-            description: operation.description, operated_by: operation.operatedBy,
-            notes: operation.notes, products_used: operation.productsUsed || [],
-            operation_size: operation.operationSize, yield_per_hectare: operation.yieldPerHectare,
-            seeds_per_hectare: operation.seedsPerHectare
-          }).eq('id', operation.id);
-          if (error) console.error('Error syncing updated operation:', error);
-        }
-      }
-      await loadOperations();
-      markOperationsSynced();
-    } catch (error) {
-      console.error('Error syncing operations:', error);
-      throw error;
-    }
-  };
-
-  const syncProducts = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User must be authenticated to sync products');
-
-      const { data: userProfile, error: userError } = await supabase
-        .from('user_profiles')
-        .select('institution_id')
-        .eq('id', user.id)
-        .single();
-      if (userError || !userProfile?.institution_id) throw new Error('User must belong to an institution to sync products');
-
-      for (const product of offlineProducts) {
-        if (product.id.startsWith('local-')) {
-          const { error } = await supabase.from('products').insert([{
-            name: product.name, category: product.category, unit: product.unit,
-            quantity_in_stock: product.quantityInStock, min_stock_level: product.minStockLevel,
-            price: product.price, supplier: product.supplier, description: product.description,
-            institution_id: userProfile.institution_id
-          }]);
-          if (error) console.error('Error syncing new product:', error);
-        } else {
-          const { error } = await supabase.from('products').update({
-            name: product.name, category: product.category, unit: product.unit,
-            quantity_in_stock: product.quantityInStock, min_stock_level: product.minStockLevel,
-            price: product.price, supplier: product.supplier, description: product.description
-          }).eq('id', product.id);
-          if (error) console.error('Error syncing updated product:', error);
-        }
-      }
       await loadProducts();
-      markProductsSynced();
+      await loadProductLots();
     } catch (error) {
-      console.error('Error syncing products:', error);
+      console.error('Error adding inventory stock:', error);
       throw error;
     }
   };
 
-  const syncSeasons = async () => {
+  const adjustInventoryStock = async (
+    productId: string,
+    targetQuantity: number,
+    reason: string,
+    idempotencyKey: string,
+    lotId?: string | null,
+    notes?: string | null
+  ) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User must be authenticated to sync seasons');
+      const { error } = await supabase.rpc('adjust_inventory_stock', {
+        p_product_id: productId,
+        p_target_quantity: targetQuantity,
+        p_reason: reason,
+        p_idempotency_key: idempotencyKey,
+        p_lot_id: lotId ?? null,
+        p_notes: notes ?? null,
+      });
 
-      const { data: userProfile, error: userError } = await supabase
-        .from('user_profiles')
-        .select('institution_id')
-        .eq('id', user.id)
-        .single();
-      if (userError || !userProfile?.institution_id) throw new Error('User must belong to an institution to sync seasons');
+      if (error) throw error;
 
-      for (const season of offlineSeasons) {
-        if (season.id.startsWith('local-')) {
-          const { error } = await supabase.from('seasons').insert([{
-            name: season.name, start_date: season.start_date, end_date: season.end_date,
-            status: season.status, description: season.description,
-            user_id: user.id, institution_id: userProfile.institution_id
-          }]);
-          if (error) console.error('Error syncing new season:', error);
-        } else {
-          const { error } = await supabase.from('seasons').update({
-            name: season.name, start_date: season.start_date, end_date: season.end_date,
-            status: season.status, description: season.description
-          }).eq('id', season.id);
-          if (error) console.error('Error syncing updated season:', error);
-        }
-      }
-      await loadSeasons();
-      markSeasonsSynced();
+      await loadProducts();
+      await loadProductLots();
     } catch (error) {
-      console.error('Error syncing seasons:', error);
+      console.error('Error adjusting inventory stock:', error);
       throw error;
     }
   };
 
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data && event.data.type === 'SYNC_COMPLETE') {
-        setHasPendingSync(false);
-      }
-    };
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('message', handleMessage);
-      return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
-    }
-    return undefined;
-  }, []);
+  const archiveLot = async (lotId: string) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
 
-  useEffect(() => {
-    if (isOnline) {
-      const pendingItems = JSON.parse(localStorage.getItem('pendingSync') || '[]');
-      if (pendingItems.length > 0) setHasPendingSync(true);
-    }
-  }, [isOnline]);
+    try {
+      const { error } = await supabase.rpc('archive_product_lot', {
+        p_lot_id: lotId,
+      });
 
-  useEffect(() => {
-    const handleOnline = async () => {
-      if (hasPendingSync) {
-        try { await syncData(); } catch (error) { console.error('Erro ao sincronizar automaticamente:', error); }
-      }
-    };
-    window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
-  }, [hasPendingSync]);
+      if (error) throw error;
+
+      await loadProductLots();
+    } catch (error) {
+      console.error('Error archiving lot:', error);
+      throw error;
+    }
+  };
 
   const saveAreaGeometry = async (areaId: string, geojson: string) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
+
     try {
       const parsed = JSON.parse(geojson);
       const geom = parsed.geometry || parsed;
@@ -1255,6 +831,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const deleteAreaGeometry = async (areaId: string) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
+
     try {
       const { error } = await supabase
         .from('areas')
@@ -1303,13 +881,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const value: AppContextType = {
     profile,
+    reloadProfile: loadUserProfile,
     areas, addArea, updateArea, deleteArea, getAreaById,
     operations: operations.filter(op => !activeSeason || op.season_id === activeSeason.id),
     addOperation, updateOperation, deleteOperation, getOperationsByAreaId,
-    products, addProduct, updateProduct, deleteProduct, getProductById, useProducts,
+    products, addProduct, updateProduct, deleteProduct, getProductById,
     productLots, addLot, updateLot, deleteLot, getLotsByProductId,
+  addInventoryStock, adjustInventoryStock, archiveLot,
     seasons, activeSeason, setActiveSeason,
-    isOnline, hasPendingSync, syncData,
+    isOnline,
     saveAreaGeometry, deleteAreaGeometry, getAreaMapSummary
   };
 

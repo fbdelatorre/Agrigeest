@@ -4,11 +4,13 @@ import { useNotesContext } from '../../context/NotesContext';
 import { useLanguage } from '../../context/LanguageContext';
 import NoteCard from '../../components/notes/NoteCard';
 import Button from '../../components/ui/Button';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Plus, Filter, StickyNote, CheckCircle2, Circle } from 'lucide-react';
 
 const NotesList = () => {
   const { notes, deleteNote } = useNotesContext();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed'>('all');
 
@@ -41,7 +43,7 @@ const NotesList = () => {
       <div className="flex justify-between items-center mb-6 pt-4 lg:pt-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-            <StickyNote className="w-7 h-7 mr-3 text-green-700" />
+            <StickyNote className="w-7 h-7 mr-3 text-brand-700" />
             {language === 'pt' ? 'Anotações da Fazenda' : 'Farm Notes'}
           </h1>
           <p className="text-gray-600">
@@ -50,11 +52,13 @@ const NotesList = () => {
               : 'Manage your notes and reminders'}
           </p>
         </div>
-        <Link to="/notes/new">
-          <Button leftIcon={<Plus size={18} />}>
-            {language === 'pt' ? 'Nova Anotação' : 'New Note'}
-          </Button>
-        </Link>
+        {isOnline && (
+          <Link to="/notes/new">
+            <Button leftIcon={<Plus size={18} />}>
+              {language === 'pt' ? 'Nova Anotação' : 'New Note'}
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -82,15 +86,15 @@ const NotesList = () => {
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-green-200">
+        <div className="bg-white p-4 rounded-lg shadow-sm border border-brand-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-green-700">
+              <p className="text-sm font-medium text-brand-700">
                 {language === 'pt' ? 'Concluídas' : 'Completed'}
               </p>
-              <p className="text-2xl font-bold text-green-900">{completedCount}</p>
+              <p className="text-2xl font-bold text-brand-900">{completedCount}</p>
             </div>
-            <CheckCircle2 className="w-8 h-8 text-green-400" />
+            <CheckCircle2 className="w-8 h-8 text-brand-400" />
           </div>
         </div>
       </div>
@@ -102,7 +106,7 @@ const NotesList = () => {
             placeholder={language === 'pt'
               ? 'Buscar anotações por título ou conteúdo...'
               : 'Search notes by title or content...'}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -116,7 +120,7 @@ const NotesList = () => {
             onClick={() => setFilterStatus('all')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               filterStatus === 'all'
-                ? 'bg-green-700 text-white'
+                ? 'bg-brand-700 text-white'
                 : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
             }`}
           >
@@ -137,7 +141,7 @@ const NotesList = () => {
             onClick={() => setFilterStatus('completed')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${
               filterStatus === 'completed'
-                ? 'bg-green-600 text-white'
+                ? 'bg-brand-600 text-white'
                 : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
             }`}
           >
@@ -171,7 +175,7 @@ const NotesList = () => {
                 ? 'Você ainda não adicionou nenhuma anotação'
                 : "You haven't added any notes yet"}
             </p>
-            {!searchTerm && filterStatus === 'all' && (
+            {!searchTerm && filterStatus === 'all' && isOnline && (
               <Link to="/notes/new">
                 <Button leftIcon={<Plus size={18} />}>
                   {language === 'pt'

@@ -40,9 +40,9 @@ self.addEventListener('activate', (event) => {
 // Evento de busca - responde com recursos em cache ou busca na rede
 self.addEventListener('fetch', (event) => {
   // Para solicitações de API, tenta a rede primeiro, depois o cache
-  if (event.request.url.includes('/api/') || 
+  if (event.request.url.includes('/api/') ||
       event.request.url.includes('supabase')) {
-    
+
     event.respondWith(
       fetch(event.request)
         .catch(() => {
@@ -51,18 +51,18 @@ self.addEventListener('fetch', (event) => {
               if (response) {
                 return response;
               }
-              
+
               // Se não houver resposta em cache para API, retorna a página offline
               if (event.request.headers.get('accept')?.includes('text/html')) {
                 return caches.match('/offline.html');
               }
-              
+
               // Para outras solicitações, retorna um erro JSON
               return new Response(
-                JSON.stringify({ 
-                  error: 'Você está offline e este recurso não está em cache.' 
+                JSON.stringify({
+                  error: 'Você está offline e este recurso não está em cache.'
                 }),
-                { 
+                {
                   status: 503,
                   headers: { 'Content-Type': 'application/json' }
                 }
@@ -72,7 +72,7 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-  
+
   // Para outras solicitações, tenta o cache primeiro, depois a rede
   event.respondWith(
     caches.match(event.request)
@@ -112,66 +112,10 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Evento de sincronização em segundo plano
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-data') {
-    event.waitUntil(syncData());
-  }
-});
-
-// Função para sincronizar dados
-async function syncData() {
-  console.log('Sincronizando dados...');
-  
-  // Obter lista de itens pendentes de sincronização
-  const pendingItems = JSON.parse(localStorage.getItem('pendingSync') || '[]');
-  
-  // Processar cada item pendente
-  for (const key of pendingItems) {
-    try {
-      const storedItem = localStorage.getItem(key);
-      if (!storedItem) continue;
-      
-      const parsedData = JSON.parse(storedItem);
-      
-      // Aqui você implementaria a lógica para enviar os dados para o servidor
-      // Por exemplo, usando fetch para chamar sua API
-      
-      // Após sincronizar com sucesso, marque como sincronizado
-      parsedData.pendingSync = false;
-      localStorage.setItem(key, JSON.stringify(parsedData));
-      
-      // Dispara um evento para notificar que os dados foram sincronizados
-      self.clients.matchAll().then(clients => {
-        clients.forEach(client => {
-          client.postMessage({
-            type: 'SYNC_COMPLETE',
-            key: key
-          });
-        });
-      });
-    } catch (error) {
-      console.error(`Erro ao sincronizar ${key}:`, error);
-    }
-  }
-  
-  // Limpar a lista de pendências
-  localStorage.setItem('pendingSync', '[]');
-  
-  // Notificar que a sincronização foi concluída
-  self.clients.matchAll().then(clients => {
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'ALL_SYNC_COMPLETE'
-      });
-    });
-  });
-}
-
 // Evento de notificação push
 self.addEventListener('push', (event) => {
   const data = event.data.json();
-  
+
   const options = {
     body: data.body,
     icon: 'https://images.pexels.com/photos/440731/pexels-photo-440731.jpeg?auto=compress&cs=tinysrgb&w=192&h=192&fit=crop&crop=entropy',
@@ -190,17 +134,10 @@ self.addEventListener('push', (event) => {
 // Evento de clique na notificação
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  
+
   if (event.notification.data && event.notification.data.url) {
     event.waitUntil(
       clients.openWindow(event.notification.data.url)
     );
-  }
-});
-
-// Evento de mensagem
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SYNC_REQUEST') {
-    syncData();
   }
 });

@@ -4,18 +4,21 @@ import { useAppContext } from '../../context/AppContext';
 import OperationCard from '../../components/operations/OperationCard';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import { ArrowLeft, Pencil, Map, Plus, Calendar, Trash2, FileDown, DollarSign } from 'lucide-react';
+import { ArrowLeft, Pencil, Map, Plus, Calendar, Trash2, FileDown, DollarSign, AlertTriangle } from 'lucide-react';
 import Badge from '../../components/ui/Badge';
 import GeometryManager from '../../components/areas/GeometryManager';
 import { jsPDF } from 'jspdf';
 import { useLanguage } from '../../context/LanguageContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { formatDateForDisplay } from '../../utils/dateHelpers';
+import { calculateOperationCost, getEffectiveArea } from '../../utils/costCalculation';
 
 const AreaDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getAreaById, getOperationsByAreaId, deleteArea, deleteOperation, activeSeason, getProductById } = useAppContext();
+  const { getAreaById, getOperationsByAreaId, deleteArea, deleteOperation, activeSeason, getProductById, operations: allOperations } = useAppContext();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
   
   if (!id) {
     navigate('/areas');
@@ -35,10 +38,19 @@ const AreaDetail = () => {
     return formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US');
   };
   
+  const allAreaOperations = allOperations.filter((op) => op.areaId === id);
+
   const handleDeleteArea = () => {
+    if (allAreaOperations.length > 0) {
+      alert(language === 'pt'
+        ? `Esta área possui ${allAreaOperations.length} operação(ões) registrada(s) e não pode ser excluída enquanto houver histórico vinculado a ela.`
+        : `This area has ${allAreaOperations.length} operation(s) registered and cannot be deleted while there is history linked to it.`
+      );
+      return;
+    }
     if (window.confirm(language === 'pt'
-      ? 'Tem certeza que deseja excluir esta área? Todas as operações associadas permanecerão, mas não estarão mais vinculadas a esta área.'
-      : 'Are you sure you want to delete this area? All associated operations will remain but will no longer be linked to this area.'
+      ? 'Tem certeza que deseja excluir esta área?'
+      : 'Are you sure you want to delete this area?'
     )) {
       deleteArea(id);
       navigate('/areas');
@@ -106,31 +118,25 @@ const AreaDetail = () => {
   const calculateCosts = () => {
     let totalSpent = 0;
     let costPerHectareSum = 0;
+    let hasUnknown = false;
+    let hasEstimated = false;
 
     operations.forEach(operation => {
-      let operationCost = 0;
+      const { knownCost, hasUnknownCost, hasEstimatedCost } = calculateOperationCost(operation, getProductById);
+      totalSpent += knownCost;
+      if (hasUnknownCost) hasUnknown = true;
+      if (hasEstimatedCost) hasEstimated = true;
 
-      if (operation.productsUsed && operation.productsUsed.length > 0) {
-        operation.productsUsed.forEach(usage => {
-          const product = getProductById(usage.productId);
-          if (product) {
-            operationCost += usage.quantity * product.price;
-          }
-        });
-      }
-
-      totalSpent += operationCost;
-
-      // Cost per hectare for the area: operation cost divided by TOTAL area size
-      if (area.size > 0) {
-        costPerHectareSum += operationCost / area.size;
+      const effectiveArea = getEffectiveArea(operation, area);
+      if (effectiveArea > 0) {
+        costPerHectareSum += knownCost / effectiveArea;
       }
     });
 
-    return { totalSpent, costPerHectare: costPerHectareSum };
+    return { totalSpent, costPerHectare: costPerHectareSum, hasUnknownCost: hasUnknown, hasEstimatedCost: hasEstimated };
   };
 
-  const { totalSpent, costPerHectare } = calculateCosts();
+  const { totalSpent, costPerHectare, hasUnknownCost, hasEstimatedCost } = calculateCosts();
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -369,7 +375,7 @@ const AreaDetail = () => {
       <div className="mb-6 pt-4 lg:pt-0">
         <Link 
           to="/areas" 
-          className="text-green-700 hover:text-green-800 font-medium text-sm flex items-center"
+          className="text-brand-700 hover:text-brand-800 font-medium text-sm flex items-center"
         >
           <ArrowLeft className="w-4 h-4 mr-1" />
           {language === 'pt' ? 'Voltar para Áreas' : 'Back to Areas'}
@@ -391,24 +397,29 @@ const AreaDetail = () => {
           >
             {language === 'pt' ? 'Exportar PDF' : 'Export PDF'}
           </Button>
-          <Link to={`/operations/new?areaId=${area.id}`}>
-            <Button
-              variant="secondary"
-              leftIcon={<Plus size={18} />}
-            >
-              {language === 'pt' ? 'Nova Operação' : 'Add Operation'}
-            </Button>
-          </Link>
-          <Link to={`/areas/${area.id}/edit`}>
-            <Button
-              leftIcon={<Pencil size={18} />}
-            >
-              {language === 'pt' ? 'Editar' : 'Edit'}
-            </Button>
-          </Link>
+          {isOnline && (
+            <Link to={`/operations/new?areaId=${area.id}`}>
+              <Button
+                variant="secondary"
+                leftIcon={<Plus size={18} />}
+              >
+                {language === 'pt' ? 'Nova Operação' : 'Add Operation'}
+              </Button>
+            </Link>
+          )}
+          {isOnline && (
+            <Link to={`/areas/${area.id}/edit`}>
+              <Button
+                leftIcon={<Pencil size={18} />}
+              >
+                {language === 'pt' ? 'Editar' : 'Edit'}
+              </Button>
+            </Link>
+          )}
           <Button
             variant="outline"
-            className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+            disabled={!isOnline}
+            className="text-danger-600 hover:text-danger-700 hover:bg-danger-50 border-danger-100"
             leftIcon={<Trash2 size={18} />}
             onClick={handleDeleteArea}
           >
@@ -501,6 +512,18 @@ const AreaDetail = () => {
                     {formatCurrency(costPerHectare)}
                   </span>
                 </div>
+                {hasEstimatedCost && (
+                  <div className="flex items-start text-xs text-amber-600 mt-1">
+                    <AlertTriangle size={12} className="mr-1 mt-0.5 flex-shrink-0" />
+                    <span>{language === 'pt' ? 'Custo estimado pelo preço atual' : 'Cost estimated from current price'}</span>
+                  </div>
+                )}
+                {hasUnknownCost && (
+                  <div className="flex items-start text-xs text-gray-400 mt-1">
+                    <AlertTriangle size={12} className="mr-1 mt-0.5 flex-shrink-0" />
+                    <span>{language === 'pt' ? 'Custo histórico indisponível para um ou mais produtos' : 'Historical cost unavailable for one or more products'}</span>
+                  </div>
+                )}
               </div>
             </div>
             <div>
@@ -583,24 +606,28 @@ const AreaDetail = () => {
                       ? 'Nenhuma operação registrada para esta área ainda.'
                       : 'No operations recorded for this area yet.'}
                   </p>
-                  <Link 
-                    to={`/operations/new?areaId=${area.id}`}
-                    className="text-green-700 hover:text-green-800 font-medium text-sm mt-2 inline-block"
-                  >
-                    {language === 'pt' ? 'Adicionar uma operação' : 'Add an operation'}
-                  </Link>
+                  {isOnline && (
+                    <Link 
+                      to={`/operations/new?areaId=${area.id}`}
+                      className="text-brand-700 hover:text-brand-800 font-medium text-sm mt-2 inline-block"
+                    >
+                      {language === 'pt' ? 'Adicionar uma operação' : 'Add an operation'}
+                    </Link>
+                  )}
                 </div>
               )}
             </div>
           </Card.Content>
           <Card.Footer>
-            <Link 
-              to={`/operations/new?areaId=${area.id}`} 
-              className="text-green-700 hover:text-green-800 font-medium text-sm flex items-center"
-            >
-              <Plus size={16} className="mr-1" />
-              {language === 'pt' ? 'Nova Operação' : 'Add New Operation'}
-            </Link>
+            {isOnline && (
+              <Link 
+                to={`/operations/new?areaId=${area.id}`} 
+                className="text-brand-700 hover:text-brand-800 font-medium text-sm flex items-center"
+              >
+                <Plus size={16} className="mr-1" />
+                {language === 'pt' ? 'Nova Operação' : 'Add New Operation'}
+              </Link>
+            )}
           </Card.Footer>
         </Card>
       </div>
@@ -640,11 +667,13 @@ const AreaDetail = () => {
                 ? 'Comece a registrar operações para esta área para manter um histórico detalhado.'
                 : 'Start tracking operations for this area to maintain a detailed history.'}
             </p>
-            <Link to={`/operations/new?areaId=${area.id}`}>
-              <Button leftIcon={<Plus size={18} />}>
-                {language === 'pt' ? 'Adicionar Primeira Operação' : 'Add First Operation'}
-              </Button>
-            </Link>
+            {isOnline && (
+              <Link to={`/operations/new?areaId=${area.id}`}>
+                <Button leftIcon={<Plus size={18} />}>
+                  {language === 'pt' ? 'Adicionar Primeira Operação' : 'Add First Operation'}
+                </Button>
+              </Link>
+            )}
           </div>
         )}
       </div>

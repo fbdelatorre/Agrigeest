@@ -71,15 +71,15 @@ const ProductSearchInput: React.FC<ProductSearchInputProps> = ({
       {label && (
         <label className="block text-sm font-medium text-gray-700">
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span className="text-danger-500 ml-1">*</span>}
         </label>
       )}
 
       <div className="relative">
         <div
           className={`relative flex items-center bg-white border rounded-md shadow-sm cursor-text ${
-            error ? 'border-red-500' : 'border-gray-300'
-          } ${isOpen ? 'ring-2 ring-green-500 border-green-500' : ''}`}
+            error ? 'border-danger-500' : 'border-gray-300'
+          } ${isOpen ? 'ring-2 ring-brand-500 border-brand-500' : ''}`}
           onClick={handleInputClick}
         >
           <div className="absolute left-3 text-gray-400">
@@ -129,7 +129,7 @@ const ProductSearchInput: React.FC<ProductSearchInputProps> = ({
                     type="button"
                     onClick={() => handleSelectProduct(product.id)}
                     className={`w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center justify-between ${
-                      isSelected ? 'bg-green-50' : ''
+                      isSelected ? 'bg-brand-50' : ''
                     }`}
                   >
                     <div className="flex-1">
@@ -142,7 +142,7 @@ const ProductSearchInput: React.FC<ProductSearchInputProps> = ({
                     <div className="text-right ml-4">
                       <div
                         className={`text-sm font-medium ${
-                          isLowStock ? 'text-red-600' : 'text-gray-700'
+                          isLowStock ? 'text-danger-600' : 'text-gray-700'
                         }`}
                       >
                         {product.quantityInStock} {product.unit}
@@ -165,7 +165,7 @@ const ProductSearchInput: React.FC<ProductSearchInputProps> = ({
         )}
       </div>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-danger-500">{error}</p>}
 
       {selectedProduct && !isOpen && (
         <p className="text-sm text-gray-500">

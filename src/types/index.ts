@@ -34,6 +34,8 @@ export interface Operation {
   operationSize: number;
   yieldPerHectare?: number;
   seedsPerHectare?: number;
+  status?: string;
+  season_id?: string;
 }
 
 export type ProductCategory = 'seed' | 'fertilizer' | 'pesticide' | 'herbicide' | 'equipment' | 'other';
@@ -60,11 +62,21 @@ export interface ProductLot {
   expirationDate?: Date;
   createdAt: Date;
   updatedAt: Date;
+  archivedAt?: Date;
+}
+
+export interface LotAllocation {
+  lotId: string | null; // null = untracked stock (no lot)
+  quantity: number;
 }
 
 export interface ProductUsage {
   productId: string;
   quantity: number;
   dose?: number; // Dose per hectare/acre
-  lotId?: string; // Which lot was used
+  lotId?: string; // LEGACY: single lot, preserved for historical operations
+  lotAllocations?: LotAllocation[]; // NEW: multiple lot sources per product
+  productNameSnapshot?: string;
+  unitSnapshot?: string;
+  unitPriceSnapshot?: number;
 }

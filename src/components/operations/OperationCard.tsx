@@ -3,11 +3,13 @@ import { Operation, OperationType } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
-import { Calendar, User, FileText, Pencil, Trash2, Map, Copy, DollarSign } from 'lucide-react';
+import { Calendar, User, FileText, Pencil, Trash2, Map, Copy, DollarSign, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { formatDateForDisplay } from '../../utils/dateHelpers';
+import { calculateOperationCost, calculateCostPerHectare } from '../../utils/costCalculation';
 
 interface OperationCardProps {
   operation: Operation;
@@ -22,6 +24,7 @@ const OperationCard: React.FC<OperationCardProps> = ({
 }) => {
   const { getAreaById, getProductById, getLotsByProductId } = useAppContext();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
   
   const area = getAreaById(operation.areaId);
 
@@ -73,30 +76,28 @@ const OperationCard: React.FC<OperationCardProps> = ({
 
     return (operation.productsUsed || []).map(usage => {
       const product = getProductById(usage.productId);
-      const lot = usage.lotId ? getLotsByProductId(product?.id || '').find(l => l.id === usage.lotId) : undefined;
       if (!product) return language === 'pt' ? 'Produto desconhecido' : 'Unknown product';
-      const lotText = lot ? ` ${language === 'pt' ? '(Lote' : '(Lot'} ${lot.lotNumber})` : '';
+
+      if (usage.lotAllocations && usage.lotAllocations.length > 0) {
+        const lotParts = usage.lotAllocations.map(alloc => {
+          if (alloc.lotId) {
+            const lot = getLotsByProductId(product.id).find(l => l.id === alloc.lotId);
+            const lotName = lot ? lot.lotNumber : (language === 'pt' ? 'Lote histórico indisponível' : 'Historical lot unavailable');
+            return `${lotName} (${alloc.quantity} ${product.unit})`;
+          }
+          return `${language === 'pt' ? 'Sem lote' : 'No lot'} (${alloc.quantity} ${product.unit})`;
+        }).join(', ');
+        return `${usage.quantity} ${product.unit} ${language === 'pt' ? 'de' : 'of'} ${product.name} — ${lotParts}`;
+      }
+
+      const lot = usage.lotId ? getLotsByProductId(product?.id || '').find(l => l.id === usage.lotId) : undefined;
+      const lotText = lot
+        ? ` ${language === 'pt' ? '(Lote' : '(Lot'} ${lot.lotNumber})`
+        : usage.lotId
+        ? ` (${language === 'pt' ? 'Lote histórico indisponível' : 'Historical lot unavailable'})`
+        : '';
       return `${usage.quantity} ${product.unit} ${language === 'pt' ? 'de' : 'of'} ${product.name}${lotText}`;
     }).join(', ');
-  };
-
-  const calculateOperationCost = () => {
-    let totalCost = 0;
-
-    if (operation.productsUsed && operation.productsUsed.length > 0) {
-      operation.productsUsed.forEach(usage => {
-        const product = getProductById(usage.productId);
-        if (product) {
-          totalCost += usage.quantity * product.price;
-        }
-      });
-    }
-
-    // Use operationSize if > 0, otherwise fallback to area size
-    const areaSize = operation.operationSize > 0 ? operation.operationSize : (area?.size || 0);
-    const costPerHectare = areaSize > 0 ? totalCost / areaSize : 0;
-
-    return { totalCost, costPerHectare };
   };
 
   const formatCurrency = (amount: number) => {
@@ -108,7 +109,9 @@ const OperationCard: React.FC<OperationCardProps> = ({
     }).format(amount);
   };
 
-  const { totalCost, costPerHectare } = calculateOperationCost();
+  const { knownCost: totalCost, hasUnknownCost, hasEstimatedCost } = calculateOperationCost(operation, getProductById);
+  const { costPerHectare } = calculateCostPerHectare(operation, area, getProductById);
+  const showCostSection = totalCost > 0 || hasUnknownCost;
 
   return (
     <Card className="h-full transition-all duration-200 hover:shadow-md">
@@ -154,7 +157,8 @@ const OperationCard: React.FC<OperationCardProps> = ({
               aria-label={language === 'pt' ? 'Excluir operação' : 'Delete operation'}
               leftIcon={<Trash2 size={16} />}
               onClick={() => onDelete(operation.id)}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              disabled={!isOnline}
+              className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
             >
               {language === 'pt' ? 'Excluir' : 'Delete'}
             </Button>
@@ -196,7 +200,7 @@ const OperationCard: React.FC<OperationCardProps> = ({
             <p className="text-sm text-gray-600">{getProductsUsedText()}</p>
           </div>
 
-          {totalCost > 0 && (
+          {showCostSection && (
             <div className="mt-3 pt-3 border-t border-gray-200">
               <div className="flex items-center text-gray-700 mb-2">
                 <DollarSign size={16} className="mr-2" />
@@ -213,6 +217,18 @@ const OperationCard: React.FC<OperationCardProps> = ({
                   <span className="text-gray-600">{language === 'pt' ? `Custo por ${area?.unit || 'ha'}:` : `Cost per ${area?.unit || 'ha'}:`}</span>
                   <span className="font-medium text-gray-900">{formatCurrency(costPerHectare)}</span>
                 </div>
+                {hasEstimatedCost && (
+                  <div className="flex items-start text-xs text-amber-600 mt-1">
+                    <AlertTriangle size={12} className="mr-1 mt-0.5 flex-shrink-0" />
+                    <span>{language === 'pt' ? 'Custo estimado pelo preço atual' : 'Cost estimated from current price'}</span>
+                  </div>
+                )}
+                {hasUnknownCost && (
+                  <div className="flex items-start text-xs text-gray-400 mt-1">
+                    <AlertTriangle size={12} className="mr-1 mt-0.5 flex-shrink-0" />
+                    <span>{language === 'pt' ? 'Custo histórico indisponível para um ou mais produtos' : 'Historical cost unavailable for one or more products'}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}

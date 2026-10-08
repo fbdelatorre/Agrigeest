@@ -418,9 +418,9 @@ const Login = () => {
               <div className="w-8" /> {/* Spacer */}
               <div className="flex justify-center">
                 {isRegistering ? (
-                  <UserPlus className="h-8 w-8 text-green-700" />
+                  <UserPlus className="h-8 w-8 text-brand-600" />
                 ) : (
-                  <LogIn className="h-8 w-8 text-green-700" />
+                  <LogIn className="h-8 w-8 text-brand-600" />
                 )}
               </div>
               <Button
@@ -459,8 +459,8 @@ const Login = () => {
                 error === (language === 'pt'
                   ? 'Registro realizado com sucesso! Faça login para continuar.'
                   : 'Registration successful! Please sign in to continue.')
-                  ? 'bg-green-50 text-green-600 border border-green-200'
-                  : 'bg-red-50 text-red-600 border border-red-200'
+                  ? 'bg-success-50 text-success-700 border border-success-100'
+                  : 'bg-danger-50 text-danger-600 border border-danger-100'
               }`}>
                 {error}
                 {!isRegistering && attempts >= 3 && (
@@ -507,7 +507,7 @@ const Login = () => {
                           setInstitutionExists(false);
                           setError(null);
                         }}
-                        className="rounded border-gray-300 text-green-600 shadow-sm focus:border-green-300 focus:ring focus:ring-green-200 focus:ring-opacity-50"
+                        className="rounded border-gray-300 text-brand-600 shadow-sm focus:border-brand-400 focus:ring focus:ring-brand-200 focus:ring-opacity-50"
                       />
                       <span className="ml-2 text-sm text-gray-600">
                         {language === 'pt' ? 'Sim' : 'Yes'}

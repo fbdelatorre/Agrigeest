@@ -132,36 +132,36 @@ const AreaDetailPanel: React.FC<AreaDetailPanelProps> = ({ summary, onClose }) =
   return (
     <div className="bg-white shadow-xl flex flex-col h-full max-h-full">
       {/* Header */}
-      <div className="flex-none p-4 border-b border-gray-200 bg-green-800 text-white">
+      <div className="flex-none p-4 border-b border-gray-200 bg-brand-800 text-white">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
             <MapPin size={24} />
             <div>
               <h2 className="text-lg font-bold">{summary.areaName}</h2>
-              <p className="text-sm text-green-100">
+              <p className="text-sm text-brand-100">
                 {summary.areaSize} {summary.areaUnit}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-green-700">
+          <button onClick={onClose} className="p-1 rounded hover:bg-brand-700">
             <X size={20} />
           </button>
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
           <div className="flex items-center gap-1.5">
-            <Sprout size={16} className="text-green-200" />
-            <span className="text-green-100">{language === 'pt' ? 'Cultura:' : 'Crop:'}</span>
+            <Sprout size={16} className="text-brand-200" />
+            <span className="text-brand-100">{language === 'pt' ? 'Cultura:' : 'Crop:'}</span>
             <span className="font-medium">{summary.currentCrop || '--'}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <FlaskConical size={16} className="text-green-200" />
-            <span className="text-green-100">{language === 'pt' ? 'Cultivar:' : 'Cultivar:'}</span>
+            <FlaskConical size={16} className="text-brand-200" />
+            <span className="text-brand-100">{language === 'pt' ? 'Cultivar:' : 'Cultivar:'}</span>
             <span className="font-medium">{summary.cultivar || '--'}</span>
           </div>
         </div>
         {activeSeason && (
-          <div className="mt-1 text-xs text-green-200">
+          <div className="mt-1 text-xs text-brand-200">
             {language === 'pt' ? 'Safra:' : 'Season:'} {activeSeason.name}
           </div>
         )}
@@ -170,7 +170,7 @@ const AreaDetailPanel: React.FC<AreaDetailPanelProps> = ({ summary, onClose }) =
       {/* Alert */}
       {alert && (
         <div className={`flex-none px-4 py-2 flex items-center gap-2 text-sm ${
-          alert.type === 'danger' ? 'bg-red-50 text-red-700 border-b border-red-200' :
+          alert.type === 'danger' ? 'bg-danger-50 text-danger-700 border-b border-danger-100' :
           alert.type === 'warning' ? 'bg-yellow-50 text-yellow-800 border-b border-yellow-200' :
           'bg-blue-50 text-blue-700 border-b border-blue-200'
         }`}>
@@ -184,7 +184,7 @@ const AreaDetailPanel: React.FC<AreaDetailPanelProps> = ({ summary, onClose }) =
         {/* Last operations summary */}
         <div>
           <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
-            <Clock size={16} className="text-green-700" />
+            <Clock size={16} className="text-brand-700" />
             {language === 'pt' ? 'Ultimas operacoes' : 'Recent operations'}
           </h3>
           <div className="bg-gray-50 rounded-lg p-3">
@@ -261,7 +261,7 @@ const AreaDetailPanel: React.FC<AreaDetailPanelProps> = ({ summary, onClose }) =
                 <button
                   key={op.id}
                   onClick={() => navigate(`/operations/${op.id}/edit`)}
-                  className="w-full text-left bg-white border border-gray-200 rounded-lg p-3 hover:border-green-400 hover:bg-green-50 transition-colors"
+                  className="w-full text-left bg-white border border-gray-200 rounded-lg p-3 hover:border-brand-400 hover:bg-brand-50 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div>

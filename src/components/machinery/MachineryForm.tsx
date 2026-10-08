@@ -5,6 +5,7 @@ import Button from '../ui/Button';
 import { Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 
 interface MachineryFormProps {
   initialData?: Partial<Machinery>;
@@ -19,6 +20,7 @@ const MachineryForm: React.FC<MachineryFormProps> = ({
 }) => {
   const navigate = useNavigate();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
   const [formData, setFormData] = useState({
     name: initialData.name || '',
     description: initialData.description || '',
@@ -113,7 +115,7 @@ const MachineryForm: React.FC<MachineryFormProps> = ({
           value={formData.description}
           onChange={handleChange}
           rows={3}
-          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
           placeholder={language === 'pt' 
             ? 'Digite detalhes adicionais sobre esta máquina...'
             : 'Enter any additional details about this machinery...'}
@@ -132,6 +134,7 @@ const MachineryForm: React.FC<MachineryFormProps> = ({
         <Button
           type="submit"
           leftIcon={<Save size={18} />}
+          disabled={!isOnline}
         >
           {isEditing 
             ? (language === 'pt' ? 'Atualizar Máquina' : 'Update Machinery')

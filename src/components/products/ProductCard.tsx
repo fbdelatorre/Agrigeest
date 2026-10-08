@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Product } from '../../types';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
-import { Package, DollarSign, Pencil, Trash2, AlertTriangle, Layers, Calendar } from 'lucide-react';
+import { Package, DollarSign, Pencil, Trash2, AlertTriangle, Layers, Calendar, PackagePlus, Scale } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '../ui/Button';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAppContext } from '../../context/AppContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import StockActions from './StockActions';
 import { formatDateForDisplay } from '../../utils/dateHelpers';
 
 interface ProductCardProps {
@@ -16,7 +18,9 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, onDelete }) => {
   const { language } = useLanguage();
-  const { getLotsByProductId } = useAppContext();
+  const { getLotsByProductId, profile } = useAppContext();
+  const { isOnline } = useNetworkStatus();
+  const [stockAction, setStockAction] = useState<'stock-in' | 'adjust' | null>(null);
 
   const lots = getLotsByProductId(product.id);
 
@@ -121,7 +125,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onDelete }) => {
               aria-label={`${language === 'pt' ? 'Excluir' : 'Delete'} ${product.name}`}
               leftIcon={<Trash2 size={16} />}
               onClick={() => onDelete(product.id)}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              disabled={!isOnline}
+              className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
             >
               {language === 'pt' ? 'Excluir' : 'Delete'}
             </Button>
@@ -163,7 +168,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onDelete }) => {
                     <div key={lot.id} className="flex items-center justify-between text-xs">
                       <span className="text-gray-600 font-medium">{lot.lotNumber}</span>
                       <span className="text-gray-600">{lot.quantity} {product.unit}</span>
-                      <span className={`flex items-center gap-1 ${expired ? 'text-red-600' : expiringSoon ? 'text-orange-600' : 'text-gray-500'}`}>
+                      <span className={`flex items-center gap-1 ${expired ? 'text-danger-600' : expiringSoon ? 'text-orange-600' : 'text-gray-500'}`}>
                         {lot.expirationDate ? (
                           <>
                             <Calendar size={11} />
@@ -196,12 +201,39 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onDelete }) => {
         </div>
       </Card.Content>
       <Card.Footer>
-        <Link to={`/inventory/${product.id}/edit`} className="w-full">
-          <Button variant="secondary" size="sm" className="w-full">
+        <div className="flex gap-2 w-full">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="flex-1"
+            leftIcon={<PackagePlus size={16} />}
+            onClick={() => setStockAction('stock-in')}
+            disabled={!isOnline}
+          >
+            {language === 'pt' ? 'Entrada' : 'Stock In'}
+          </Button>
+          {profile?.isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              leftIcon={<Scale size={16} />}
+              onClick={() => setStockAction('adjust')}
+              disabled={!isOnline}
+            >
+              {language === 'pt' ? 'Ajustar' : 'Adjust'}
+            </Button>
+          )}
+        </div>
+        <Link to={`/inventory/${product.id}/edit`} className="w-full mt-2">
+          <Button variant="ghost" size="sm" className="w-full">
             {language === 'pt' ? 'Gerenciar Lotes' : 'Manage Lots'}
           </Button>
         </Link>
       </Card.Footer>
+      {stockAction && (
+        <StockActions product={product} mode={stockAction} onClose={() => setStockAction(null)} />
+      )}
     </Card>
   );
 };

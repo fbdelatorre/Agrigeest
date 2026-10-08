@@ -4,8 +4,9 @@ import { useLanguage } from '../context/LanguageContext';
 import Card from '../components/ui/Card';
 import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
-import { BarChart3, Map, Calendar, Package, Filter } from 'lucide-react';
+import { BarChart3, Map, Calendar, Package, Filter, AlertTriangle } from 'lucide-react';
 import { formatDateForDisplay } from '../utils/dateHelpers';
+import { calculateUsageCost } from '../utils/costCalculation';
 
 const Statistics = () => {
   const { areas, operations, products, activeSeason } = useAppContext();
@@ -63,20 +64,32 @@ const Statistics = () => {
   });
   
   // Calculate product usage
+  let hasUnknownCost = false;
+  let hasEstimatedCost = false;
   filteredOperations.forEach(operation => {
     operation.productsUsed.forEach(usage => {
-      const product = products.find(p => p.id === usage.productId);
-      if (!product) return;
+      const result = calculateUsageCost(usage, (id: string) => products.find(p => p.id === id));
       
-      if (!stats.productUsage[product.id]) {
-        stats.productUsage[product.id] = { 
+      if (result.source === 'unknown') {
+        hasUnknownCost = true;
+        return;
+      }
+      if (result.source === 'fallback') {
+        hasEstimatedCost = true;
+      }
+      
+      const product = products.find(p => p.id === usage.productId);
+      const key = product?.id || usage.productId;
+      
+      if (!stats.productUsage[key]) {
+        stats.productUsage[key] = { 
           quantity: 0, 
           totalCost: 0 
         };
       }
       
-      stats.productUsage[product.id].quantity += usage.quantity;
-      stats.productUsage[product.id].totalCost += usage.quantity * product.price;
+      stats.productUsage[key].quantity += usage.quantity;
+      stats.productUsage[key].totalCost += result.cost;
     });
   });
   
@@ -135,8 +148,8 @@ const Statistics = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <Card.Content className="flex items-center py-6">
-            <div className="p-3 bg-green-100 rounded-full mr-4">
-              <Map className="w-6 h-6 text-green-700" />
+            <div className="p-3 bg-brand-100 rounded-full mr-4">
+              <Map className="w-6 h-6 text-brand-700" />
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">
@@ -171,8 +184,8 @@ const Statistics = () => {
         
         <Card>
           <Card.Content className="flex items-center py-6">
-            <div className="p-3 bg-red-100 rounded-full mr-4">
-              <Map className="w-6 h-6 text-red-700" />
+            <div className="p-3 bg-danger-100 rounded-full mr-4">
+              <Map className="w-6 h-6 text-danger-700" />
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">
@@ -240,7 +253,7 @@ const Statistics = () => {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
-                    className="bg-green-600 h-2 rounded-full"
+                    className="bg-brand-600 h-2 rounded-full"
                     style={{ 
                       width: `${(data.area / stats.totalArea * 100).toFixed(1)}%` 
                     }}
@@ -308,6 +321,22 @@ const Statistics = () => {
           </div>
         </Card.Content>
       </Card>
+      
+      {(hasEstimatedCost || hasUnknownCost) && (
+        <div className="flex items-start text-sm text-amber-600 bg-amber-50 p-3 rounded-lg">
+          <AlertTriangle size={16} className="mr-2 mt-0.5 flex-shrink-0" />
+          <span>
+            {language === 'pt'
+              ? hasUnknownCost
+                ? 'Alguns custos históricos estão indisponíveis (produto removido). O total exibido é parcial.'
+                : 'Alguns custos são estimados pelo preço atual do produto.'
+              : hasUnknownCost
+                ? 'Some historical costs are unavailable (removed product). The displayed total is partial.'
+                : 'Some costs are estimated from the current product price.'
+            }
+          </span>
+        </div>
+      )}
     </div>
   );
 };

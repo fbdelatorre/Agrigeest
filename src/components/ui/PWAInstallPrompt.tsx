@@ -66,21 +66,21 @@ const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ className = '' }) =
   };
 
   return (
-    <div className={`bg-green-50 border border-green-200 rounded-lg p-4 ${className}`}>
+    <div className={`bg-brand-50 border border-brand-200 rounded-lg p-4 ${className}`}>
       <div className="flex flex-col md:flex-row md:items-start">
         <div className="flex-shrink-0 mb-4 md:mb-0 md:mr-4">
           {isIOSDevice ? (
-            <Smartphone className="h-12 w-12 text-green-700" />
+            <Smartphone className="h-12 w-12 text-brand-700" />
           ) : (
-            <Laptop className="h-12 w-12 text-green-700" />
+            <Laptop className="h-12 w-12 text-brand-700" />
           )}
         </div>
         <div className="flex-1">
-          <h3 className="text-lg font-medium text-green-800 mb-2">
+          <h3 className="text-lg font-medium text-brand-800 mb-2">
             {language === 'pt' ? 'Instale o aplicativo AgriGest' : 'Install the AgriGest app'}
           </h3>
           
-          <div className="mt-2 text-sm text-green-700">
+          <div className="mt-2 text-sm text-brand-700">
             {isIOSDevice ? (
               <div>
                 <p className="mb-2">
@@ -116,7 +116,7 @@ const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ className = '' }) =
                   <img 
                     src="https://images.pexels.com/photos/440731/pexels-photo-440731.jpeg?auto=compress&cs=tinysrgb&w=300&h=200&fit=crop&crop=entropy" 
                     alt={language === 'pt' ? 'Captura de tela do aplicativo AgriGest' : 'Screenshot of AgriGest app'} 
-                    className="rounded-lg border border-green-200 shadow-sm max-w-[200px] h-auto"
+                    className="rounded-lg border border-brand-200 shadow-sm max-w-[200px] h-auto"
                   />
                 </div>
               </div>
@@ -131,7 +131,7 @@ const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ className = '' }) =
                   <img 
                     src="https://images.pexels.com/photos/440731/pexels-photo-440731.jpeg?auto=compress&cs=tinysrgb&w=300&h=200&fit=crop&crop=entropy" 
                     alt={language === 'pt' ? 'Captura de tela do aplicativo AgriGest' : 'Screenshot of AgriGest app'} 
-                    className="rounded-lg border border-green-200 shadow-sm max-w-[200px] h-auto"
+                    className="rounded-lg border border-brand-200 shadow-sm max-w-[200px] h-auto"
                   />
                 </div>
               </div>

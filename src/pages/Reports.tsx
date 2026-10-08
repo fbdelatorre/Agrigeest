@@ -88,10 +88,10 @@ const Reports = () => {
       </div>
       
       <Card>
-        <Card.Header className="bg-green-50">
+        <Card.Header className="bg-brand-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <FileText className="w-5 h-5 mr-2 text-green-700" />
+              <FileText className="w-5 h-5 mr-2 text-brand-700" />
               <Card.Title>
                 Status das Áreas
               </Card.Title>
@@ -101,7 +101,7 @@ const Reports = () => {
                 <input
                   type="text"
                   placeholder="Buscar área ou cultivo..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />

@@ -23,7 +23,6 @@ import {
   Trash2,
   Database,
   Wifi,
-  RefreshCw
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
@@ -69,7 +68,7 @@ interface Season {
 
 export default function Settings() {
   const { language, setLanguage } = useLanguage();
-  const { isOnline, hasPendingSync, syncData, products = [] } = useAppContext();
+  const { isOnline, products = [] } = useAppContext();
   const { connectionType, connectionSpeed } = useNetworkStatus();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -81,7 +80,6 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [creatingInvitation, setCreatingInvitation] = useState(false);
-  const [syncLoading, setSyncLoading] = useState(false);
   const [cacheSize, setCacheSize] = useState<string | null>(null);
   
   // Season form state
@@ -506,39 +504,64 @@ export default function Settings() {
   };
 
   const handleDeleteSeason = async (seasonId: string) => {
-    if (!confirm(language === 'pt'
-      ? 'Tem certeza que deseja excluir esta safra? Esta ação não pode ser desfeita.'
-      : 'Are you sure you want to delete this season? This action cannot be undone.'
-    )) return;
-    
     try {
       setLoadingToggle(seasonId);
-      
+
+      const { count, error: countError } = await supabase
+        .from('operations')
+        .select('*', { count: 'exact', head: true })
+        .eq('season_id', seasonId);
+
+      if (countError) throw countError;
+
+      if (count && count > 0) {
+        setSeasonMessage({
+          type: 'error',
+          text: language === 'pt'
+            ? `Esta safra possui ${count} operação(ões) registrada(s) e não pode ser excluída enquanto houver histórico vinculado a ela.`
+            : `This season has ${count} operation(s) registered and cannot be deleted while there is history linked to it.`
+        });
+        return;
+      }
+
+      if (!confirm(language === 'pt'
+        ? 'Tem certeza que deseja excluir esta safra? Esta ação não pode ser desfeita.'
+        : 'Are you sure you want to delete this season? This action cannot be undone.'
+      )) return;
+
       const { error } = await supabase
         .from('seasons')
         .delete()
         .eq('id', seasonId);
-      
+
       if (error) throw error;
-      
-      // Reload seasons
+
       await loadSeasons();
-      
-      // Show success message
+
       setSeasonMessage({
         type: 'success',
         text: language === 'pt'
           ? 'Safra excluída com sucesso!'
           : 'Season deleted successfully!'
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error deleting season:', error);
-      setSeasonMessage({
-        type: 'error',
-        text: language === 'pt'
-          ? 'Erro ao excluir safra'
-          : 'Error deleting season'
-      });
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT')) {
+        setSeasonMessage({
+          type: 'error',
+          text: language === 'pt'
+            ? 'Esta safra possui operações vinculadas e não pode ser excluída.'
+            : 'This season has linked operations and cannot be deleted.'
+        });
+      } else {
+        setSeasonMessage({
+          type: 'error',
+          text: language === 'pt'
+            ? 'Erro ao excluir safra'
+            : 'Error deleting season'
+        });
+      }
     } finally {
       setLoadingToggle(null);
     }
@@ -572,40 +595,6 @@ export default function Settings() {
           ? 'Erro ao limpar cache'
           : 'Error clearing cache'
       });
-    }
-  };
-
-  const handleSyncData = async () => {
-    if (!isOnline) {
-      setMessage({
-        type: 'error',
-        text: language === 'pt'
-          ? 'Não é possível sincronizar dados offline'
-          : 'Cannot sync data while offline'
-      });
-      return;
-    }
-    
-    try {
-      setSyncLoading(true);
-      await syncData();
-      
-      setMessage({
-        type: 'success',
-        text: language === 'pt'
-          ? 'Dados sincronizados com sucesso!'
-          : 'Data synced successfully!'
-      });
-    } catch (error) {
-      console.error('Erro ao sincronizar dados:', error);
-      setMessage({
-        type: 'error',
-        text: language === 'pt'
-          ? 'Erro ao sincronizar dados'
-          : 'Error syncing data'
-      });
-    } finally {
-      setSyncLoading(false);
     }
   };
 
@@ -675,8 +664,8 @@ export default function Settings() {
           {message && (
             <div className={`mb-4 p-3 rounded-lg text-sm ${
               message.type === 'success'
-                ? 'bg-green-50 text-green-600 border border-green-200'
-                : 'bg-red-50 text-red-600 border border-red-200'
+                ? 'bg-brand-50 text-brand-600 border border-brand-200'
+                : 'bg-danger-50 text-danger-600 border border-danger-100'
             }`}>
               {message.text}
             </div>
@@ -832,30 +821,6 @@ export default function Settings() {
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="text-sm font-medium text-gray-700">
-                  {language === 'pt' ? 'Dados Pendentes' : 'Pending Data'}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  {hasPendingSync
-                    ? (language === 'pt' ? 'Existem dados para sincronizar' : 'There is data to sync')
-                    : (language === 'pt' ? 'Todos os dados estão sincronizados' : 'All data is synced')}
-                </p>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                leftIcon={<RefreshCw size={16} />}
-                onClick={handleSyncData}
-                disabled={!isOnline || !hasPendingSync || syncLoading}
-              >
-                {syncLoading
-                  ? (language === 'pt' ? 'Sincronizando...' : 'Syncing...')
-                  : (language === 'pt' ? 'Sincronizar Agora' : 'Sync Now')}
-              </Button>
-            </div>
-
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-sm font-medium text-gray-700">
                   {language === 'pt' ? 'Cache do Aplicativo' : 'App Cache'}
                 </h3>
                 <p className="text-sm text-gray-600">
@@ -867,7 +832,7 @@ export default function Settings() {
               <Button
                 variant="outline"
                 size="sm"
-                className="text-red-600 border-red-200 hover:bg-red-50"
+                className="text-danger-600 border-danger-100 hover:bg-danger-50"
                 onClick={handleClearCache}
               >
                 {language === 'pt' ? 'Limpar Cache' : 'Clear Cache'}
@@ -880,8 +845,8 @@ export default function Settings() {
               </h3>
               <p className="text-xs text-amber-700">
                 {language === 'pt'
-                  ? 'Quando você está offline, o aplicativo armazena suas alterações localmente. Ao ficar online novamente, os dados serão sincronizados automaticamente com o servidor.'
-                  : 'When you are offline, the app stores your changes locally. When you go online again, the data will be automatically synced with the server.'}
+                  ? 'Quando você está offline, o aplicativo funciona em modo somente leitura. Você pode visualizar os dados já carregados, mas não pode criar, editar ou excluir registros até que a conexão seja restabelecida.'
+                  : 'When you are offline, the app works in read-only mode. You can view previously loaded data, but cannot create, edit, or delete records until the connection is restored.'}
               </p>
             </div>
           </div>
@@ -913,8 +878,8 @@ export default function Settings() {
               </h3>
               <p className="text-sm text-gray-600">
                 {language === 'pt'
-                  ? 'Todos os dados são armazenados no Supabase e sincronizados com o seu dispositivo para acesso offline. Alterações feitas offline serão sincronizadas quando você estiver online novamente.'
-                  : 'All data is stored in Supabase and synced with your device for offline access. Changes made offline will be synced when you are online again.'}
+                  ? 'Todos os dados são armazenados no Supabase. O aplicativo requer conexão com a internet para criar, editar ou excluir registros. Quando offline, você pode visualizar dados previamente carregados em modo somente leitura.'
+                  : 'All data is stored in Supabase. The app requires an internet connection to create, edit, or delete records. When offline, you can view previously loaded data in read-only mode.'}
               </p>
             </div>
           </div>
@@ -942,8 +907,8 @@ export default function Settings() {
           {seasonMessage && (
             <div className={`mb-4 p-3 rounded-lg text-sm ${
               seasonMessage.type === 'success'
-                ? 'bg-green-50 text-green-600 border border-green-200'
-                : 'bg-red-50 text-red-600 border border-red-200'
+                ? 'bg-brand-50 text-brand-600 border border-brand-200'
+                : 'bg-danger-50 text-danger-600 border border-danger-100'
             }`}>
               {seasonMessage.text}
             </div>
@@ -1009,7 +974,7 @@ export default function Settings() {
                     value={seasonFormData.description}
                     onChange={handleSeasonChange}
                     rows={3}
-                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     placeholder={language === 'pt' 
                       ? 'Digite detalhes adicionais sobre esta safra...'
                       : 'Enter any additional details about this season...'}
@@ -1098,7 +1063,7 @@ export default function Settings() {
                                 size="sm"
                                 onClick={() => handleUpdateSeasonStatus(season.id, 'active')}
                                 disabled={loadingToggle === season.id}
-                                className="text-green-600 border-green-200 hover:bg-green-50"
+                                className="text-brand-600 border-brand-200 hover:bg-brand-50"
                               >
                                 {language === 'pt' ? 'Ativar' : 'Activate'}
                               </Button>
@@ -1120,7 +1085,7 @@ export default function Settings() {
                               size="sm"
                               onClick={() => handleDeleteSeason(season.id)}
                               disabled={loadingToggle === season.id}
-                              className="text-red-600 border-red-200 hover:bg-red-50"
+                              className="text-danger-600 border-danger-100 hover:bg-danger-50"
                             >
                               {language === 'pt' ? 'Excluir' : 'Delete'}
                             </Button>
@@ -1207,7 +1172,7 @@ export default function Settings() {
                                 />
                                 <div className={`
                                   w-11 h-6 bg-gray-200 rounded-full peer 
-                                  peer-focus:ring-4 peer-focus:ring-green-300 
+                                  peer-focus:ring-4 peer-focus:ring-brand-300 
                                   peer-checked:after:translate-x-full 
                                   peer-checked:after:border-white 
                                   after:content-[''] 
@@ -1221,7 +1186,7 @@ export default function Settings() {
                                   after:h-5 
                                   after:w-5 
                                   after:transition-all
-                                  peer-checked:bg-green-600
+                                  peer-checked:bg-brand-600
                                 `}></div>
                               </label>
                             </div>
@@ -1290,7 +1255,7 @@ export default function Settings() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleDeleteInvitation(invitation.code)}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
                                   leftIcon={<Trash2 size={14} />}
                                   disabled={!isOnline}
                                 >

@@ -11,6 +11,35 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   rightIcon?: React.ReactNode;
 }
 
+const variantConfig: Record<ButtonVariant, { enabled: string; disabled: string }> = {
+  primary: {
+    enabled: 'bg-brand-600 text-white border-brand-600 hover:bg-brand-700 hover:border-brand-700',
+    disabled: 'bg-brand-400 text-white border-brand-400',
+  },
+  secondary: {
+    enabled: 'bg-brand-100 text-brand-700 border-brand-200 hover:bg-brand-200 hover:border-brand-300',
+    disabled: 'bg-brand-100 text-brand-400 border-brand-200',
+  },
+  outline: {
+    enabled: 'bg-white text-brand-600 border-gray-300 hover:bg-brand-50 hover:border-brand-600',
+    disabled: 'bg-white text-gray-400 border-gray-300',
+  },
+  ghost: {
+    enabled: 'bg-transparent text-gray-600 border-transparent hover:bg-gray-100 hover:text-gray-900',
+    disabled: 'bg-transparent text-gray-400 border-transparent',
+  },
+  danger: {
+    enabled: 'bg-danger-500 text-white border-danger-500 hover:bg-danger-600 hover:border-danger-600',
+    disabled: 'bg-danger-500/60 text-white border-danger-500/60',
+  },
+};
+
+const sizeStyles: Record<ButtonSize, string> = {
+  sm: 'h-8 px-3 text-xs',
+  md: 'h-10 px-4 text-sm',
+  lg: 'h-11 px-6 text-base',
+};
+
 export const Button: React.FC<ButtonProps> = ({
   children,
   variant = 'primary',
@@ -22,32 +51,16 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
-  
-  const variantStyles = {
-    primary: 'bg-green-700 text-white hover:bg-green-800 focus-visible:ring-green-600',
-    secondary: 'bg-amber-100 text-amber-900 hover:bg-amber-200 focus-visible:ring-amber-500',
-    outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
-    ghost: 'hover:bg-accent hover:text-accent-foreground',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-600',
-  };
-  
-  const sizeStyles = {
-    sm: 'h-9 px-3 text-sm',
-    md: 'h-10 px-4 py-2',
-    lg: 'h-11 px-8 text-lg',
-  };
+  const cfg = variantConfig[variant];
+  const isDisabled = disabled || isLoading;
+  const variantClasses = isDisabled ? cfg.disabled : cfg.enabled;
 
   return (
     <button
-      className={`
-        ${baseStyles}
-        ${variantStyles[variant]}
-        ${sizeStyles[size]}
-        ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}
-        ${className}
-      `}
-      disabled={disabled || isLoading}
+      className={`inline-flex items-center justify-center rounded-lg font-medium border transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.98] ${variantClasses} ${sizeStyles[size]} ${isDisabled ? 'cursor-not-allowed active:scale-100' : ''} ${isLoading ? 'opacity-70 cursor-not-allowed active:scale-100' : ''} ${className}`}
+      data-button="true"
+      data-variant={variant}
+      disabled={isDisabled}
       {...props}
     >
       {isLoading && (
@@ -56,11 +69,11 @@ export const Button: React.FC<ButtonProps> = ({
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
       )}
-      {!isLoading && leftIcon && <span className="mr-2">{leftIcon}</span>}
+      {!isLoading && leftIcon && <span className="mr-2 flex-shrink-0">{leftIcon}</span>}
       {children}
-      {!isLoading && rightIcon && <span className="ml-2">{rightIcon}</span>}
+      {!isLoading && rightIcon && <span className="ml-2 flex-shrink-0">{rightIcon}</span>}
     </button>
   );
 };
 
-export default Button
+export default Button;

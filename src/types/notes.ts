@@ -9,6 +9,6 @@ export interface Note {
   completedDate?: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  userId: string;
+  userId: string | null;
   institutionId: string;
 }

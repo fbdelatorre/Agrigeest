@@ -4,11 +4,13 @@ import { useMachineryContext } from '../../context/MachineryContext';
 import { useLanguage } from '../../context/LanguageContext';
 import MachineryCard from '../../components/machinery/MachineryCard';
 import Button from '../../components/ui/Button';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Plus, Filter, Wrench } from 'lucide-react';
 
 const MachineryList = () => {
-  const { machinery, deleteMachinery } = useMachineryContext();
+  const { machinery, deleteMachinery, maintenances } = useMachineryContext();
   const { language } = useLanguage();
+  const { isOnline } = useNetworkStatus();
   const [searchTerm, setSearchTerm] = useState('');
   
   // Filtrar máquinas baseado no termo de busca
@@ -18,12 +20,32 @@ const MachineryList = () => {
     (machine.description && machine.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
   
-  const handleDeleteMachinery = (id: string) => {
-    if (window.confirm(language === 'pt' 
-      ? 'Tem certeza que deseja excluir esta máquina? Todas as manutenções associadas também serão excluídas.'
-      : 'Are you sure you want to delete this machinery? All associated maintenances will also be deleted.'
+  const handleDeleteMachinery = async (id: string) => {
+    const machineMaintenances = maintenances.filter(m => m.machineryId === id);
+    if (machineMaintenances.length > 0) {
+      alert(language === 'pt'
+        ? `Esta máquina possui ${machineMaintenances.length} manutenção(ões) registrada(s) e não pode ser excluída porque faz parte do histórico de manutenção.`
+        : `This machine has ${machineMaintenances.length} maintenance(s) registered and cannot be deleted because it is part of the maintenance history.`
+      );
+      return;
+    }
+    if (window.confirm(language === 'pt'
+      ? 'Tem certeza que deseja excluir esta máquina?'
+      : 'Are you sure you want to delete this machinery?'
     )) {
-      deleteMachinery(id);
+      try {
+        await deleteMachinery(id);
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT') || msg.includes('depende')) {
+          alert(language === 'pt'
+            ? 'Não é possível excluir esta máquina porque existem dados dependentes (manutenções vinculadas).'
+            : 'Cannot delete this machine because there are dependent data (linked maintenances).'
+          );
+        } else {
+          alert(language === 'pt' ? 'Erro ao excluir máquina.' : 'Error deleting machinery.');
+        }
+      }
     }
   };
 
@@ -32,7 +54,7 @@ const MachineryList = () => {
       <div className="flex justify-between items-center mb-6 pt-4 lg:pt-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-            <Wrench className="w-7 h-7 mr-3 text-green-700" />
+            <Wrench className="w-7 h-7 mr-3 text-brand-700" />
             {language === 'pt' ? 'Máquinas Agrícolas' : 'Agricultural Machinery'}
           </h1>
           <p className="text-gray-600">
@@ -41,11 +63,13 @@ const MachineryList = () => {
               : 'Manage your agricultural machines and equipment'}
           </p>
         </div>
-        <Link to="/machinery/new">
-          <Button leftIcon={<Plus size={18} />}>
-            {language === 'pt' ? 'Nova Máquina' : 'Add New Machinery'}
-          </Button>
-        </Link>
+        {isOnline && (
+          <Link to="/machinery/new">
+            <Button leftIcon={<Plus size={18} />}>
+              {language === 'pt' ? 'Nova Máquina' : 'Add New Machinery'}
+            </Button>
+          </Link>
+        )}
       </div>
       
       <div className="mb-6">
@@ -55,7 +79,7 @@ const MachineryList = () => {
             placeholder={language === 'pt'
               ? 'Buscar máquinas por nome, modelo ou descrição...'
               : 'Search machinery by name, model, or description...'}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -89,13 +113,15 @@ const MachineryList = () => {
                 ? "Você ainda não adicionou nenhuma máquina"
                 : "You haven't added any machinery yet"}
             </p>
-            <Link to="/machinery/new">
-              <Button leftIcon={<Plus size={18} />}>
-                {language === 'pt' 
-                  ? 'Adicionar Primeira Máquina'
-                  : 'Add Your First Machinery'}
-              </Button>
-            </Link>
+            {isOnline && (
+              <Link to="/machinery/new">
+                <Button leftIcon={<Plus size={18} />}>
+                  {language === 'pt' 
+                    ? 'Adicionar Primeira Máquina'
+                    : 'Add Your First Machinery'}
+                </Button>
+              </Link>
+            )}
           </div>
         )}
       </div>

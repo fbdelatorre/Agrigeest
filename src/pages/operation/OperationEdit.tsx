@@ -31,13 +31,33 @@ const OperationEdit = () => {
     } catch (error: any) {
       console.error('Error updating operation:', error);
 
-      // Check if it's a stock error
-      if (error.message?.includes('Insufficient product quantity')) {
-        alert(language === 'pt'
-          ? 'Estoque insuficiente! Verifique a quantidade disponível dos produtos e tente novamente.'
-          : 'Insufficient stock! Check the available quantity of products and try again.');
+      const msg = error?.message || '';
+      const isPt = language === 'pt';
+
+      const errorMessages: Record<string, { pt: string; en: string }> = {
+        AUTH_REQUIRED: { pt: 'Você precisa estar autenticado.', en: 'You must be authenticated.' },
+        PROFILE_NOT_FOUND: { pt: 'Perfil de usuário não encontrado.', en: 'User profile not found.' },
+        PROFILE_NO_INSTITUTION: { pt: 'Você não pertence a uma instituição.', en: 'You do not belong to an institution.' },
+        OPERATION_NOT_FOUND_OR_FORBIDDEN: { pt: 'Operação não encontrada ou acesso negado.', en: 'Operation not found or access denied.' },
+        AREA_NOT_FOUND_OR_FORBIDDEN: { pt: 'Área não encontrada ou acesso negado.', en: 'Area not found or access denied.' },
+        SEASON_NOT_FOUND_OR_FORBIDDEN: { pt: 'Safra não encontrada ou acesso negado.', en: 'Season not found or access denied.' },
+        PRODUCT_NOT_FOUND_OR_FORBIDDEN: { pt: 'Produto não encontrado ou acesso negado.', en: 'Product not found or access denied.' },
+        LOT_NOT_FOUND_OR_MISMATCH: { pt: 'Lote não encontrado ou não corresponde ao produto.', en: 'Lot not found or does not match the product.' },
+        INSUFFICIENT_PRODUCT_STOCK: { pt: 'Estoque insuficiente! Verifique a quantidade disponível dos produtos e tente novamente.', en: 'Insufficient stock! Check the available quantity of products and try again.' },
+        INSUFFICIENT_UNTRACKED_STOCK: { pt: 'Estoque sem lote insuficiente. Selecione um lote com saldo disponível ou ajuste a quantidade.', en: 'Insufficient untracked stock. Select a lot with available balance or adjust the quantity.' },
+        INSUFFICIENT_LOT_STOCK: { pt: 'Estoque insuficiente no lote! Verifique a quantidade disponível.', en: 'Insufficient lot stock! Check the available quantity.' },
+        INVALID_PRODUCTS_USED: { pt: 'Dados de produtos inválidos. Verifique as informações e tente novamente.', en: 'Invalid product data. Check the information and try again.' },
+        HISTORICAL_PRODUCT_UNAVAILABLE: { pt: 'Não é possível alterar a quantidade de um produto que já foi excluído do cadastro.', en: 'Cannot change the quantity of a product that has been removed from the catalog.' },
+        HISTORICAL_LOT_UNAVAILABLE: { pt: 'Não é possível alterar a quantidade de um lote que já foi excluído.', en: 'Cannot change the quantity of a lot that has been removed.' },
+        LOT_ALLOCATIONS_TOTAL_MISMATCH: { pt: 'A soma das origens não corresponde à quantidade total do produto.', en: 'The sum of lot sources does not match the product total quantity.' },
+        DUPLICATE_LOT_ALLOCATION: { pt: 'Um lote foi selecionado mais de uma vez para o mesmo produto.', en: 'A lot was selected more than once for the same product.' },
+      };
+
+      const matched = Object.keys(errorMessages).find(key => msg.includes(key));
+      if (matched) {
+        alert(isPt ? errorMessages[matched].pt : errorMessages[matched].en);
       } else {
-        alert(language === 'pt'
+        alert(isPt
           ? 'Erro ao atualizar operação. Tente novamente.'
           : 'Error updating operation. Please try again.');
       }
@@ -50,7 +70,7 @@ const OperationEdit = () => {
         <div className="mb-6 pt-4 lg:pt-0">
           <Link 
             to="/operations" 
-            className="text-green-700 hover:text-green-800 font-medium text-sm flex items-center"
+            className="text-brand-700 hover:text-brand-800 font-medium text-sm flex items-center"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
             {language === 'pt' ? 'Voltar para Operações' : 'Back to Operations'}
@@ -76,7 +96,7 @@ const OperationEdit = () => {
       <div className="mb-6 pt-4 lg:pt-0">
         <Link 
           to="/operations" 
-          className="text-green-700 hover:text-green-800 font-medium text-sm flex items-center"
+          className="text-brand-700 hover:text-brand-800 font-medium text-sm flex items-center"
         >
           <ArrowLeft className="w-4 h-4 mr-1" />
         {language === 'pt' ? 'Voltar para Operações' : 'Back to Operations'}

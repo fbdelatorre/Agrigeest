@@ -4,7 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import {
-  MapPin, Upload, Trash2, Eye, X, Check, AlertCircle, FileText, RefreshCw,
+  MapPin, Upload, Trash2, Eye, X, Check, AlertCircle, FileText,
 } from 'lucide-react';
 import {
   parseKML, parseGeoJSONFile, parseShapefile, parseKMZ,
@@ -150,7 +150,7 @@ const GeometryManager: React.FC<GeometryManagerProps> = ({
     <div className="bg-white rounded-lg border border-gray-200 p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <MapPin className="w-5 h-5 text-green-700" />
+          <MapPin className="w-5 h-5 text-brand-700" />
           <h3 className="text-sm font-semibold text-gray-900">
             {t('Geometria do Perímetro', 'Perimeter Geometry')}
           </h3>
@@ -176,14 +176,14 @@ const GeometryManager: React.FC<GeometryManagerProps> = ({
       </p>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-red-700">
+        <div className="bg-danger-50 border border-danger-100 rounded-lg p-3 flex items-center gap-2 text-danger-700">
           <AlertCircle size={18} />
           <span className="text-sm">{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2 text-green-700">
+        <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 flex items-center gap-2 text-brand-700">
           <Check size={18} />
           <span className="text-sm">{success}</span>
         </div>
@@ -208,7 +208,7 @@ const GeometryManager: React.FC<GeometryManagerProps> = ({
             <select
               value={selectedPolygonIdx}
               onChange={(e) => setSelectedPolygonIdx(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               {importedPolygons.map((p, idx) => (
                 <option key={p.id} value={idx}>
@@ -263,7 +263,7 @@ const GeometryManager: React.FC<GeometryManagerProps> = ({
           )}
 
           <div
-            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${dragOver ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${dragOver ? 'border-brand-500 bg-brand-50' : 'border-gray-300'}`}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
@@ -302,7 +302,7 @@ const GeometryManager: React.FC<GeometryManagerProps> = ({
                 size="sm"
                 onClick={handleDelete}
                 disabled={busy}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                className="text-danger-600 hover:text-danger-700 hover:bg-danger-50 border-danger-100"
                 leftIcon={<Trash2 size={16} />}
               >
                 {t('Excluir Geometria', 'Delete Geometry')}

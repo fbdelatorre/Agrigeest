@@ -18,7 +18,7 @@ const LayerControl: React.FC<LayerControlProps> = ({ settings, onChange }) => {
   return (
     <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
       <div className="flex items-center px-4 py-3 border-b border-gray-200 bg-gray-50">
-        <Layers size={18} className="mr-2 text-green-700" />
+        <Layers size={18} className="mr-2 text-brand-700" />
         <h3 className="font-medium text-gray-900 text-sm">
           {language === 'pt' ? 'Camadas' : 'Layers'}
         </h3>
@@ -32,14 +32,14 @@ const LayerControl: React.FC<LayerControlProps> = ({ settings, onChange }) => {
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => onChange({ ...settings, baseMap: 'satellite' as BaseMapStyle })}
-              className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm border transition-colors ${settings.baseMap === 'satellite' ? 'border-green-600 bg-green-50 text-green-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+              className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm border transition-colors ${settings.baseMap === 'satellite' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
             >
               <Satellite size={16} />
               {language === 'pt' ? 'Satelite' : 'Satellite'}
             </button>
             <button
               onClick={() => onChange({ ...settings, baseMap: 'streets' as BaseMapStyle })}
-              className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm border transition-colors ${settings.baseMap === 'streets' ? 'border-green-600 bg-green-50 text-green-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+              className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm border transition-colors ${settings.baseMap === 'streets' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
             >
               <Route size={16} />
               {language === 'pt' ? 'Ruas' : 'Streets'}
@@ -120,7 +120,7 @@ const LayerToggle: React.FC<LayerToggleProps> = ({ label, visible, onToggle }) =
       className="flex items-center justify-between w-full px-2 py-1.5 rounded text-sm hover:bg-gray-50 transition-colors"
     >
       <span className="text-gray-700">{label}</span>
-      {visible ? <Eye size={16} className="text-green-600" /> : <EyeOff size={16} className="text-gray-400" />}
+      {visible ? <Eye size={16} className="text-brand-600" /> : <EyeOff size={16} className="text-gray-400" />}
     </button>
   );
 };

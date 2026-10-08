@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useMachineryContext } from '../../context/MachineryContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Machinery, Maintenance } from '../../types/machinery';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -14,7 +15,8 @@ const MachineryDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const { getMachineryById, getMaintenancesByMachineryId, deleteMachinery } = useMachineryContext();
+  const { getMachineryById, getMaintenancesByMachineryId, deleteMachinery, maintenances: allMaintenances } = useMachineryContext();
+  const { isOnline } = useNetworkStatus();
   const [machinery, setMachinery] = useState<Machinery | null>(null);
   const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,18 +41,34 @@ const MachineryDetail = () => {
   const handleDelete = async () => {
     if (!id || !machinery) return;
 
+    const allMachineMaintenances = allMaintenances.filter(m => m.machineryId === id);
+    if (allMachineMaintenances.length > 0) {
+      alert(language === 'pt'
+        ? `Esta máquina possui ${allMachineMaintenances.length} manutenção(ões) registrada(s) e não pode ser excluída porque faz parte do histórico de manutenção.`
+        : `This machine has ${allMachineMaintenances.length} maintenance(s) registered and cannot be deleted because it is part of the maintenance history.`
+      );
+      return;
+    }
+
     if (window.confirm(language === 'pt'
-      ? `Tem certeza que deseja excluir "${machinery.name}"? Todas as manutenções associadas também serão excluídas.`
-      : `Are you sure you want to delete "${machinery.name}"? All associated maintenances will also be deleted.`
+      ? `Tem certeza que deseja excluir "${machinery.name}"?`
+      : `Are you sure you want to delete "${machinery.name}"?`
     )) {
       try {
         await deleteMachinery(id);
         navigate('/machinery');
-      } catch (error) {
-        console.error('Error deleting machinery:', error);
-        alert(language === 'pt'
-          ? 'Erro ao excluir máquina. Tente novamente.'
-          : 'Error deleting machinery. Please try again.');
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT') || msg.includes('depende')) {
+          alert(language === 'pt'
+            ? 'Não é possível excluir esta máquina porque existem dados dependentes (manutenções vinculadas).'
+            : 'Cannot delete this machine because there are dependent data (linked maintenances).'
+          );
+        } else {
+          alert(language === 'pt'
+            ? 'Erro ao excluir máquina. Tente novamente.'
+            : 'Error deleting machinery. Please try again.');
+        }
       }
     }
   };
@@ -89,7 +107,7 @@ const MachineryDetail = () => {
       <div className="mb-6 pt-4 lg:pt-0">
         <Link
           to="/machinery"
-          className="text-green-700 hover:text-green-800 font-medium text-sm flex items-center"
+          className="text-brand-700 hover:text-brand-800 font-medium text-sm flex items-center"
         >
           <ArrowLeft className="w-4 h-4 mr-1" />
           {language === 'pt' ? 'Voltar para Máquinas' : 'Back to Machinery'}
@@ -100,7 +118,7 @@ const MachineryDetail = () => {
         <div className="flex justify-between items-start mb-6">
           <div className="flex-1">
             <h1 className="text-3xl font-bold text-gray-900 flex items-center mb-2">
-              <Wrench className="w-8 h-8 mr-3 text-green-700" />
+              <Wrench className="w-8 h-8 mr-3 text-brand-700" />
               {machinery.name}
             </h1>
             <div className="flex gap-2 mt-2">
@@ -117,19 +135,22 @@ const MachineryDetail = () => {
             </div>
           </div>
           <div className="flex space-x-2">
-            <Link to={`/machinery/${machinery.id}/edit`}>
-              <Button
-                variant="outline"
-                leftIcon={<Pencil size={18} />}
-              >
-                {language === 'pt' ? 'Editar' : 'Edit'}
-              </Button>
-            </Link>
+            {isOnline && (
+              <Link to={`/machinery/${machinery.id}/edit`}>
+                <Button
+                  variant="outline"
+                  leftIcon={<Pencil size={18} />}
+                >
+                  {language === 'pt' ? 'Editar' : 'Edit'}
+                </Button>
+              </Link>
+            )}
             <Button
               variant="outline"
               leftIcon={<Trash2 size={18} />}
               onClick={handleDelete}
-              className="text-red-600 hover:text-red-700 hover:border-red-600"
+              disabled={!isOnline}
+              className="text-danger-600 hover:text-danger-700 hover:border-danger-600"
             >
               {language === 'pt' ? 'Excluir' : 'Delete'}
             </Button>
@@ -146,18 +167,18 @@ const MachineryDetail = () => {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="bg-green-50 border-green-200">
+          <Card className="bg-brand-50 border-brand-200">
             <Card.Content className="pt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-green-700">
+                  <p className="text-sm font-medium text-brand-700">
                     {language === 'pt' ? 'Total de Manutenções' : 'Total Maintenances'}
                   </p>
-                  <p className="text-3xl font-bold text-green-900 mt-1">
+                  <p className="text-3xl font-bold text-brand-900 mt-1">
                     {totalMaintenances}
                   </p>
                 </div>
-                <Wrench className="w-10 h-10 text-green-600 opacity-50" />
+                <Wrench className="w-10 h-10 text-brand-600 opacity-50" />
               </div>
             </Card.Content>
           </Card>
@@ -210,14 +231,16 @@ const MachineryDetail = () => {
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-            <Clock className="w-6 h-6 mr-2 text-green-700" />
+            <Clock className="w-6 h-6 mr-2 text-brand-700" />
             {language === 'pt' ? 'Histórico de Manutenções' : 'Maintenance History'}
           </h2>
-          <Link to={`/maintenances/new?machineryId=${machinery.id}`}>
-            <Button leftIcon={<Plus size={18} />}>
-              {language === 'pt' ? 'Nova Manutenção' : 'New Maintenance'}
-            </Button>
-          </Link>
+          {isOnline && (
+            <Link to={`/maintenances/new?machineryId=${machinery.id}`}>
+              <Button leftIcon={<Plus size={18} />}>
+                {language === 'pt' ? 'Nova Manutenção' : 'New Maintenance'}
+              </Button>
+            </Link>
+          )}
         </div>
 
         {maintenances.length > 0 ? (
@@ -241,11 +264,13 @@ const MachineryDetail = () => {
                 ? 'Esta máquina ainda não possui histórico de manutenções'
                 : 'This machinery has no maintenance history yet'}
             </p>
-            <Link to={`/maintenances/new?machineryId=${machinery.id}`}>
-              <Button leftIcon={<Plus size={18} />}>
-                {language === 'pt' ? 'Adicionar Primeira Manutenção' : 'Add First Maintenance'}
-              </Button>
-            </Link>
+            {isOnline && (
+              <Link to={`/maintenances/new?machineryId=${machinery.id}`}>
+                <Button leftIcon={<Plus size={18} />}>
+                  {language === 'pt' ? 'Adicionar Primeira Manutenção' : 'Add First Maintenance'}
+                </Button>
+              </Link>
+            )}
           </div>
         )}
       </div>

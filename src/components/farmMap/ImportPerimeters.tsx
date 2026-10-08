@@ -128,7 +128,7 @@ const ImportPerimeters: React.FC<ImportPerimetersProps> = ({ onClose, onImportCo
       <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-bold text-gray-900 flex items-center">
-            <Upload size={24} className="mr-2 text-green-700" />
+            <Upload size={24} className="mr-2 text-brand-700" />
             {language === 'pt' ? 'Importar Perimetros' : 'Import Perimeters'}
           </h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-gray-100">
@@ -140,7 +140,7 @@ const ImportPerimeters: React.FC<ImportPerimetersProps> = ({ onClose, onImportCo
           {polygons.length === 0 ? (
             <>
               <div
-                className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${dragOver ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}
+                className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${dragOver ? 'border-brand-500 bg-brand-50' : 'border-gray-300'}`}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
@@ -166,7 +166,7 @@ const ImportPerimeters: React.FC<ImportPerimetersProps> = ({ onClose, onImportCo
                 />
               </div>
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-2 text-red-700">
+                <div className="bg-danger-50 border border-danger-100 rounded-lg p-4 flex items-center gap-2 text-danger-700">
                   <AlertCircle size={20} />
                   <span className="text-sm">{error}</span>
                 </div>
@@ -183,7 +183,7 @@ const ImportPerimeters: React.FC<ImportPerimetersProps> = ({ onClose, onImportCo
               </div>
 
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-2 text-red-700">
+                <div className="bg-danger-50 border border-danger-100 rounded-lg p-4 flex items-center gap-2 text-danger-700">
                   <AlertCircle size={20} />
                   <span className="text-sm">{error}</span>
                 </div>
@@ -197,7 +197,7 @@ const ImportPerimeters: React.FC<ImportPerimetersProps> = ({ onClose, onImportCo
                     <div key={polygon.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-start gap-2">
-                          <MapPin size={20} className="text-green-700 mt-0.5" />
+                          <MapPin size={20} className="text-brand-700 mt-0.5" />
                           <div>
                             <div className="font-medium text-gray-900">{polygon.name}</div>
                             <div className="text-sm text-gray-500">
@@ -229,7 +229,7 @@ const ImportPerimeters: React.FC<ImportPerimetersProps> = ({ onClose, onImportCo
                         <select
                           value={polygon.matchedAreaId || ''}
                           onChange={(e) => handleMatchChange(polygon.id, e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                         >
                           <option value="">
                             {language === 'pt' ? 'Selecione uma area...' : 'Select an area...'}
@@ -244,7 +244,7 @@ const ImportPerimeters: React.FC<ImportPerimetersProps> = ({ onClose, onImportCo
 
                       {matchedArea && (
                         <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
-                          <Check size={12} className="text-green-600" />
+                          <Check size={12} className="text-brand-600" />
                           {language === 'pt' ? 'Sera vinculado a' : 'Will be linked to'}: {matchedArea.name}
                           {matchedArea.size && ` (${matchedArea.size} ${matchedArea.unit})`}
                         </div>
