@@ -95,9 +95,17 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onSignOut }) => {
 
   return (
     <nav
-      style={{ backgroundColor: '#123D2A' }}
-      className="fixed top-0 left-0 h-screen text-white w-64 z-40 transform transition-transform duration-200 ease-in-out lg:translate-x-0 flex flex-col"
-    >
+      data-sidebar="true"
+      style={{
+        backgroundColor: '#123D2A',
+        height: '100dvh',
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
+      className={`fixed top-0 left-0 text-white z-50 flex flex-col overflow-y-auto transition-transform duration-200 ease-in-out lg:translate-x-0 lg:w-64 w-[min(85vw,320px)] ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
+      >
       {/* Logo / Brand */}
       <div className="flex-none px-5 pt-5 pb-4">
         <div className="flex items-center gap-2.5">

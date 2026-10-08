@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './Navbar';
 import Topbar from './Topbar';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, WifiOff, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAppContext } from '../../context/AppContext';
@@ -12,11 +12,30 @@ import JoinInstitution from '../auth/JoinInstitution';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { profile } = useAppContext();
   const { isOnline } = useNetworkStatus();
   const { language } = useLanguage();
   const legacyData = useLegacyOfflineData();
+
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsSidebarOpen(false);
+    };
+    if (isSidebarOpen) {
+      document.addEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = '';
+    };
+  }, [isSidebarOpen]);
 
   const handleSignOut = async () => {
     try {
@@ -36,7 +55,14 @@ const Layout: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F5F7F5]">
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-20 px-4 h-14 flex items-center justify-between shadow-sm" style={{ backgroundColor: '#123D2A' }}>
+      <div
+        className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 flex items-center justify-between shadow-sm"
+        style={{
+          backgroundColor: '#123D2A',
+          height: 'calc(3.5rem + env(safe-area-inset-top))',
+          paddingTop: 'env(safe-area-inset-top)',
+        }}
+      >
         <button
           className="p-2 -ml-2 text-white rounded-lg transition-colors"
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -59,7 +85,7 @@ const Layout: React.FC = () => {
       {/* Backdrop for mobile */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
@@ -70,7 +96,9 @@ const Layout: React.FC = () => {
       {/* Main content */}
       <div className="lg:ml-64 min-h-screen flex flex-col">
         <Topbar />
-        <main className="flex-1 pt-14 lg:pt-0 px-4 lg:px-6 py-4 lg:py-6 pb-20">
+        <main
+          className="flex-1 px-4 lg:px-6 py-4 lg:py-6 pb-20 pt-[calc(3.5rem+env(safe-area-inset-top))] lg:pt-6"
+        >
           <div className="max-w-[1600px] mx-auto">
             {!isOnline && (
               <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
