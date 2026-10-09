@@ -64,6 +64,8 @@ interface AppContextType {
   addInventoryStock: (productId: string, quantity: number, idempotencyKey: string, lotId?: string | null, reason?: string | null, notes?: string | null, unitCost?: number | null) => Promise<void>;
   adjustInventoryStock: (productId: string, targetQuantity: number, reason: string, idempotencyKey: string, lotId?: string | null, notes?: string | null) => Promise<void>;
   archiveLot: (lotId: string) => Promise<void>;
+  receiveProductLot: (productId: string, quantity: number, idempotencyKey: string, lotNumber?: string | null, expirationDate?: string | null, reason?: string | null, notes?: string | null, unitCost?: number | null) => Promise<void>;
+  classifyUntrackedStock: (productId: string, quantity: number, lotNumber: string, expirationDate?: string | null, notes?: string | null) => Promise<void>;
 
   seasons: Season[];
   activeSeason: Season | null;
@@ -804,6 +806,67 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
+  const receiveProductLot = async (
+    productId: string,
+    quantity: number,
+    idempotencyKey: string,
+    lotNumber?: string | null,
+    expirationDate?: string | null,
+    reason?: string | null,
+    notes?: string | null,
+    unitCost?: number | null
+  ) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
+
+    try {
+      const { error } = await supabase.rpc('receive_product_lot', {
+        p_product_id: productId,
+        p_quantity: quantity,
+        p_idempotency_key: idempotencyKey,
+        p_lot_number: lotNumber ?? null,
+        p_expiration_date: expirationDate ?? null,
+        p_reason: reason ?? null,
+        p_notes: notes ?? null,
+        p_unit_cost: unitCost ?? null,
+      });
+
+      if (error) throw error;
+
+      await loadProducts();
+      await loadProductLots();
+    } catch (error) {
+      console.error('Error receiving product lot:', error);
+      throw error;
+    }
+  };
+
+  const classifyUntrackedStock = async (
+    productId: string,
+    quantity: number,
+    lotNumber: string,
+    expirationDate?: string | null,
+    notes?: string | null
+  ) => {
+    if (!isOnline) throw new Error(READ_ONLY_MSG);
+
+    try {
+      const { error } = await supabase.rpc('classify_untracked_stock', {
+        p_product_id: productId,
+        p_quantity: quantity,
+        p_lot_number: lotNumber,
+        p_expiration_date: expirationDate ?? null,
+        p_notes: notes ?? null,
+      });
+
+      if (error) throw error;
+
+      await loadProductLots();
+    } catch (error) {
+      console.error('Error classifying untracked stock:', error);
+      throw error;
+    }
+  };
+
   const saveAreaGeometry = async (areaId: string, geojson: string) => {
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
@@ -888,6 +951,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     products, addProduct, updateProduct, deleteProduct, getProductById,
     productLots, addLot, updateLot, deleteLot, getLotsByProductId,
   addInventoryStock, adjustInventoryStock, archiveLot,
+  receiveProductLot, classifyUntrackedStock,
     seasons, activeSeason, setActiveSeason,
     isOnline,
     saveAreaGeometry, deleteAreaGeometry, getAreaMapSummary

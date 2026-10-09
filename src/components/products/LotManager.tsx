@@ -1,17 +1,19 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ProductLot } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Badge from '../ui/Badge';
-import { Plus, Pencil, Trash2, X, Save, AlertTriangle, Package, Archive } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Save, AlertTriangle, Package, Archive, PackagePlus, ArrowRightLeft } from 'lucide-react';
 import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 
 interface LotManagerProps {
   productId: string;
 }
+
+type FormMode = 'receive' | 'classify' | 'edit';
 
 interface LotFormData {
   id?: string;
@@ -21,7 +23,11 @@ interface LotFormData {
 }
 
 const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
-  const { getLotsByProductId, addLot, updateLot, deleteLot, getProductById, archiveLot } = useAppContext();
+  const {
+    getLotsByProductId, addLot, updateLot, deleteLot,
+    getProductById, archiveLot,
+    receiveProductLot, classifyUntrackedStock,
+  } = useAppContext();
   const { language } = useLanguage();
   const { isOnline } = useNetworkStatus();
 
@@ -32,16 +38,19 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
   const untrackedStock = totalStock - trackedStock;
 
   const [showForm, setShowForm] = useState(false);
+  const [formMode, setFormMode] = useState<FormMode>('receive');
   const [editingLotId, setEditingLotId] = useState<string | null>(null);
   const [editingOriginalQuantity, setEditingOriginalQuantity] = useState<number | null>(null);
-  const [lotForm, setLotForm] = useState<LotFormData>({
-    lotNumber: '',
-    quantity: '',
-    expirationDate: '',
-  });
+  const [lotForm, setLotForm] = useState<LotFormData>({ lotNumber: '', quantity: '', expirationDate: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const submittingRef = useRef(false);
+  const idempotencyRef = useRef<string>('');
+
+  useEffect(() => {
+    idempotencyRef.current = crypto.randomUUID();
+  }, [showForm, formMode]);
 
   const [isArchiving, setIsArchiving] = useState(false);
 
@@ -80,7 +89,16 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
     return date < now;
   };
 
-  const handleAddLot = () => {
+  const handleReceive = () => {
+    setFormMode('receive');
+    setEditingLotId(null);
+    setLotForm({ lotNumber: '', quantity: '', expirationDate: '' });
+    setErrors({});
+    setShowForm(true);
+  };
+
+  const handleClassify = () => {
+    setFormMode('classify');
     setEditingLotId(null);
     setLotForm({ lotNumber: '', quantity: '', expirationDate: '' });
     setErrors({});
@@ -88,6 +106,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
   };
 
   const handleEditLot = (lot: ProductLot) => {
+    setFormMode('edit');
     setEditingLotId(lot.id);
     setEditingOriginalQuantity(lot.quantity);
     setLotForm({
@@ -102,6 +121,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
 
   const handleCancelForm = () => {
     setShowForm(false);
+    setFormMode('receive');
     setEditingLotId(null);
     setEditingOriginalQuantity(null);
     setLotForm({ lotNumber: '', quantity: '', expirationDate: '' });
@@ -111,22 +131,39 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
     const trimmedNumber = lotForm.lotNumber.trim();
-    if (!trimmedNumber) {
-      newErrors.lotNumber = language === 'pt' ? 'Número do lote é obrigatório' : 'Lot number is required';
-    } else {
-      const duplicateLot = lots.find(l => 
-        l.lotNumber.trim().toLowerCase() === trimmedNumber.toLowerCase() && l.id !== editingLotId
-      );
-      if (duplicateLot) {
-        newErrors.lotNumber = language === 'pt'
-          ? 'Já existe um lote com esse número para este produto.'
-          : 'A lot with this number already exists for this product.';
+
+    if (formMode === 'classify') {
+      if (!trimmedNumber) {
+        newErrors.lotNumber = language === 'pt' ? 'Número do lote é obrigatório para classificação' : 'Lot number is required for classification';
       }
-    }
-    if (!lotForm.quantity.trim()) {
-      newErrors.quantity = language === 'pt' ? 'Quantidade é obrigatória' : 'Quantity is required';
-    } else if (isNaN(Number(lotForm.quantity)) || Number(lotForm.quantity) < 0) {
-      newErrors.quantity = language === 'pt' ? 'Quantidade deve ser um número não negativo' : 'Quantity must be a non-negative number';
+      const qty = Number(lotForm.quantity);
+      if (!lotForm.quantity.trim() || isNaN(qty) || qty <= 0) {
+        newErrors.quantity = language === 'pt' ? 'Quantidade deve ser maior que zero' : 'Quantity must be greater than zero';
+      } else if (qty > untrackedStock) {
+        newErrors.quantity = language === 'pt'
+          ? `Saldo sem lote insuficiente. Disponível: ${untrackedStock} ${product?.unit || ''}`
+          : `Insufficient untracked stock. Available: ${untrackedStock} ${product?.unit || ''}`;
+      }
+    } else if (formMode === 'receive') {
+      if (!lotForm.quantity.trim() || isNaN(Number(lotForm.quantity)) || Number(lotForm.quantity) <= 0) {
+        newErrors.quantity = language === 'pt' ? 'Quantidade deve ser maior que zero' : 'Quantity must be greater than zero';
+      }
+    } else {
+      if (!trimmedNumber) {
+        newErrors.lotNumber = language === 'pt' ? 'Número do lote é obrigatório' : 'Lot number is required';
+      } else {
+        const duplicateLot = lots.find(l =>
+          l.lotNumber.trim().toLowerCase() === trimmedNumber.toLowerCase() && l.id !== editingLotId
+        );
+        if (duplicateLot) {
+          newErrors.lotNumber = language === 'pt'
+            ? 'Já existe um lote com esse número para este produto.'
+            : 'A lot with this number already exists for this product.';
+        }
+      }
+      if (!lotForm.quantity.trim() || isNaN(Number(lotForm.quantity)) || Number(lotForm.quantity) < 0) {
+        newErrors.quantity = language === 'pt' ? 'Quantidade deve ser um número não negativo' : 'Quantity must be a non-negative number';
+      }
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -137,21 +174,54 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
     if (!validate()) return;
     submittingRef.current = true;
     setIsSubmitting(true);
+    setSuccessMsg(null);
 
     try {
-      const lotData = {
-        productId,
-        lotNumber: lotForm.lotNumber.trim(),
-        quantity: Number(lotForm.quantity),
-        expirationDate: lotForm.expirationDate ? inputValueToDate(lotForm.expirationDate) : undefined,
-      };
-
-      if (editingLotId) {
-        await updateLot(editingLotId, lotData, editingOriginalQuantity ?? undefined);
+      if (formMode === 'receive') {
+        const qty = Number(lotForm.quantity);
+        const lotNum = lotForm.lotNumber.trim() || null;
+        await receiveProductLot(
+          productId,
+          qty,
+          idempotencyRef.current,
+          lotNum,
+          lotForm.expirationDate ? dateToInputValue(lotForm.expirationDate) : null,
+        );
+        setSuccessMsg(
+          lotNum
+            ? (language === 'pt' ? `Entrada registrada: ${qty} ${product?.unit || ''} no lote ${lotNum}.` : `Entry registered: ${qty} ${product?.unit || ''} in lot ${lotNum}.`)
+            : (language === 'pt' ? `Entrada registrada: ${qty} ${product?.unit || ''} sem lote.` : `Entry registered: ${qty} ${product?.unit || ''} without lot.`)
+        );
+        handleCancelForm();
+      } else if (formMode === 'classify') {
+        const qty = Number(lotForm.quantity);
+        const lotNum = lotForm.lotNumber.trim();
+        await classifyUntrackedStock(
+          productId,
+          qty,
+          lotNum,
+          lotForm.expirationDate ? dateToInputValue(lotForm.expirationDate) : null,
+        );
+        setSuccessMsg(
+          language === 'pt'
+            ? `Classificação concluída: ${qty} ${product?.unit || ''} transferidos de "Sem lote" para o lote ${lotNum}.`
+            : `Classification complete: ${qty} ${product?.unit || ''} transferred from "Untracked" to lot ${lotNum}.`
+        );
+        handleCancelForm();
       } else {
-        await addLot(lotData);
+        const lotData = {
+          productId,
+          lotNumber: lotForm.lotNumber.trim(),
+          quantity: Number(lotForm.quantity),
+          expirationDate: lotForm.expirationDate ? inputValueToDate(lotForm.expirationDate) : undefined,
+        };
+        if (editingLotId) {
+          await updateLot(editingLotId, lotData, editingOriginalQuantity ?? undefined);
+        } else {
+          await addLot(lotData);
+        }
+        handleCancelForm();
       }
-      handleCancelForm();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '';
       if (errorMsg.includes('LOT_NUMBER_ALREADY_EXISTS')) {
@@ -160,12 +230,31 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
             ? 'Já existe um lote com esse número para este produto.'
             : 'A lot with this number already exists for this product.',
         });
+      } else if (errorMsg.includes('LOT_EXPIRATION_CONFLICT')) {
+        setErrors({
+          expirationDate: language === 'pt'
+            ? 'A validade informada difere da validade já cadastrada para este lote.'
+            : 'The expiration date differs from the one already registered for this lot.',
+        });
+      } else if (errorMsg.includes('INSUFFICIENT_UNTRACKED_STOCK')) {
+        setErrors({
+          quantity: language === 'pt'
+            ? 'Saldo sem lote insuficiente para classificar essa quantidade.'
+            : 'Insufficient untracked stock to classify this quantity.',
+        });
+      } else if (errorMsg.includes('LOT_ARCHIVED')) {
+        setErrors({
+          lotNumber: language === 'pt' ? 'Este lote está arquivado.' : 'This lot is archived.',
+        });
       } else if (errorMsg.includes('LOT_QUANTITY_STALE')) {
         setErrors({
           quantity: language === 'pt'
             ? 'O saldo deste lote foi alterado enquanto você estava editando. O estoque foi atualizado. Confira o novo saldo antes de fazer a alteração novamente.'
             : 'This lot balance changed while you were editing. The stock has been refreshed. Review the new balance before making the change again.',
         });
+      } else if (errorMsg.includes('IDEMPOTENT')) {
+        handleCancelForm();
+        return;
       } else {
         console.error('Error saving lot:', error);
       }
@@ -185,6 +274,19 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
     }
   };
 
+  const formTitle =
+    formMode === 'receive'
+      ? (language === 'pt' ? 'Receber Mercadoria' : 'Receive Stock')
+      : formMode === 'classify'
+        ? (language === 'pt' ? 'Classificar Estoque Sem Lote' : 'Classify Untracked Stock')
+        : (language === 'pt' ? 'Editar Lote' : 'Edit Lot');
+
+  const lotNumberRequired = formMode === 'classify' || formMode === 'edit';
+  const lotNumberPlaceholder =
+    formMode === 'receive'
+      ? (language === 'pt' ? 'Opcional — vazio = sem lote' : 'Optional — empty = untracked')
+      : (language === 'pt' ? 'ex: Lote 001' : 'e.g., Lot 001');
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -193,23 +295,43 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
           {language === 'pt' ? 'Lotes do Produto' : 'Product Lots'}
         </h3>
         {!showForm && (
-          <Button type="button" variant="secondary" size="sm" leftIcon={<Plus size={16} />} onClick={handleAddLot} disabled={!isOnline}>
-            {language === 'pt' ? 'Adicionar Lote' : 'Add Lot'}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" size="sm" leftIcon={<PackagePlus size={16} />} onClick={handleReceive} disabled={!isOnline}>
+              {language === 'pt' ? 'Receber' : 'Receive'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" leftIcon={<ArrowRightLeft size={16} />} onClick={handleClassify} disabled={!isOnline || untrackedStock <= 0}>
+              {language === 'pt' ? 'Classificar' : 'Classify'}
+            </Button>
+          </div>
         )}
       </div>
 
+      {successMsg && (
+        <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-sm text-green-800">
+          {successMsg}
+        </div>
+      )}
+
       {showForm && (
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-gray-700">{formTitle}</h4>
+            {formMode === 'classify' && (
+              <span className="text-xs text-gray-500">
+                {language === 'pt' ? 'Sem lote disponível: ' : 'Untracked available: '}
+                {untrackedStock} {product?.unit}
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input
               name="lotNumber"
               label={language === 'pt' ? 'Número do Lote' : 'Lot Number'}
               value={lotForm.lotNumber}
               onChange={(e) => setLotForm(prev => ({ ...prev, lotNumber: e.target.value }))}
-              placeholder={language === 'pt' ? 'ex: Lote 001' : 'e.g., Lot 001'}
+              placeholder={lotNumberPlaceholder}
               error={errors.lotNumber}
-              required
+              required={lotNumberRequired}
             />
             <Input
               name="lotQuantity"
@@ -228,138 +350,169 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
               type="date"
               value={lotForm.expirationDate}
               onChange={(e) => setLotForm(prev => ({ ...prev, expirationDate: e.target.value }))}
+              error={errors.expirationDate}
             />
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" size="sm" leftIcon={<X size={16} />} onClick={handleCancelForm}>
               {language === 'pt' ? 'Cancelar' : 'Cancel'}
             </Button>
-            <Button type="button" size="sm" leftIcon={<Save size={16} />} onClick={handleSubmitLot} disabled={!isOnline || isSubmitting}>
-              {editingLotId
-                ? (language === 'pt' ? 'Atualizar Lote' : 'Update Lot')
-                : (language === 'pt' ? 'Salvar Lote' : 'Save Lot')}
+            <Button type="button" size="sm" leftIcon={<Save size={16} />} onClick={handleSubmitLot} disabled={!isOnline || isSubmitting} isLoading={isSubmitting}>
+              {formMode === 'receive'
+                ? (language === 'pt' ? 'Registrar Entrada' : 'Register Entry')
+                : formMode === 'classify'
+                  ? (language === 'pt' ? 'Classificar' : 'Classify')
+                  : (language === 'pt' ? 'Atualizar Lote' : 'Update Lot')}
             </Button>
           </div>
         </div>
       )}
 
-      {lots.length > 0 ? (
-        <div className="space-y-2">
-          {lots.map(lot => {
-            const expired = isExpired(lot.expirationDate);
-            const expiringSoon = isExpiringSoon(lot.expirationDate);
-
-            return (
-              <div key={lot.id} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
-                <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-2 items-center">
-                  <div>
-                    <div className="text-sm font-medium text-gray-900">{lot.lotNumber}</div>
-                    <div className="text-xs text-gray-500">{language === 'pt' ? 'Lote' : 'Lot'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-900">{lot.quantity}</div>
-                    <div className="text-xs text-gray-500">{language === 'pt' ? 'Quantidade' : 'Quantity'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-900">
-                      {lot.expirationDate ? formatDateForDisplay(lot.expirationDate, language === 'pt' ? 'pt-BR' : 'en-US') : '—'}
-                    </div>
-                    <div className="text-xs text-gray-500">{language === 'pt' ? 'Validade' : 'Expiration'}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {expired && (
-                      <Badge variant="danger" className="flex items-center gap-1">
-                        <AlertTriangle size={12} />
-                        {language === 'pt' ? 'Vencido' : 'Expired'}
-                      </Badge>
-                    )}
-                    {!expired && expiringSoon && (
-                      <Badge variant="warning" className="flex items-center gap-1">
-                        <AlertTriangle size={12} />
-                        {language === 'pt' ? 'Vence em breve' : 'Expiring soon'}
-                      </Badge>
-                    )}
-                    {!expired && !expiringSoon && lot.expirationDate && (
-                      <Badge variant="success">
-                        {language === 'pt' ? 'Válido' : 'Valid'}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 ml-4">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    aria-label={language === 'pt' ? 'Editar lote' : 'Edit lot'}
-                    leftIcon={<Pencil size={14} />}
-                    onClick={() => handleEditLot(lot)}
-                    disabled={!isOnline}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    aria-label={language === 'pt' ? 'Excluir lote' : 'Delete lot'}
-                    leftIcon={<Trash2 size={14} />}
-                    onClick={() => handleDeleteLot(lot.id)}
-                    disabled={!isOnline}
-                    className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    aria-label={language === 'pt' ? 'Arquivar lote' : 'Archive lot'}
-                    leftIcon={<Archive size={14} />}
-                    onClick={() => handleArchiveLot(lot.id)}
-                    disabled={!isOnline || isArchiving || lot.quantity > 0}
-                    title={lot.quantity > 0 ? (language === 'pt' ? 'Lote deve estar zerado para arquivar' : 'Lot must be zero to archive') : ''}
-                  />
-                </div>
-              </div>
-            );
-          })}
-          <div className="flex justify-end pt-2 border-t border-gray-200">
-            <div className="text-sm font-medium text-gray-700">
-              {language === 'pt' ? 'Em lotes: ' : 'Tracked in lots: '}
-              {trackedStock} {product?.unit}
-            </div>
+      {/* Stock summary */}
+      <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div>
+            <p className="text-xs text-gray-500">{language === 'pt' ? 'Estoque total' : 'Total stock'}</p>
+            <p className="text-sm font-bold text-gray-900">{totalStock} {product?.unit}</p>
           </div>
-          {untrackedStock >= 0 ? (
-            <div className="flex justify-end">
-              <div className="text-sm text-gray-500">
-                {language === 'pt' ? 'Sem lote: ' : 'Untracked: '}
-                {untrackedStock} {product?.unit}
-              </div>
-            </div>
-          ) : (
-            <div className="flex justify-end">
-              <div className="text-sm text-amber-600">
-                {language === 'pt'
-                  ? 'Quantidade em lotes excede o estoque total. Dados históricos precisam de revisão.'
-                  : 'Lot quantity exceeds total stock. Historical data needs review.'}
-              </div>
-            </div>
-          )}
-          <div className="flex justify-end">
-            <div className="text-sm font-medium text-gray-900">
-              {language === 'pt' ? 'Estoque total: ' : 'Total stock: '}
-              {totalStock} {product?.unit}
-            </div>
+          <div>
+            <p className="text-xs text-gray-500">{language === 'pt' ? 'Em lotes' : 'In lots'}</p>
+            <p className="text-sm font-bold text-gray-900">{trackedStock} {product?.unit}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">{language === 'pt' ? 'Sem lote' : 'Untracked'}</p>
+            <p className={`text-sm font-bold ${untrackedStock > 0 ? 'text-amber-600' : 'text-gray-900'}`}>{untrackedStock} {product?.unit}</p>
           </div>
         </div>
-      ) : (
-        !showForm && (
+      </div>
+
+      {/* Lot list including virtual "Sem lote" row */}
+      <div className="space-y-2">
+        {/* Virtual "Sem lote" row */}
+        {untrackedStock > 0 && (
+          <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-2 items-center">
+              <div>
+                <div className="text-sm font-medium text-gray-900">{language === 'pt' ? 'Sem lote' : 'Untracked'}</div>
+                <div className="text-xs text-gray-500">{language === 'pt' ? 'Saldo virtual' : 'Virtual balance'}</div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-gray-900">{untrackedStock} {product?.unit}</div>
+                <div className="text-xs text-gray-500">{language === 'pt' ? 'Quantidade' : 'Quantity'}</div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-gray-500">—</div>
+                <div className="text-xs text-gray-500">{language === 'pt' ? 'Validade' : 'Expiration'}</div>
+              </div>
+              <div>
+                <Badge variant="warning" className="flex items-center gap-1 w-fit">
+                  <AlertTriangle size={12} />
+                  {language === 'pt' ? 'Não identificado' : 'Unidentified'}
+                </Badge>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 ml-4">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={language === 'pt' ? 'Classificar estoque sem lote' : 'Classify untracked stock'}
+                leftIcon={<ArrowRightLeft size={14} />}
+                onClick={handleClassify}
+                disabled={!isOnline}
+                title={language === 'pt' ? 'Classificar' : 'Classify'}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Real lots */}
+        {lots.map(lot => {
+          const expired = isExpired(lot.expirationDate);
+          const expiringSoon = isExpiringSoon(lot.expirationDate);
+
+          return (
+            <div key={lot.id} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
+              <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-2 items-center">
+                <div>
+                  <div className="text-sm font-medium text-gray-900">{lot.lotNumber}</div>
+                  <div className="text-xs text-gray-500">{language === 'pt' ? 'Lote' : 'Lot'}</div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-gray-900">{lot.quantity}</div>
+                  <div className="text-xs text-gray-500">{language === 'pt' ? 'Quantidade' : 'Quantity'}</div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-gray-900">
+                    {lot.expirationDate ? formatDateForDisplay(lot.expirationDate, language === 'pt' ? 'pt-BR' : 'en-US') : '—'}
+                  </div>
+                  <div className="text-xs text-gray-500">{language === 'pt' ? 'Validade' : 'Expiration'}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {expired && (
+                    <Badge variant="danger" className="flex items-center gap-1">
+                      <AlertTriangle size={12} />
+                      {language === 'pt' ? 'Vencido' : 'Expired'}
+                    </Badge>
+                  )}
+                  {!expired && expiringSoon && (
+                    <Badge variant="warning" className="flex items-center gap-1">
+                      <AlertTriangle size={12} />
+                      {language === 'pt' ? 'Vence em breve' : 'Expiring soon'}
+                    </Badge>
+                  )}
+                  {!expired && !expiringSoon && lot.expirationDate && (
+                    <Badge variant="success">
+                      {language === 'pt' ? 'Válido' : 'Valid'}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 ml-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={language === 'pt' ? 'Editar lote' : 'Edit lot'}
+                  leftIcon={<Pencil size={14} />}
+                  onClick={() => handleEditLot(lot)}
+                  disabled={!isOnline}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={language === 'pt' ? 'Excluir lote' : 'Delete lot'}
+                  leftIcon={<Trash2 size={14} />}
+                  onClick={() => handleDeleteLot(lot.id)}
+                  disabled={!isOnline}
+                  className="text-danger-600 hover:text-danger-700 hover:bg-danger-50"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={language === 'pt' ? 'Arquivar lote' : 'Archive lot'}
+                  leftIcon={<Archive size={14} />}
+                  onClick={() => handleArchiveLot(lot.id)}
+                  disabled={!isOnline || isArchiving || lot.quantity > 0}
+                  title={lot.quantity > 0 ? (language === 'pt' ? 'Lote deve estar zerado para arquivar' : 'Lot must be zero to archive') : ''}
+                />
+              </div>
+            </div>
+          );
+        })}
+
+        {lots.length === 0 && untrackedStock <= 0 && !showForm && (
           <div className="text-center py-6 bg-gray-50 rounded-lg text-gray-500">
             <p className="text-sm">
               {language === 'pt'
-                ? 'Nenhum lote cadastrado. Clique em "Adicionar Lote" para começar.'
-                : 'No lots registered. Click "Add Lot" to get started.'}
+                ? 'Nenhum lote cadastrado. Clique em "Receber" para dar entrada em mercadoria.'
+                : 'No lots registered. Click "Receive" to register stock entry.'}
             </p>
           </div>
-        )
-      )}
+        )}
+      </div>
     </div>
   );
 };
