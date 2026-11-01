@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { Operation, ProductUsage, LotAllocation, ProductLot } from '../../types';
@@ -98,6 +98,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
   const [showFefoReconfirm, setShowFefoReconfirm] = useState(false);
   const [fefoReconfirmIndex, setFefoReconfirmIndex] = useState<number | null>(null);
   const [dontShowFefoWarning, setDontShowFefoWarning] = useState(false);
+  const [autoUseLots, setAutoUseLots] = useState(false);
   const hideFefoWarningStored = typeof localStorage !== 'undefined' && localStorage.getItem('agriGest_hide_fefo_warning') === 'true';
 
   const formatNumber = (value: string): string => {
@@ -358,16 +359,11 @@ const OperationForm: React.FC<OperationFormProps> = ({
     return usage.lotAllocations.reduce((sum, a) => sum + parseNumber(a.quantity), 0);
   };
 
-  const applyFEFO = (index: number) => {
-    const usage = formData.productsUsed[index];
-    const product = products.find(p => p.id === usage.productId);
-    if (!product) return;
+  const buildFefoAllocations = (productId: string, needed: number): FormLotAllocation[] => {
+    const allocations: FormLotAllocation[] = [];
+    if (needed <= 0) return allocations;
 
-    const needed = parseNumber(usage.quantity);
-    if (needed <= 0) return;
-
-    const allLots = getLotsByProductId(product.id);
-    const availableLots = allLots.filter(l => l.quantity > 0);
+    const availableLots = getLotsByProductId(productId).filter(l => l.quantity > 0);
 
     const sortedLots = [...availableLots].sort((a, b) => {
       const aDays = getDaysUntilExpiration(a.expirationDate);
@@ -378,7 +374,6 @@ const OperationForm: React.FC<OperationFormProps> = ({
       return a.lotNumber.localeCompare(b.lotNumber);
     });
 
-    const allocations: FormLotAllocation[] = [];
     let remaining = needed;
 
     for (const lot of sortedLots) {
@@ -389,21 +384,45 @@ const OperationForm: React.FC<OperationFormProps> = ({
     }
 
     if (remaining > 0) {
-      const untracked = getUntrackedAvailable(product.id);
+      const untracked = getUntrackedAvailable(productId);
       if (untracked > 0) {
         const take = Math.min(untracked, remaining);
         allocations.push({ lotId: '', quantity: take.toString().replace('.', ',') });
-        remaining -= take;
       }
     }
+
+    return allocations;
+  };
+
+  const applyFEFO = (index: number) => {
+    const usage = formData.productsUsed[index];
+    if (!products.some(p => p.id === usage.productId)) return;
+
+    const needed = parseNumber(usage.quantity);
+    if (needed <= 0) return;
 
     const updatedProducts = [...formData.productsUsed];
     updatedProducts[index] = {
       ...usage,
-      lotAllocations: allocations,
+      lotAllocations: buildFefoAllocations(usage.productId, needed),
     };
     setFormData(prev => ({ ...prev, productsUsed: updatedProducts }));
   };
+
+  useEffect(() => {
+    if (!autoUseLots) return;
+    setFormData(prev => {
+      let changed = false;
+      const nextProducts = prev.productsUsed.map(usage => {
+        if (usage.isLegacy || !usage.productId) return usage;
+        const allocations = buildFefoAllocations(usage.productId, parseNumber(usage.quantity));
+        if (JSON.stringify(allocations) === JSON.stringify(usage.lotAllocations || [])) return usage;
+        changed = true;
+        return { ...usage, lotAllocations: allocations };
+      });
+      return changed ? { ...prev, productsUsed: nextProducts } : prev;
+    });
+  }, [autoUseLots, formData.productsUsed, buildFefoAllocations]);
 
   const handleFefoToggle = (index: number) => {
     const isChecked = fefoChecked[index] || false;
@@ -842,20 +861,28 @@ const OperationForm: React.FC<OperationFormProps> = ({
       </div>
 
       <div className="mt-6">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-medium text-gray-900">
-            {language === 'pt' ? 'Produtos Utilizados' : 'Products Used'}
-          </h3>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            leftIcon={<Plus size={16} />}
-            onClick={addProductUsage}
-          >
-            {language === 'pt' ? 'Adicionar Produto' : 'Add Product'}
-          </Button>
-        </div>
+        <h3 className="text-lg font-medium text-gray-900 mb-3">
+          {language === 'pt' ? 'Produtos Utilizados' : 'Products Used'}
+        </h3>
+
+        <label className="flex items-start gap-3 mb-4 p-3 rounded-md bg-brand-50 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={autoUseLots}
+            onChange={(e) => setAutoUseLots(e.target.checked)}
+            className="mt-1 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+          />
+          <span className="text-sm text-gray-700">
+            <span className="block font-medium">
+              {language === 'pt' ? 'Usar lotes automaticamente para todos os produtos' : 'Use lots automatically for all products'}
+            </span>
+            <span className="block text-xs text-gray-600 mt-0.5">
+              {language === 'pt'
+                ? 'Opcional. Os lotes com validade mais próxima são usados primeiro.'
+                : 'Optional. Lots with the nearest expiry are used first.'}
+            </span>
+          </span>
+        </label>
 
         {formData.productsUsed.length === 0 && (
           <div className="bg-gray-50 p-4 rounded-md text-center text-gray-500">
@@ -987,6 +1014,25 @@ const OperationForm: React.FC<OperationFormProps> = ({
                       </Button>
                     </div>
                   </div>
+                </div>
+              ) : autoUseLots ? (
+                <div className="space-y-1 border-t border-gray-200 pt-3 text-sm text-gray-600">
+                  {product && (usage.lotAllocations || []).length === 0 && (
+                    <p className="italic text-gray-500">
+                      {language === 'pt' ? 'Nenhum estoque disponível para distribuir.' : 'No stock available to distribute.'}
+                    </p>
+                  )}
+                  {(usage.lotAllocations || []).map((alloc, aIdx) => {
+                    const allocLot = alloc.lotId ? availableLots.find(l => l.id === alloc.lotId) : null;
+                    return (
+                      <p key={aIdx}>
+                        {allocLot?.lotNumber || (language === 'pt' ? 'Sem lote' : 'No lot')}: {alloc.quantity} {product?.unit || ''}
+                      </p>
+                    );
+                  })}
+                  {errors[`allocTotal-${index}`] && (
+                    <p className="text-danger-600">{errors[`allocTotal-${index}`]}</p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2 border-t border-gray-200 pt-3">
@@ -1130,8 +1176,8 @@ const OperationForm: React.FC<OperationFormProps> = ({
                   {(usage.lotAllocations || []).length === 0 && (
                     <p className="text-sm text-gray-500 italic">
                       {language === 'pt'
-                        ? 'Nenhuma origem adicionada. Adicione pelo menos uma origem.'
-                        : 'No source added. Add at least one source.'}
+                        ? 'Nenhum lote informado. Este campo é opcional.'
+                        : 'No lot selected. This field is optional.'}
                     </p>
                   )}
 
@@ -1171,6 +1217,16 @@ const OperationForm: React.FC<OperationFormProps> = ({
             </div>
           );
         })}
+
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          leftIcon={<Plus size={16} />}
+          onClick={addProductUsage}
+        >
+          {language === 'pt' ? 'Adicionar Produto' : 'Add Product'}
+        </Button>
       </div>
 
       <div>
