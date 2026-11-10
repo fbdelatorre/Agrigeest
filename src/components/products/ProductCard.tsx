@@ -10,6 +10,7 @@ import { useAppContext } from '../../context/AppContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import StockActions from './StockActions';
 import { formatDateForDisplay } from '../../utils/dateHelpers';
+import { formatQuantity } from '../../utils/quantityFormat';
 
 interface ProductCardProps {
   product: Product;
@@ -23,6 +24,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onDelete }) => {
   const [stockAction, setStockAction] = useState<'stock-in' | 'adjust' | null>(null);
 
   const lots = getLotsByProductId(product.id);
+  const trackedStock = lots.reduce((sum, lot) => sum + lot.quantity, 0);
+  const untrackedStock = product.quantityInStock - trackedStock;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -138,8 +141,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onDelete }) => {
           <div className="flex items-center text-gray-700">
             <Package size={16} className="mr-2" />
             <span>
-              {product.quantityInStock} {product.unit} {language === 'pt' ? 'em estoque' : 'in stock'}
-              {product.minStockLevel > 0 && ` (${language === 'pt' ? 'Mín' : 'Min'}: ${product.minStockLevel})`}
+              {formatQuantity(product.quantityInStock, language)} {product.unit} {language === 'pt' ? 'em estoque' : 'in stock'}
+              {product.minStockLevel > 0 && ` (${language === 'pt' ? 'Mín' : 'Min'}: ${formatQuantity(product.minStockLevel, language)})`}
             </span>
           </div>
 
@@ -154,20 +157,25 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onDelete }) => {
             </div>
           )}
 
-          {lots.length > 0 && (
+          {(lots.length > 0 || Math.abs(untrackedStock) >= 0.005) && (
             <div className="mt-2 pt-2 border-t border-gray-200">
               <div className="flex items-center text-sm font-medium text-gray-700 mb-2">
                 <Layers size={14} className="mr-1" />
                 {language === 'pt' ? 'Lotes' : 'Lots'} ({lots.length})
               </div>
               <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500 italic">{language === 'pt' ? 'Sem lote' : 'No lot'}</span>
+                  <span className={untrackedStock < 0 ? 'text-danger-600 font-medium' : 'text-gray-600'}>{formatQuantity(untrackedStock, language)} {product.unit}</span>
+                  <span />
+                </div>
                 {lots.slice(0, 3).map(lot => {
                   const expired = isExpired(lot.expirationDate);
                   const expiringSoon = isExpiringSoon(lot.expirationDate);
                   return (
                     <div key={lot.id} className="flex items-center justify-between text-xs">
                       <span className="text-gray-600 font-medium">{lot.lotNumber}</span>
-                      <span className="text-gray-600">{lot.quantity} {product.unit}</span>
+                      <span className="text-gray-600">{formatQuantity(lot.quantity, language)} {product.unit}</span>
                       <span className={`flex items-center gap-1 ${expired ? 'text-danger-600' : expiringSoon ? 'text-orange-600' : 'text-gray-500'}`}>
                         {lot.expirationDate ? (
                           <>

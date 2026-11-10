@@ -8,6 +8,8 @@ import Badge from '../ui/Badge';
 import { Plus, Pencil, Trash2, X, Save, AlertTriangle, Package, Archive, PackagePlus, ArrowRightLeft } from 'lucide-react';
 import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { formatQuantity } from '../../utils/quantityFormat';
+import StockActions from './StockActions';
 
 interface LotManagerProps {
   productId: string;
@@ -26,7 +28,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
   const {
     getLotsByProductId, addLot, updateLot, deleteLot,
     getProductById, archiveLot,
-    receiveProductLot, classifyUntrackedStock,
+    receiveProductLot, classifyUntrackedStock, profile,
   } = useAppContext();
   const { language } = useLanguage();
   const { isOnline } = useNetworkStatus();
@@ -53,6 +55,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
   }, [showForm, formMode]);
 
   const [isArchiving, setIsArchiving] = useState(false);
+  const [showUntrackedAdjust, setShowUntrackedAdjust] = useState(false);
 
   const handleArchiveLot = async (lotId: string) => {
     if (window.confirm(language === 'pt' ? 'Arquivar este lote? O lote deve estar com quantidade zero. O histórico do ledger será preservado.' : 'Archive this lot? The lot must have zero quantity. Ledger history will be preserved.')) {
@@ -141,8 +144,8 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
         newErrors.quantity = language === 'pt' ? 'Quantidade deve ser maior que zero' : 'Quantity must be greater than zero';
       } else if (qty > untrackedStock) {
         newErrors.quantity = language === 'pt'
-          ? `Saldo sem lote insuficiente. Disponível: ${untrackedStock} ${product?.unit || ''}`
-          : `Insufficient untracked stock. Available: ${untrackedStock} ${product?.unit || ''}`;
+          ? `Saldo sem lote insuficiente. Disponível: ${formatQuantity(untrackedStock, language)} ${product?.unit || ''}`
+          : `Insufficient untracked stock. Available: ${formatQuantity(untrackedStock, language)} ${product?.unit || ''}`;
       }
     } else if (formMode === 'receive') {
       if (!lotForm.quantity.trim() || isNaN(Number(lotForm.quantity)) || Number(lotForm.quantity) <= 0) {
@@ -189,8 +192,8 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
         );
         setSuccessMsg(
           lotNum
-            ? (language === 'pt' ? `Entrada registrada: ${qty} ${product?.unit || ''} no lote ${lotNum}.` : `Entry registered: ${qty} ${product?.unit || ''} in lot ${lotNum}.`)
-            : (language === 'pt' ? `Entrada registrada: ${qty} ${product?.unit || ''} sem lote.` : `Entry registered: ${qty} ${product?.unit || ''} without lot.`)
+            ? (language === 'pt' ? `Entrada registrada: ${formatQuantity(qty, language)} ${product?.unit || ''} no lote ${lotNum}.` : `Entry registered: ${formatQuantity(qty, language)} ${product?.unit || ''} in lot ${lotNum}.`)
+            : (language === 'pt' ? `Entrada registrada: ${formatQuantity(qty, language)} ${product?.unit || ''} sem lote.` : `Entry registered: ${formatQuantity(qty, language)} ${product?.unit || ''} without lot.`)
         );
         handleCancelForm();
       } else if (formMode === 'classify') {
@@ -204,8 +207,8 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
         );
         setSuccessMsg(
           language === 'pt'
-            ? `Classificação concluída: ${qty} ${product?.unit || ''} transferidos de "Sem lote" para o lote ${lotNum}.`
-            : `Classification complete: ${qty} ${product?.unit || ''} transferred from "Untracked" to lot ${lotNum}.`
+            ? `Classificação concluída: ${formatQuantity(qty, language)} ${product?.unit || ''} transferidos de "Sem lote" para o lote ${lotNum}.`
+            : `Classification complete: ${formatQuantity(qty, language)} ${product?.unit || ''} transferred from "Untracked" to lot ${lotNum}.`
         );
         handleCancelForm();
       } else {
@@ -319,7 +322,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
             {formMode === 'classify' && (
               <span className="text-xs text-gray-500">
                 {language === 'pt' ? 'Sem lote disponível: ' : 'Untracked available: '}
-                {untrackedStock} {product?.unit}
+                {formatQuantity(untrackedStock, language)} {product?.unit}
               </span>
             )}
           </div>
@@ -373,15 +376,15 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
             <p className="text-xs text-gray-500">{language === 'pt' ? 'Estoque total' : 'Total stock'}</p>
-            <p className="text-sm font-bold text-gray-900">{totalStock} {product?.unit}</p>
+            <p className="text-sm font-bold text-gray-900">{formatQuantity(totalStock, language)} {product?.unit}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500">{language === 'pt' ? 'Em lotes' : 'In lots'}</p>
-            <p className="text-sm font-bold text-gray-900">{trackedStock} {product?.unit}</p>
+            <p className="text-sm font-bold text-gray-900">{formatQuantity(trackedStock, language)} {product?.unit}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500">{language === 'pt' ? 'Sem lote' : 'Untracked'}</p>
-            <p className={`text-sm font-bold ${untrackedStock > 0 ? 'text-amber-600' : 'text-gray-900'}`}>{untrackedStock} {product?.unit}</p>
+            <p className={`text-sm font-bold ${untrackedStock > 0 ? 'text-amber-600' : 'text-gray-900'}`}>{formatQuantity(untrackedStock, language)} {product?.unit}</p>
           </div>
         </div>
       </div>
@@ -389,15 +392,14 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
       {/* Lot list including virtual "Sem lote" row */}
       <div className="space-y-2">
         {/* Virtual "Sem lote" row */}
-        {untrackedStock > 0 && (
-          <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-2 items-center">
               <div>
                 <div className="text-sm font-medium text-gray-900">{language === 'pt' ? 'Sem lote' : 'Untracked'}</div>
                 <div className="text-xs text-gray-500">{language === 'pt' ? 'Saldo virtual' : 'Virtual balance'}</div>
               </div>
               <div>
-                <div className="text-sm font-medium text-gray-900">{untrackedStock} {product?.unit}</div>
+                <div className="text-sm font-medium text-gray-900">{formatQuantity(untrackedStock, language)} {product?.unit}</div>
                 <div className="text-xs text-gray-500">{language === 'pt' ? 'Quantidade' : 'Quantity'}</div>
               </div>
               <div>
@@ -419,12 +421,23 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
                 aria-label={language === 'pt' ? 'Classificar estoque sem lote' : 'Classify untracked stock'}
                 leftIcon={<ArrowRightLeft size={14} />}
                 onClick={handleClassify}
-                disabled={!isOnline}
-                title={language === 'pt' ? 'Classificar' : 'Classify'}
+                disabled={!isOnline || untrackedStock <= 0}
+                title={language === 'pt' ? 'Classificar em um lote' : 'Classify into a lot'}
               />
+              {profile?.isAdmin && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={language === 'pt' ? 'Editar saldo sem lote' : 'Edit untracked balance'}
+                  leftIcon={<Pencil size={14} />}
+                  onClick={() => setShowUntrackedAdjust(true)}
+                  disabled={!isOnline}
+                  title={language === 'pt' ? 'Editar saldo sem lote' : 'Edit untracked balance'}
+                />
+              )}
             </div>
           </div>
-        )}
 
         {/* Real lots */}
         {lots.map(lot => {
@@ -439,7 +452,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
                   <div className="text-xs text-gray-500">{language === 'pt' ? 'Lote' : 'Lot'}</div>
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-gray-900">{lot.quantity}</div>
+                  <div className="text-sm font-medium text-gray-900">{formatQuantity(lot.quantity, language)}</div>
                   <div className="text-xs text-gray-500">{language === 'pt' ? 'Quantidade' : 'Quantity'}</div>
                 </div>
                 <div>
@@ -513,6 +526,9 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
           </div>
         )}
       </div>
+      {showUntrackedAdjust && product && (
+        <StockActions product={product} mode="adjust" untrackedOnly onClose={() => setShowUntrackedAdjust(false)} />
+      )}
     </div>
   );
 };

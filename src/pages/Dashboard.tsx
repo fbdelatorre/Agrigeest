@@ -12,6 +12,7 @@ import { useLanguage } from '../context/LanguageContext';
 import PWAInstallPrompt from '../components/ui/PWAInstallPrompt';
 import { canInstallPWA } from '../pwa';
 import { formatDateForDisplay } from '../utils/dateHelpers';
+import { formatQuantity } from '../utils/quantityFormat';
 import StatCard from '../components/ui/StatCard';
 import FarmMapPreview from '../components/dashboard/FarmMapPreview';
 
@@ -262,7 +263,7 @@ const Dashboard = () => {
                   >
                     <span className="font-medium text-gray-700 truncate">{p.name}</span>
                     <span className="text-danger-600 font-medium flex-shrink-0 ml-2">
-                      {p.quantityInStock} / {p.minStockLevel} {p.unit}
+                      {formatQuantity(p.quantityInStock, language)} / {formatQuantity(p.minStockLevel, language)} {p.unit}
                     </span>
                   </Link>
                 ))}
@@ -393,7 +394,7 @@ const Dashboard = () => {
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-sm font-medium text-gray-700 truncate">{p.name}</span>
                         <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
-                          {p.quantityInStock} / {p.minStockLevel} {p.unit}
+                          {formatQuantity(p.quantityInStock, language)} / {formatQuantity(p.minStockLevel, language)} {p.unit}
                         </span>
                       </div>
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">

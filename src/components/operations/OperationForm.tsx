@@ -10,6 +10,7 @@ import { Save, X, Plus, AlertTriangle, Layers } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
+import { formatQuantity } from '../../utils/quantityFormat';
 
 interface OperationFormProps {
   initialData?: Partial<Operation>;
@@ -24,6 +25,7 @@ interface FormProductUsage {
   lotId?: string;
   lotAllocations?: FormLotAllocation[];
   isLegacy: boolean;
+  original?: ProductUsage;
 }
 
 interface FormLotAllocation {
@@ -66,6 +68,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
           quantity: usage.quantity.toString().replace('.', ','),
           lotId: usage.lotId,
           isLegacy: true,
+          original: usage,
         };
       }
       return {
@@ -78,6 +81,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
           quantity: alloc.quantity.toString().replace('.', ','),
         })),
         isLegacy: false,
+        original: usage,
       };
     }),
     notes: initialData.notes || '',
@@ -99,6 +103,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
   const [fefoReconfirmIndex, setFefoReconfirmIndex] = useState<number | null>(null);
   const [dontShowFefoWarning, setDontShowFefoWarning] = useState(false);
   const [autoUseLots, setAutoUseLots] = useState(false);
+  const [submitFailed, setSubmitFailed] = useState(false);
   const hideFefoWarningStored = typeof localStorage !== 'undefined' && localStorage.getItem('agriGest_hide_fefo_warning') === 'true';
 
   const formatNumber = (value: string): string => {
@@ -342,15 +347,32 @@ const OperationForm: React.FC<OperationFormProps> = ({
     });
   };
 
+  // Debits this operation already applied, grouped as the save function records them (by line lot id).
+  const previousConsumption = (initialData.productsUsed || []).reduce(
+    (acc, usage) => {
+      if (usage.lotId) {
+        acc.lots[usage.lotId] = (acc.lots[usage.lotId] || 0) + usage.quantity;
+      } else {
+        acc.untracked[usage.productId] = (acc.untracked[usage.productId] || 0) + usage.quantity;
+      }
+      return acc;
+    },
+    { lots: {} as Record<string, number>, untracked: {} as Record<string, number> }
+  );
+
+  const getLotAvailable = (lot: ProductLot): number => {
+    return lot.quantity + (previousConsumption.lots[lot.id] || 0);
+  };
+
   const getSelectableLots = (allLots: ProductLot[], currentLotId?: string): ProductLot[] => {
-    return allLots.filter(lot => lot.quantity > 0 || lot.id === currentLotId);
+    return allLots.filter(lot => getLotAvailable(lot) > 0 || lot.id === currentLotId);
   };
 
   const getUntrackedAvailable = (productId: string): number => {
     const product = products.find(p => p.id === productId);
     if (!product) return 0;
     const tracked = getLotsByProductId(productId).reduce((sum, l) => sum + l.quantity, 0);
-    const untracked = product.quantityInStock - tracked;
+    const untracked = product.quantityInStock - tracked + (previousConsumption.untracked[productId] || 0);
     return untracked < 0 ? 0 : untracked;
   };
 
@@ -359,36 +381,70 @@ const OperationForm: React.FC<OperationFormProps> = ({
     return usage.lotAllocations.reduce((sum, a) => sum + parseNumber(a.quantity), 0);
   };
 
+  const stockLinesOf = (items: { lotId?: string | null; quantity: number }[]) =>
+    items
+      .filter(item => item.quantity > 0)
+      .map(item => ({ lotId: item.lotId || '', quantity: item.quantity }))
+      .sort((a, b) => a.lotId.localeCompare(b.lotId));
+
+  const isUnchangedUsage = (usage: FormProductUsage): boolean => {
+    const original = usage.original;
+    if (!original || original.productId !== usage.productId) return false;
+    if (Math.abs(parseNumber(usage.quantity) - original.quantity) > 0.000001) return false;
+    if (Math.abs(parseNumber(usage.dose) - (original.dose ?? 0)) > 0.000001) return false;
+
+    const originalLines = stockLinesOf(
+      original.lotAllocations ?? [{ lotId: original.lotId, quantity: original.quantity }]
+    );
+    const currentLines = stockLinesOf(
+      usage.isLegacy
+        ? [{ lotId: usage.lotId, quantity: parseNumber(usage.quantity) }]
+        : (usage.lotAllocations || []).map(alloc => ({ lotId: alloc.lotId, quantity: parseNumber(alloc.quantity) }))
+    );
+
+    return originalLines.length === currentLines.length &&
+      originalLines.every((line, i) =>
+        line.lotId === currentLines[i].lotId &&
+        Math.abs(line.quantity - currentLines[i].quantity) <= 0.000001
+      );
+  };
+
   const buildFefoAllocations = (productId: string, needed: number): FormLotAllocation[] => {
     const allocations: FormLotAllocation[] = [];
     if (needed <= 0) return allocations;
 
-    const availableLots = getLotsByProductId(productId).filter(l => l.quantity > 0);
-
-    const sortedLots = [...availableLots].sort((a, b) => {
-      const aDays = getDaysUntilExpiration(a.expirationDate);
-      const bDays = getDaysUntilExpiration(b.expirationDate);
-      if (aDays !== null && bDays !== null) return aDays - bDays;
-      if (aDays !== null && bDays === null) return -1;
-      if (aDays === null && bDays !== null) return 1;
-      return a.lotNumber.localeCompare(b.lotNumber);
-    });
-
+    const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
+    const toInput = (n: number) => String(n).replace('.', ',');
+    const takeWithin = (available: number, remainingNeeded: number) => {
+      const take = Math.min(available, remainingNeeded);
+      const rounded = round6(take);
+      return rounded > available ? Math.floor(take * 1e6) / 1e6 : rounded;
+    };
     let remaining = needed;
+
+    const untracked = getUntrackedAvailable(productId);
+    if (untracked > 0) {
+      const take = takeWithin(untracked, remaining);
+      allocations.push({ lotId: '', quantity: toInput(take) });
+      remaining = round6(remaining - take);
+    }
+
+    const sortedLots = getLotsByProductId(productId)
+      .filter(l => getLotAvailable(l) > 0)
+      .sort((a, b) => {
+        const aDays = getDaysUntilExpiration(a.expirationDate);
+        const bDays = getDaysUntilExpiration(b.expirationDate);
+        if (aDays !== null && bDays !== null) return aDays - bDays;
+        if (aDays !== null && bDays === null) return -1;
+        if (aDays === null && bDays !== null) return 1;
+        return a.lotNumber.localeCompare(b.lotNumber);
+      });
 
     for (const lot of sortedLots) {
       if (remaining <= 0) break;
-      const take = Math.min(lot.quantity, remaining);
-      allocations.push({ lotId: lot.id, quantity: take.toString().replace('.', ',') });
-      remaining -= take;
-    }
-
-    if (remaining > 0) {
-      const untracked = getUntrackedAvailable(productId);
-      if (untracked > 0) {
-        const take = Math.min(untracked, remaining);
-        allocations.push({ lotId: '', quantity: take.toString().replace('.', ',') });
-      }
+      const take = takeWithin(getLotAvailable(lot), remaining);
+      allocations.push({ lotId: lot.id, quantity: toInput(take) });
+      remaining = round6(remaining - take);
     }
 
     return allocations;
@@ -409,12 +465,30 @@ const OperationForm: React.FC<OperationFormProps> = ({
     setFormData(prev => ({ ...prev, productsUsed: updatedProducts }));
   };
 
+  const isDistributionFeasible = (usage: FormProductUsage): boolean => {
+    const allocations = usage.lotAllocations || [];
+    if (allocations.length === 0) return false;
+    if (Math.abs(getAllocationsTotal(usage) - parseNumber(usage.quantity)) > 0.000001) return false;
+
+    const untrackedNeeded = allocations
+      .filter(alloc => !alloc.lotId)
+      .reduce((sum, alloc) => sum + parseNumber(alloc.quantity), 0);
+    if (untrackedNeeded > getUntrackedAvailable(usage.productId) + 0.000001) return false;
+
+    const lots = getLotsByProductId(usage.productId);
+    return allocations.filter(alloc => alloc.lotId).every(alloc => {
+      const lot = lots.find(l => l.id === alloc.lotId);
+      return !!lot && parseNumber(alloc.quantity) <= getLotAvailable(lot) + 0.000001;
+    });
+  };
+
   useEffect(() => {
     if (!autoUseLots) return;
     setFormData(prev => {
       let changed = false;
       const nextProducts = prev.productsUsed.map(usage => {
-        if (usage.isLegacy || !usage.productId) return usage;
+        if (usage.isLegacy || !usage.productId || isUnchangedUsage(usage)) return usage;
+        if (isDistributionFeasible(usage)) return usage;
         const allocations = buildFefoAllocations(usage.productId, parseNumber(usage.quantity));
         if (JSON.stringify(allocations) === JSON.stringify(usage.lotAllocations || [])) return usage;
         changed = true;
@@ -553,7 +627,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
         newErrors[`dose-${index}`] = language === 'pt' ? 'Dose não pode ser negativa' : 'Dose cannot be negative';
       }
 
-      if (!usage.isLegacy && usage.lotAllocations && usage.lotAllocations.length > 0) {
+      if (!usage.isLegacy && !isUnchangedUsage(usage) && usage.lotAllocations && usage.lotAllocations.length > 0) {
         const allocTotal = getAllocationsTotal(usage);
         const qtyTotal = parseNumber(usage.quantity);
         if (Math.abs(allocTotal - qtyTotal) > 0.000001) {
@@ -561,6 +635,27 @@ const OperationForm: React.FC<OperationFormProps> = ({
             ? `Distribuição (${allocTotal}) não corresponde à quantidade (${qtyTotal})`
             : `Distribution (${allocTotal}) does not match quantity (${qtyTotal})`;
         }
+
+        const allocations = usage.lotAllocations;
+        if (!newErrors[`allocTotal-${index}`]) {
+          const untrackedAllocated = allocations
+            .filter(alloc => !alloc.lotId)
+            .reduce((sum, alloc) => sum + parseNumber(alloc.quantity), 0);
+          const untrackedAvailable = getUntrackedAvailable(usage.productId);
+          if (untrackedAllocated > untrackedAvailable + 0.000001) {
+            newErrors[`allocTotal-${index}`] = language === 'pt'
+              ? `Saldo sem lote insuficiente (disponível: ${untrackedAvailable})`
+              : `Insufficient untracked stock (available: ${untrackedAvailable})`;
+          }
+        }
+        allocations.forEach(alloc => {
+          const lot = getLotsByProductId(usage.productId).find(l => l.id === alloc.lotId);
+          if (lot && parseNumber(alloc.quantity) > getLotAvailable(lot) + 0.000001) {
+            newErrors[`allocTotal-${index}`] = language === 'pt'
+              ? `Quantidade maior que o disponível no lote ${lot.lotNumber} (${formatQuantity(getLotAvailable(lot), language)})`
+              : `Quantity exceeds available stock in lot ${lot.lotNumber} (${formatQuantity(getLotAvailable(lot), language)})`;
+          }
+        });
 
         const seenLotIds: string[] = [];
         let nullCount = 0;
@@ -590,32 +685,35 @@ const OperationForm: React.FC<OperationFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validate()) return;
+    if (!validate()) {
+      setSubmitFailed(true);
+      return;
+    }
+    setSubmitFailed(false);
 
     const submissionData = {
       ...formData,
       startDate: inputValueToDate(formData.startDate),
       endDate: formData.endDate ? inputValueToDate(formData.endDate) : undefined,
       nextOperationDate: formData.nextOperationDate ? inputValueToDate(formData.nextOperationDate) : undefined,
-      productsUsed: formData.productsUsed.map(usage => {
+      productsUsed: formData.productsUsed.flatMap((usage): ProductUsage[] => {
+        if (usage.original && isUnchangedUsage(usage)) return [usage.original];
+        const quantity = parseNumber(usage.quantity);
+        const dose = parseNumber(usage.dose);
         if (usage.isLegacy) {
-          return {
-            productId: usage.productId,
-            quantity: parseNumber(usage.quantity),
-            dose: parseNumber(usage.dose),
-            lotId: usage.lotId,
-          };
+          return [{ productId: usage.productId, quantity, dose, lotId: usage.lotId }];
         }
-        return {
+        const sources = (usage.lotAllocations || []).filter(alloc => parseNumber(alloc.quantity) > 0);
+        if (sources.length === 0) {
+          return [{ productId: usage.productId, quantity, dose }];
+        }
+        return sources.map(alloc => ({
           productId: usage.productId,
-          quantity: parseNumber(usage.quantity),
-          dose: parseNumber(usage.dose),
-          lotAllocations: (usage.lotAllocations || []).map(alloc => ({
-            lotId: alloc.lotId || null,
-            quantity: parseNumber(alloc.quantity),
-          })).filter(alloc => alloc.quantity > 0),
-        };
-      }) as ProductUsage[],
+          quantity: parseNumber(alloc.quantity),
+          dose,
+          ...(alloc.lotId ? { lotId: alloc.lotId } : {}),
+        }));
+      }),
       operationSize: parseNumber(formData.operationSize),
       yieldPerHectare: formData.yieldPerHectare ? parseNumber(formData.yieldPerHectare) : undefined,
       seedsPerHectare: formData.seedsPerHectare ? parseNumber(formData.seedsPerHectare) : undefined,
@@ -975,7 +1073,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                           const expLabel = getExpirationLabel(lot.expirationDate);
                           return (
                             <option key={lot.id} value={lot.id}>
-                              {lot.lotNumber} — {lot.quantity} {product?.unit} — {expLabel}
+                              {lot.lotNumber} — {formatQuantity(getLotAvailable(lot), language)} {product?.unit} — {expLabel}
                             </option>
                           );
                         })}
@@ -993,7 +1091,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                         return (
                           <div className="mt-1 text-xs space-y-0.5">
                             <p className="text-gray-600">{language === 'pt' ? 'Lote' : 'Lot'}: {selectedLot.lotNumber}</p>
-                            <p className="text-gray-600">{language === 'pt' ? 'Disponível' : 'Available'}: {selectedLot.quantity} {product?.unit}</p>
+                            <p className="text-gray-600">{language === 'pt' ? 'Disponível' : 'Available'}: {formatQuantity(getLotAvailable(selectedLot), language)} {product?.unit}</p>
                             {selectedLot.expirationDate && (
                               <p className="text-gray-600">{language === 'pt' ? 'Validade' : 'Expiry'}: {formatDateForDisplay(selectedLot.expirationDate, language === 'pt' ? 'pt-BR' : 'en-US')}</p>
                             )}
@@ -1026,7 +1124,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                     const allocLot = alloc.lotId ? availableLots.find(l => l.id === alloc.lotId) : null;
                     return (
                       <p key={aIdx}>
-                        {allocLot?.lotNumber || (language === 'pt' ? 'Sem lote' : 'No lot')}: {alloc.quantity} {product?.unit || ''}
+                        {allocLot?.lotNumber || (language === 'pt' ? 'Sem lote' : 'No lot')}: {formatQuantity(alloc.quantity, language)} {product?.unit || ''}
                       </p>
                     );
                   })}
@@ -1075,8 +1173,8 @@ const OperationForm: React.FC<OperationFormProps> = ({
                       return (
                         <p className="text-xs text-warning-700 bg-warning-50 px-3 py-1.5 rounded">
                           {language === 'pt'
-                            ? `Estoque disponível insuficiente para distribuir a quantidade necessária. Distribuído: ${total} de ${needed}`
-                            : `Insufficient stock to distribute the required quantity. Distributed: ${total} of ${needed}`}
+                            ? `Estoque disponível insuficiente para distribuir a quantidade necessária. Distribuído: ${formatQuantity(total, language)} de ${formatQuantity(needed, language)}`
+                            : `Insufficient stock to distribute the required quantity. Distributed: ${formatQuantity(total, language)} of ${formatQuantity(needed, language)}`}
                         </p>
                       );
                     }
@@ -1110,7 +1208,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                               const expLabel = getExpirationLabel(lot.expirationDate);
                               return (
                                 <option key={lot.id} value={lot.id}>
-                                  {lot.lotNumber} — {lot.quantity} {product?.unit} — {expLabel}
+                                  {lot.lotNumber} — {formatQuantity(getLotAvailable(lot), language)} {product?.unit} — {expLabel}
                                 </option>
                               );
                             })}
@@ -1123,7 +1221,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                           {isNoLot && (
                             <div className="mt-1 text-xs space-y-0.5">
                               <p className="text-gray-600">{language === 'pt' ? 'Sem lote identificado' : 'No lot identified'}</p>
-                              <p className="text-gray-600">{language === 'pt' ? 'Disponível' : 'Available'}: {getUntrackedAvailable(usage.productId)} {product?.unit || ''}</p>
+                              <p className="text-gray-600">{language === 'pt' ? 'Disponível' : 'Available'}: {formatQuantity(getUntrackedAvailable(usage.productId), language)} {product?.unit || ''}</p>
                             </div>
                           )}
                           {allocLot && (() => {
@@ -1131,7 +1229,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                             return (
                               <div className="mt-1 text-xs space-y-0.5">
                                 <p className="text-gray-600">{language === 'pt' ? 'Lote' : 'Lot'}: {allocLot.lotNumber}</p>
-                                <p className="text-gray-600">{language === 'pt' ? 'Disponível' : 'Available'}: {allocLot.quantity} {product?.unit || ''}</p>
+                                <p className="text-gray-600">{language === 'pt' ? 'Disponível' : 'Available'}: {formatQuantity(allocLot.quantity, language)} {product?.unit || ''}</p>
                                 {allocLot.expirationDate && (
                                   <p className="text-gray-600">{language === 'pt' ? 'Validade' : 'Expiry'}: {formatDateForDisplay(allocLot.expirationDate, language === 'pt' ? 'pt-BR' : 'en-US')}</p>
                                 )}
@@ -1189,19 +1287,19 @@ const OperationForm: React.FC<OperationFormProps> = ({
                       if (Math.abs(diff) < 0.000001) {
                         return (
                           <p className="text-sm text-green-600 font-medium">
-                            {language === 'pt' ? 'Distribuição completa' : 'Distribution complete'}: {total} / {qty} {product?.unit || ''}
+                            {language === 'pt' ? 'Distribuição completa' : 'Distribution complete'}: {formatQuantity(total, language)} / {formatQuantity(qty, language)} {product?.unit || ''}
                           </p>
                         );
                       } else if (diff < 0) {
                         return (
                           <p className="text-sm text-orange-600 font-medium">
-                            {language === 'pt' ? `Falta distribuir ${Math.abs(diff).toFixed(2)}` : `Missing ${Math.abs(diff).toFixed(2)}`}: {total} / {qty} {product?.unit || ''}
+                            {language === 'pt' ? `Falta distribuir ${formatQuantity(Math.abs(diff), language)}` : `Missing ${formatQuantity(Math.abs(diff), language)}`}: {formatQuantity(total, language)} / {formatQuantity(qty, language)} {product?.unit || ''}
                           </p>
                         );
                       } else {
                         return (
                           <p className="text-sm text-danger-600 font-medium">
-                            {language === 'pt' ? `Excede em ${diff.toFixed(2)}` : `Exceeds by ${diff.toFixed(2)}`}: {total} / {qty} {product?.unit || ''}
+                            {language === 'pt' ? `Excede em ${formatQuantity(diff, language)}` : `Exceeds by ${formatQuantity(diff, language)}`}: {formatQuantity(total, language)} / {formatQuantity(qty, language)} {product?.unit || ''}
                           </p>
                         );
                       }
@@ -1244,6 +1342,21 @@ const OperationForm: React.FC<OperationFormProps> = ({
             : 'Enter any additional notes about this operation...'}
         />
       </div>
+
+      {submitFailed && Object.keys(errors).length > 0 && (
+        <div role="alert" className="mb-4 rounded-md border border-danger-200 bg-danger-50 p-4">
+          <p className="text-sm font-medium text-danger-700 mb-2">
+            {language === 'pt'
+              ? 'Não foi possível salvar. Corrija os itens abaixo:'
+              : 'Could not save. Fix the items below:'}
+          </p>
+          <ul className="list-disc pl-5 text-sm text-danger-700 space-y-1">
+            {Array.from(new Set(Object.values(errors))).map(message => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex justify-end space-x-4">
         <Button

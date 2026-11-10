@@ -11,6 +11,7 @@ import { useAppContext } from '../../context/AppContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import LotManager from './LotManager';
 import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
+import { formatQuantity } from '../../utils/quantityFormat';
 
 export interface PendingLot {
   tempId: string;
@@ -456,7 +457,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                         <div className="text-xs text-gray-500">{language === 'pt' ? 'Lote' : 'Lot'}</div>
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{lot.quantity} {formData.unit}</div>
+                        <div className="text-sm font-medium text-gray-900">{formatQuantity(lot.quantity, language)} {formData.unit}</div>
                         <div className="text-xs text-gray-500">{language === 'pt' ? 'Quantidade' : 'Quantity'}</div>
                       </div>
                       <div>

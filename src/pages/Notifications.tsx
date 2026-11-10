@@ -8,6 +8,7 @@ import Button from '../components/ui/Button';
 import Select from '../components/ui/Select';
 import { useLanguage } from '../context/LanguageContext';
 import { formatDateForDisplay } from '../utils/dateHelpers';
+import { formatQuantity } from '../utils/quantityFormat';
 
 const Notifications = () => {
   const { operations, areas, activeSeason, products, productLots, getProductById } = useAppContext();
@@ -218,7 +219,7 @@ const Notifications = () => {
                           {lot.product!.name}
                         </div>
                         <div className="text-sm text-gray-600">
-                          {language === 'pt' ? 'Lote' : 'Lot'}: {lot.lotNumber} • {lot.quantity} {lot.product!.unit}
+                          {language === 'pt' ? 'Lote' : 'Lot'}: {lot.lotNumber} • {formatQuantity(lot.quantity, language)} {lot.product!.unit}
                         </div>
                       </div>
                     </div>

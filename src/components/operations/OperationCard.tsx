@@ -9,6 +9,7 @@ import Button from '../ui/Button';
 import { useAppContext } from '../../context/AppContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { formatDateForDisplay } from '../../utils/dateHelpers';
+import { formatQuantity } from '../../utils/quantityFormat';
 import { calculateOperationCost, calculateCostPerHectare } from '../../utils/costCalculation';
 
 interface OperationCardProps {
@@ -83,11 +84,11 @@ const OperationCard: React.FC<OperationCardProps> = ({
           if (alloc.lotId) {
             const lot = getLotsByProductId(product.id).find(l => l.id === alloc.lotId);
             const lotName = lot ? lot.lotNumber : (language === 'pt' ? 'Lote histórico indisponível' : 'Historical lot unavailable');
-            return `${lotName} (${alloc.quantity} ${product.unit})`;
+            return `${lotName} (${formatQuantity(alloc.quantity, language)} ${product.unit})`;
           }
-          return `${language === 'pt' ? 'Sem lote' : 'No lot'} (${alloc.quantity} ${product.unit})`;
+          return `${language === 'pt' ? 'Sem lote' : 'No lot'} (${formatQuantity(alloc.quantity, language)} ${product.unit})`;
         }).join(', ');
-        return `${usage.quantity} ${product.unit} ${language === 'pt' ? 'de' : 'of'} ${product.name} — ${lotParts}`;
+        return `${formatQuantity(usage.quantity, language)} ${product.unit} ${language === 'pt' ? 'de' : 'of'} ${product.name} — ${lotParts}`;
       }
 
       const lot = usage.lotId ? getLotsByProductId(product?.id || '').find(l => l.id === usage.lotId) : undefined;
@@ -96,7 +97,7 @@ const OperationCard: React.FC<OperationCardProps> = ({
         : usage.lotId
         ? ` (${language === 'pt' ? 'Lote histórico indisponível' : 'Historical lot unavailable'})`
         : '';
-      return `${usage.quantity} ${product.unit} ${language === 'pt' ? 'de' : 'of'} ${product.name}${lotText}`;
+      return `${formatQuantity(usage.quantity, language)} ${product.unit} ${language === 'pt' ? 'de' : 'of'} ${product.name}${lotText}`;
     }).join(', ');
   };
 

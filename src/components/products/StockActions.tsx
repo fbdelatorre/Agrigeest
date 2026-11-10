@@ -5,15 +5,17 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
+import { formatQuantity } from '../../utils/quantityFormat';
 import { X, PackagePlus, Scale } from 'lucide-react';
 
 interface StockActionsProps {
   product: Product;
   mode: 'stock-in' | 'adjust';
   onClose: () => void;
+  untrackedOnly?: boolean;
 }
 
-const StockActions: React.FC<StockActionsProps> = ({ product, mode, onClose }) => {
+const StockActions: React.FC<StockActionsProps> = ({ product, mode, onClose, untrackedOnly = false }) => {
   const { getLotsByProductId, addInventoryStock, adjustInventoryStock } = useAppContext();
   const { language } = useLanguage();
   const { isOnline } = useNetworkStatus();
@@ -122,13 +124,15 @@ const StockActions: React.FC<StockActionsProps> = ({ product, mode, onClose }) =
     ? (language === 'pt' ? 'Ajustar Inventário' : 'Adjust Inventory')
     : (language === 'pt' ? 'Entrada de Estoque' : 'Stock Entry');
 
-  const quantityLabel = isAdjust
-    ? (language === 'pt' ? 'Quantidade Física Contada' : 'Counted Physical Quantity')
-    : (language === 'pt' ? 'Quantidade' : 'Quantity');
+  const quantityLabel = untrackedOnly
+    ? (language === 'pt' ? 'Novo saldo sem lote' : 'New untracked balance')
+    : isAdjust
+      ? (language === 'pt' ? 'Quantidade Física Contada' : 'Counted Physical Quantity')
+      : (language === 'pt' ? 'Quantidade' : 'Quantity');
 
   const currentDisplay = selectedLotId
-    ? `${lots.find(l => l.id === selectedLotId)?.quantity ?? 0} ${product.unit}`
-    : `${untrackedStock} ${product.unit}`;
+    ? `${formatQuantity(lots.find(l => l.id === selectedLotId)?.quantity ?? 0, language)} ${product.unit}`
+    : `${formatQuantity(untrackedStock, language)} ${product.unit}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -148,9 +152,11 @@ const StockActions: React.FC<StockActionsProps> = ({ product, mode, onClose }) =
 
         <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
           <div className="font-medium text-gray-900">{product.name}</div>
+          {!untrackedOnly && (
           <div className="mt-1">
-            {language === 'pt' ? 'Estoque atual' : 'Current stock'}: {product.quantityInStock} {product.unit}
+            {language === 'pt' ? 'Estoque atual' : 'Current stock'}: {formatQuantity(product.quantityInStock, language)} {product.unit}
           </div>
+          )}
           {selectedLotId && (
             <div className="mt-0.5">
               {language === 'pt' ? 'Saldo atual do lote' : 'Current lot balance'}: {currentDisplay}
@@ -164,7 +170,7 @@ const StockActions: React.FC<StockActionsProps> = ({ product, mode, onClose }) =
         </div>
 
         <div className="space-y-3">
-          {lots.length > 0 && (
+          {lots.length > 0 && !untrackedOnly && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 {language === 'pt' ? 'Lote (opcional)' : 'Lot (optional)'}
@@ -177,7 +183,7 @@ const StockActions: React.FC<StockActionsProps> = ({ product, mode, onClose }) =
                 <option value="">{language === 'pt' ? 'Sem lote (estoque geral)' : 'No lot (untracked)'}</option>
                 {lots.map(lot => (
                   <option key={lot.id} value={lot.id}>
-                    {lot.lotNumber} ({lot.quantity} {product.unit})
+                    {lot.lotNumber} ({formatQuantity(lot.quantity, language)} {product.unit})
                   </option>
                 ))}
               </select>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Product } from '../../types';
 import { Search, ChevronDown } from 'lucide-react';
+import { formatQuantity } from '../../utils/quantityFormat';
 
 interface ProductSearchInputProps {
   products: Product[];
@@ -145,7 +146,7 @@ const ProductSearchInput: React.FC<ProductSearchInputProps> = ({
                           isLowStock ? 'text-danger-600' : 'text-gray-700'
                         }`}
                       >
-                        {product.quantityInStock} {product.unit}
+                        {formatQuantity(product.quantityInStock)} {product.unit}
                       </div>
                       <div className="text-xs text-gray-500">
                         {isLowStock ? 'Estoque baixo' : 'Disponível'}
@@ -169,7 +170,7 @@ const ProductSearchInput: React.FC<ProductSearchInputProps> = ({
 
       {selectedProduct && !isOpen && (
         <p className="text-sm text-gray-500">
-          Disponível: {selectedProduct.quantityInStock} {selectedProduct.unit}
+          Disponível: {formatQuantity(selectedProduct.quantityInStock)} {selectedProduct.unit}
         </p>
       )}
     </div>

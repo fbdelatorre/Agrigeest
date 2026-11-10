@@ -6,6 +6,7 @@ import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
 import { BarChart3, Map, Calendar, Package, Filter, AlertTriangle } from 'lucide-react';
 import { formatDateForDisplay } from '../utils/dateHelpers';
+import { formatQuantity } from '../utils/quantityFormat';
 import { calculateUsageCost } from '../utils/costCalculation';
 
 const Statistics = () => {
@@ -295,7 +296,7 @@ const Statistics = () => {
                     <div>
                       <h3 className="font-medium">{product.name}</h3>
                       <p className="text-sm text-gray-500">
-                        {usage.quantity} {product.unit} {language === 'pt' ? 'utilizados' : 'used'}
+                        {formatQuantity(usage.quantity, language)} {product.unit} {language === 'pt' ? 'utilizados' : 'used'}
                       </p>
                     </div>
                     <div className="text-right">
