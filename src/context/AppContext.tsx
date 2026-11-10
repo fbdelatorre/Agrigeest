@@ -414,6 +414,32 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const getAreaById = (id: string) => areas.find((area) => area.id === id);
 
+  const archiveDepletedLots = async (productsUsed: Record<string, unknown>[]) => {
+    const lotIds = new Set<string>();
+    productsUsed.forEach((item) => {
+      if (typeof item.lotId === 'string' && item.lotId) lotIds.add(item.lotId);
+      const allocations = Array.isArray(item.lotAllocations) ? item.lotAllocations : [];
+      allocations.forEach((alloc: { lotId?: string | null }) => {
+        if (alloc.lotId) lotIds.add(alloc.lotId);
+      });
+    });
+    if (lotIds.size === 0) return;
+
+    const { data, error } = await supabase
+      .from('product_lots')
+      .select('id')
+      .in('id', [...lotIds])
+      .eq('quantity', 0)
+      .is('archived_at', null);
+    if (error) throw error;
+
+    for (const lot of data ?? []) {
+      const { error: archiveError } = await supabase.rpc('archive_product_lot', { p_lot_id: lot.id });
+      if (archiveError) throw archiveError;
+    }
+    if ((data ?? []).length > 0) await loadProductLots();
+  };
+
   const addOperation = async (operation: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (!isOnline) throw new Error(READ_ONLY_MSG);
     if (!activeSeason) throw new Error('No active season selected');
@@ -452,6 +478,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       await loadProducts();
       await loadProductLots();
+      await archiveDepletedLots(data.products_used || []).catch((archiveError) => console.error('Error archiving depleted lots:', archiveError));
     } catch (error) {
       console.error('Error adding operation:', error);
       throw error;
@@ -501,6 +528,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       await loadProducts();
       await loadProductLots();
+      await archiveDepletedLots(data.products_used || []).catch((archiveError) => console.error('Error archiving depleted lots:', archiveError));
     } catch (error) {
       console.error('Error updating operation:', error);
       throw error;

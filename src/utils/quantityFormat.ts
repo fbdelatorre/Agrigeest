@@ -1,4 +1,4 @@
-const FLOAT_NOISE_THRESHOLD = 1e-5;
+export const FLOAT_NOISE_THRESHOLD = 1e-5;
 
 const roundUpToCents = (value: number): number => {
   if (Math.abs(value) < FLOAT_NOISE_THRESHOLD) return 0;

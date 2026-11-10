@@ -10,7 +10,7 @@ import { Save, X, Plus, AlertTriangle, Layers } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
-import { formatQuantity } from '../../utils/quantityFormat';
+import { FLOAT_NOISE_THRESHOLD, formatQuantity } from '../../utils/quantityFormat';
 
 interface OperationFormProps {
   initialData?: Partial<Operation>;
@@ -365,7 +365,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
   };
 
   const getSelectableLots = (allLots: ProductLot[], currentLotId?: string): ProductLot[] => {
-    return allLots.filter(lot => getLotAvailable(lot) > 0 || lot.id === currentLotId);
+    return allLots.filter(lot => getLotAvailable(lot) >= FLOAT_NOISE_THRESHOLD || lot.id === currentLotId);
   };
 
   const getUntrackedAvailable = (productId: string): number => {
@@ -423,14 +423,14 @@ const OperationForm: React.FC<OperationFormProps> = ({
     let remaining = needed;
 
     const untracked = getUntrackedAvailable(productId);
-    if (untracked > 0) {
+    if (untracked >= FLOAT_NOISE_THRESHOLD) {
       const take = takeWithin(untracked, remaining);
       allocations.push({ lotId: '', quantity: toInput(take) });
       remaining = round6(remaining - take);
     }
 
     const sortedLots = getLotsByProductId(productId)
-      .filter(l => getLotAvailable(l) > 0)
+      .filter(l => getLotAvailable(l) >= FLOAT_NOISE_THRESHOLD)
       .sort((a, b) => {
         const aDays = getDaysUntilExpiration(a.expirationDate);
         const bDays = getDaysUntilExpiration(b.expirationDate);
@@ -468,6 +468,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
   const isDistributionFeasible = (usage: FormProductUsage): boolean => {
     const allocations = usage.lotAllocations || [];
     if (allocations.length === 0) return false;
+    if (allocations.some(alloc => parseNumber(alloc.quantity) <= 0)) return false;
     if (Math.abs(getAllocationsTotal(usage) - parseNumber(usage.quantity)) > 0.000001) return false;
 
     const untrackedNeeded = allocations
@@ -1045,7 +1046,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                 </div>
               </div>
 
-              {product && (
+              {!product && usage.productId && (
                 <p className="text-xs text-gray-500 mb-2">
                   {language === 'pt' ? 'Produto histórico indisponível' : 'Historical product unavailable'}
                 </p>
