@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { dateToInputValue } from '../../utils/dateHelpers';
 import { useOfflineStorage } from '../../hooks/useOfflineStorage';
-import PrecisionMap, { type IndexImage, type MapField, type MapSample } from '../farmMap/PrecisionMap';
+import PrecisionMap, { type IndexImage, type MapField, type MapSample, type MapZone } from '../farmMap/PrecisionMap';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
@@ -11,7 +11,7 @@ import { vegetationColors, type VegetationIndex } from '../../../supabase/functi
 type Scene = { date: string; time: string; sceneCloud: number; scene: string };
 type Inspection = {
   scene: Scene; index: VegetationIndex; resolution: number; imagery: IndexImage | null;
-  covered: number; valid: number; cloudPercent: number | null;
+  covered: number; valid: number; cloudPercent: number | null; validFieldPercent?: number | null;
   statistics: { mean: number; min: number; max: number; deviation: number; histogram: { lowEdge: number; highEdge: number; count: number }[] } | null;
 };
 const initialRange = () => {
@@ -32,13 +32,13 @@ async function requestSentinel<T>(body: object) {
 }
 
 export default function SatellitePanel(props: {
-  area: string; fields: MapField[]; points: MapSample[]; online: boolean; basemap: boolean; showBoundaries: boolean; onSample: (id: string) => void;
+  area: string; fields: MapField[]; points: MapSample[]; zones: MapZone[]; online: boolean; basemap: boolean; showBoundaries: boolean; onSample: (id: string) => void;
 }) {
   return <SatelliteQuery key={props.area} {...props} />;
 }
 
-function SatelliteQuery({ area, fields, points, online, basemap, showBoundaries, onSample }: {
-  area: string; fields: MapField[]; points: MapSample[]; online: boolean; basemap: boolean; showBoundaries: boolean; onSample: (id: string) => void;
+function SatelliteQuery({ area, fields, points, zones, online, basemap, showBoundaries, onSample }: {
+  area: string; fields: MapField[]; points: MapSample[]; zones: MapZone[]; online: boolean; basemap: boolean; showBoundaries: boolean; onSample: (id: string) => void;
 }) {
   const [[from, to], setRange] = useState(initialRange);
   const [clouds, setClouds] = useState(20);
@@ -115,13 +115,13 @@ function SatelliteQuery({ area, fields, points, online, basemap, showBoundaries,
       <span className="flex overflow-hidden rounded">{vegetationColors.map(color => <span key={color} className="h-3 w-7" style={{ backgroundColor: color }} />)}</span>
       <span>+1</span>
     </div>}
-    {!inspection.length ? <PrecisionMap fields={fields} points={points} focus={area} basemap={basemap} showBoundaries={showBoundaries} onSample={onSample} />
+    {!inspection.length ? <PrecisionMap fields={fields} points={points} zones={zones} focus={area} basemap={basemap} showBoundaries={showBoundaries} onSample={onSample} />
       : <div className={inspection.length > 1 ? 'grid gap-3 xl:grid-cols-2' : 'space-y-3'}>
         {inspection.map(result => <div key={result.scene.time} className="space-y-2">
           <h3 className="text-sm font-semibold">{result.index} · {result.scene.time.replace('T', ' ').slice(0, 19)} UTC · 10 m</h3>
-          <PrecisionMap fields={fields} points={points} focus={area} basemap={basemap} showBoundaries={showBoundaries} onSample={onSample}
+          <PrecisionMap fields={fields} points={points} zones={zones} focus={area} basemap={basemap} showBoundaries={showBoundaries} onSample={onSample}
             imagery={visible ? result.imagery ?? undefined : undefined} />
-          <p className="text-sm">Nuvens na cena {format(result.scene.sceneCloud)}% · Nuvens e sombras na parte observada do talhão {result.cloudPercent === null ? 'indisponível' : format(result.cloudPercent) + '%'} · Pixels válidos {result.valid}{result.covered ? ` de ${result.covered} observados (${format(result.valid / result.covered * 100)}%)` : ''}</p>
+          <p className="text-sm">Nuvens na cena {format(result.scene.sceneCloud)}% · Nuvens e sombras na parte observada do talhão {result.cloudPercent === null ? 'indisponível' : format(result.cloudPercent) + '%'} · Pixels válidos {result.valid}{result.covered ? ` de ${result.covered} observados` : ''}{typeof result.validFieldPercent === 'number' ? ` · ${format(result.validFieldPercent)}% da grade do talhão` : ''}</p>
           {result.statistics ? <>
             <p className="text-sm">Média {format(result.statistics.mean)} · Mínimo {format(result.statistics.min)} · Máximo {format(result.statistics.max)} · Desvio {format(result.statistics.deviation)}</p>
             <details className="text-sm"><summary>Distribuição por faixa</summary><ul>

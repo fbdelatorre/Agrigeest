@@ -49,3 +49,45 @@ export function acquisitions(features: { id: string; properties: { datetime: str
   }
   return [...exact.values()].sort((a, b) => b.time.localeCompare(a.time));
 }
+
+type Grid = { bbox: [number, number, number, number]; width: number; height: number };
+type ProjectedShape = { type: 'Polygon' | 'MultiPolygon'; coordinates: number[][][] | number[][][][] };
+
+// Count 10 m pixel centres inside the requested polygon, including interior holes.
+export function countFieldPixels(shape: ProjectedShape, grid: Grid) {
+  const polygons = shape.type === 'Polygon' ? [shape.coordinates as number[][][]] : shape.coordinates as number[][][][];
+  const [west, , , north] = grid.bbox;
+  const rows = Array.from({ length: grid.height }, () => [] as [number, number][]);
+  for (const polygon of polygons) {
+    const crossings = Array.from({ length: grid.height }, () => [] as number[]);
+    for (const ring of polygon) {
+      for (let i = 1; i < ring.length; i++) {
+        const [ax, ay] = ring[i - 1], [bx, by] = ring[i];
+        if (ay === by) continue;
+        const first = Math.max(0, Math.floor((north - Math.max(ay, by)) / 10 - 0.5) + 1);
+        const last = Math.min(grid.height - 1, Math.floor((north - Math.min(ay, by)) / 10 - 0.5));
+        for (let row = first; row <= last; row++) {
+          const y = north - (row + 0.5) * 10;
+          crossings[row].push(ax + (bx - ax) * (y - ay) / (by - ay));
+        }
+      }
+    }
+    for (let row = 0; row < crossings.length; row++) {
+      const line = crossings[row].sort((a, b) => a - b);
+      for (let i = 1; i < line.length; i += 2) {
+        const start = Math.max(0, Math.ceil((line[i - 1] - west) / 10 - 0.5));
+        const end = Math.min(grid.width, Math.ceil((line[i] - west) / 10 - 0.5));
+        if (end > start) rows[row].push([start, end]);
+      }
+    }
+  }
+  let count = 0;
+  for (const spans of rows) {
+    let end = 0;
+    for (const [left, right] of spans.sort(([a], [b]) => a - b)) {
+      count += Math.max(0, right - Math.max(end, left));
+      end = Math.max(end, right);
+    }
+  }
+  return count;
+}

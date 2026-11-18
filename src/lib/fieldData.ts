@@ -112,8 +112,9 @@ export async function syncFieldSubmission(submission: FieldSubmission, userId: s
     .eq('institution_id', submission.record.institution_id).setHeader('Authorization', 'Bearer ' + token).abortSignal(signal).maybeSingle();
   if (receipt.error) return { state: 'retry' } as const;
   if (receipt.data) return { state: 'sent' } as const;
-  return { state: 'blocked', reason: error.code === '23505' && submission.kind === 'rainfall'
-    ? 'duplicate-rainfall' : 'rejected' } as const;
+  const reason = error.code === '23505' && submission.kind === 'rainfall' ? 'duplicate-rainfall'
+    : error.code === '23505' && submission.kind === 'sample' ? 'duplicate-sample' : 'rejected';
+  return { state: 'blocked', reason } as const;
 }
 
 export async function getFieldRainfallTotals(seasonId: string, period: RainfallPeriod, signal: AbortSignal) {

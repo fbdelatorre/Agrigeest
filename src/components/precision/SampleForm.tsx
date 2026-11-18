@@ -4,6 +4,7 @@ import { useAppContext } from '../../context/AppContext';
 import { useFieldSync } from '../../context/FieldSyncContext';
 import { OfflineScope, readOfflineValue, writeOfflineValue } from '../../hooks/useOfflineStorage';
 import { sampleTypes, type SampleInput } from '../../lib/precisionTypes';
+import type { SamplingZone } from '../../lib/precisionData';
 import { dateToInputValue } from '../../utils/dateHelpers';
 import { locateSample, type SamplePoint } from '../../utils/farmMap/sampleLocation';
 import PrecisionMap, { type MapField } from '../farmMap/PrecisionMap';
@@ -28,7 +29,7 @@ async function photoData(file: File) {
   } finally { bitmap.close(); }
 }
 
-export default function SampleForm({ fields, initialArea, onSaved }: { fields: MapField[]; initialArea: string; onSaved: () => void }) {
+export default function SampleForm({ fields, zones, initialArea, onSaved }: { fields: MapField[]; zones: SamplingZone[]; initialArea: string; onSaved: () => void }) {
   const { areas, activeSeason, seasons, profile } = useAppContext();
   const sync = useFieldSync();
   const scope = useContext(OfflineScope);
@@ -52,6 +53,8 @@ export default function SampleForm({ fields, initialArea, onSaved }: { fields: M
   const boundaries = useMemo(() => fields.map(field => ({ id: field.properties.id, geometry: field.geometry })), [fields]);
   const match = point && locateSample(point, boundaries, accuracy);
   const confirmLocation = match && (match.uncertain || !match.matches.includes(areaId));
+  const eligibleZones = point ? zones.filter(zone => zone.area_id === areaId && zone.season_id === (seasonId || null)
+    && locateSample(point, [{ id: zone.id, geometry: zone.geometry }], null).matches.length) : [];
   const now = useMemo(() => {
     const date = new Date();
     return dateToInputValue(date) + 'T' + date.toTimeString().slice(0, 5);
@@ -91,6 +94,11 @@ export default function SampleForm({ fields, initialArea, onSaved }: { fields: M
     const to = depth === 'custom' ? Number(read('to')) : Number(depth.split('-')[1]);
     const hasDepth = type !== 'foliar' && depth !== 'none';
     const count = composite ? Number(read('count')) : 1;
+    const labCode = read('lab_code').toUpperCase();
+    if (!/^[A-Z0-9][A-Z0-9._/-]{0,47}$/.test(labCode) || /^AG-[0-9A-F]{32}$/.test(labCode)) {
+      setError('Informe um código de amostra como SJ-001, com até 48 letras, números, pontos, barras ou hífens.');
+      return;
+    }
     if (!point || !areaId || !read('responsible') || !Number.isFinite(+time) || (confirmLocation && !confirmed)) {
       setError('Confirme o talhão, o ponto central, a data e o responsável.');
       return;
@@ -109,7 +117,7 @@ export default function SampleForm({ fields, initialArea, onSaved }: { fields: M
         ['culture', 'cultivar', 'stage', 'plant_part', 'plant_count', 'material', 'condition', 'patches', 'symptoms', 'sampling_system', 'zone']
           .flatMap(key => read(key) ? [[key, read(key)]] : []));
       await sync.enqueue({ kind: 'sample', record: {
-        label: read('label'), institution_id: profile.institutionId, area_id: areaId, season_id: seasonId || null,
+        lab_code: labCode, zone_id: read('zoneId') || null, label: read('label'), institution_id: profile.institutionId, area_id: areaId, season_id: seasonId || null,
         collected_at: time.toISOString(), sample_type: type, longitude: point[0], latitude: point[1], accuracy_m: accuracy,
         point_source: source, sample_mode: composite ? 'composite' : 'individual', subsample_count: count,
         depth_from_cm: hasDepth ? from : null, depth_to_cm: hasDepth ? to : null,
@@ -163,7 +171,11 @@ export default function SampleForm({ fields, initialArea, onSaved }: { fields: M
           setType(value); setComposite(value === 'soil'); setDepth(value === 'soil' ? '0-20' : 'none');
         }} />
       <Input name="time" label="Data e hora da coleta" type="datetime-local" defaultValue={now} required />
+      <Input name="lab_code" label="Código da amostra" placeholder="Ex. SJ-001" maxLength={48} required />
       <Input name="responsible" label="Responsável" defaultValue={[profile?.firstName, profile?.lastName].filter(Boolean).join(' ')} maxLength={160} required />
+      {!!eligibleZones.length && <Select key={eligibleZones.map(zone => zone.id).join(':')} name="zoneId" label="Zona de amostragem"
+        defaultValue={eligibleZones.length === 1 ? eligibleZones[0].id : ''}
+        options={[{ value: '', label: 'Sem zona' }, ...eligibleZones.map(zone => ({ value: zone.id, label: zone.name }))]} />}
     </div>
     {confirmLocation && <label className="block rounded bg-amber-50 p-3 text-sm">
       <input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} className="mr-2" />
@@ -201,7 +213,6 @@ export default function SampleForm({ fields, initialArea, onSaved }: { fields: M
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
         <Input name="laboratory" label="Laboratório de destino" defaultValue={scope ? readOfflineValue(laboratoryKey, '') : ''} maxLength={160} />
         <Input name="label" label="Nome curto da amostra" maxLength={100} />
-        <Input name="zone" label="Nome da zona de amostragem" maxLength={120} />
         <Input name="photo" label="Fotografia" type="file" accept="image/jpeg,image/png,image/webp" />
         <label className="sm:col-span-2 text-sm">Observações
           <textarea name="notes" maxLength={4000} className="mt-1 block w-full rounded border p-2" rows={2} />

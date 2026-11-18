@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.75.0';
-import { acquisitions, daysBetween, evalscript, type VegetationIndex } from './processing.ts';
+import { acquisitions, countFieldPixels, daysBetween, evalscript, type VegetationIndex } from './processing.ts';
 
 const endpoint = 'https://sh.dataspace.copernicus.eu';
 const oauth = 'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token';
@@ -9,6 +9,7 @@ const cors = {
   'access-control-allow-methods': 'POST, OPTIONS',
 };
 const cache = new Map<string, { body: string; expires: number }>();
+const pending = new Map<string, Promise<string>>();
 const limits = new Map<string, { count: number; expires: number }>();
 let token: { value: string; expires: number } | undefined;
 let refreshing: Promise<string> | undefined;
@@ -47,13 +48,22 @@ async function copernicus(path: string, body: unknown, accept = 'application/jso
 }
 
 async function catalog(geometry: object, from: string, to: string, clouds: number) {
-  const result = await copernicus('/catalog/v1/search', {
+  const query = {
     collections: ['sentinel-2-l2a'], intersects: geometry, limit: 100,
     datetime: from + 'T00:00:00Z/' + to + 'T23:59:59Z',
     filter: 'eo:cloud_cover <= ' + clouds, 'filter-lang': 'cql2-text',
-  });
-  const raw = await result.json();
-  return { dates: acquisitions(raw.features ?? [], clouds), limited: Boolean(raw.context?.next) };
+  };
+  const features: Parameters<typeof acquisitions>[0] = [];
+  let next: number | undefined;
+  for (let page = 0; page < 5; page++) {
+    const response = await copernicus('/catalog/v1/search', { ...query, ...(next === undefined ? {} : { next }) });
+    const raw = await response.json();
+    features.push(...(raw.features ?? []));
+    const cursor = raw.context?.next;
+    if (typeof cursor !== 'number' || cursor === next) { next = undefined; break; }
+    next = cursor;
+  }
+  return { dates: acquisitions(features, clouds), limited: next !== undefined };
 }
 
 function pngData(data: ArrayBuffer) {
@@ -87,11 +97,16 @@ async function inspect(bounds: Record<string, unknown>, time: string, clouds: nu
   const summary = measurements?.stats;
   const valid = Math.max(0, (summary?.sampleCount ?? 0) - (summary?.noDataCount ?? 0));
   const covered = Math.max(0, (cloud?.sampleCount ?? 0) - (cloud?.noDataCount ?? 0));
+  const gridPixels = countFieldPixels(bounds.projected as Parameters<typeof countFieldPixels>[0], {
+    bbox: bounds.bbox as [number, number, number, number], width, height,
+  });
   if (covered && !Number.isFinite(cloud.mean)) throw new ServiceError(502, 'O Copernicus retornou estatísticas incompletas.');
   const image = valid ? await copernicus('/process/v1', { input, output: { width, height,
     responses: [{ identifier: 'default', format: { type: 'image/png' } }] }, evalscript: evalscript(index, true) }, 'image/png') : null;
   return {
-    scene, index, resolution: 10, valid, covered, cloudPercent: covered ? cloud.mean * 100 : null,
+    scene, index, resolution: 10, valid, covered, gridPixels,
+    validFieldPercent: gridPixels >= valid && gridPixels > 0 ? valid * 100 / gridPixels : null,
+    cloudPercent: covered ? cloud.mean * 100 : null,
     statistics: valid ? { mean: summary.mean, min: summary.min, max: summary.max, deviation: summary.stDev, histogram: measurements.histogram?.bins ?? [] } : null,
     imagery: image ? { url: pngData(await image.arrayBuffer()), corners: bounds.corners } : null,
   };
@@ -138,11 +153,20 @@ export async function handleSentinelRequest(request: Request) {
     const rate = limits.get(user.id) ?? { count: 0, expires: now + 60000 };
     if (++rate.count > 12) throw new ServiceError(429, 'Aguarde um minuto antes de fazer nova consulta.');
     limits.set(user.id, rate);
-    const result = body.action === 'catalog' ? await catalog(bounds.geometry, body.from, body.to, body.clouds)
-      : await inspect(bounds, body.time, body.clouds, body.index);
-    const outcome = JSON.stringify(result);
-    if (cache.size >= 12) cache.delete(cache.keys().next().value!);
-    cache.set(key, { body: outcome, expires: now + (body.action === 'catalog' ? 300000 : 1800000) });
+    let job = pending.get(key);
+    if (!job) {
+      if (pending.size >= 8) throw new ServiceError(429, 'Há muitas imagens em processamento. Tente novamente em instantes.');
+      job = (async () => {
+        const result = body.action === 'catalog' ? await catalog(bounds.geometry, body.from, body.to, body.clouds)
+          : await inspect(bounds, body.time, body.clouds, body.index);
+        const outcome = JSON.stringify(result);
+        if (cache.size >= 12) cache.delete(cache.keys().next().value!);
+        cache.set(key, { body: outcome, expires: Date.now() + (body.action === 'catalog' ? 300000 : 1800000) });
+        return outcome;
+      })().finally(() => pending.delete(key));
+      pending.set(key, job);
+    }
+    const outcome = await job;
     return new Response(outcome, { headers: { ...cors, 'content-type': 'application/json', 'cache-control': 'no-store' } });
   } catch (error) {
     if (error instanceof ServiceError) return json({ error: error.message }, error.status);

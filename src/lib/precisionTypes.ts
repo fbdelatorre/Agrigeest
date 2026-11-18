@@ -6,6 +6,8 @@ export const sampleStatuses = {
 } as const;
 
 export type SampleInput = {
+  lab_code?: string | null;
+  zone_id?: string | null;
   label: string;
   institution_id: string;
   area_id: string;

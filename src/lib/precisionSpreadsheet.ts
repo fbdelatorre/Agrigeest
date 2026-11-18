@@ -1,14 +1,21 @@
 export type LabRow = {
   reported_code: string; parameter: string; original_value: string; value: number | null;
   unit: string; method: string; material: string; source: string;
+  original_parameter?: string;
 };
 const normalize = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 const names = new Map(Object.entries({
-  ph: 'pH', fosforo: 'Fósforo', potassio: 'Potássio', calcio: 'Cálcio', magnesio: 'Magnésio',
+  ph: 'pH', p: 'Fósforo', phosphorus: 'Fósforo', fosforo: 'Fósforo', k: 'Potássio', potassium: 'Potássio',
+  potassio: 'Potássio', ca: 'Cálcio', calcium: 'Cálcio', calcio: 'Cálcio', mg: 'Magnésio', magnesium: 'Magnésio', magnesio: 'Magnésio',
+  mo: 'Matéria orgânica', 'organic matter': 'Matéria orgânica',
+  n: 'Nitrogênio', nitrogen: 'Nitrogênio', nitrogenio: 'Nitrogênio',
   aluminio: 'Alumínio', 'h+al': 'H+Al', 'materia organica': 'Matéria orgânica', carbono: 'Carbono',
-  enxofre: 'Enxofre', boro: 'Boro', zinco: 'Zinco', cobre: 'Cobre', ferro: 'Ferro', manganes: 'Manganês',
+  s: 'Enxofre', enxofre: 'Enxofre', b: 'Boro', boro: 'Boro', zn: 'Zinco', zinco: 'Zinco',
+  cu: 'Cobre', cobre: 'Cobre', fe: 'Ferro', ferro: 'Ferro', mn: 'Manganês', manganes: 'Manganês',
+  pratylenchus: 'Pratylenchus', meloidogyne: 'Meloidogyne', heterodera: 'Heterodera', rotylenchulus: 'Rotylenchulus',
   ctc: 'CTC', 'saturacao por bases': 'Saturação por bases', 'saturacao por aluminio': 'Saturação por alumínio',
 }));
+export { standardParameters as standardLabParameters } from '../../supabase/functions/precision-lab-assist/labels.ts';
 
 export function knownLabUnit(unit: string) {
   const comparable = unit.toLowerCase().normalize('NFKC').replace(/\s/g, '');
@@ -44,11 +51,18 @@ function readCsv(text: string) {
       else field += char;
     } else if (!quoted && (char === delimiter || char === '\n')) {
       row.push(field.trim()); field = '';
-      if (char === '\n') { rows.push(row); row = []; }
+      if (row.length > 300) throw new Error('O CSV ultrapassa 300 colunas.');
+      if (char === '\n') {
+        rows.push(row); row = [];
+        if (rows.length > 10000) throw new Error('O CSV ultrapassa 10.000 linhas.');
+      }
     } else field += char;
   }
   if (quoted) throw new Error('Aspas incompletas no CSV.');
-  if (row.length || field) rows.push([...row, field.trim()]);
+  if (row.length || field) {
+    if (row.length >= 300 || rows.length >= 10000) throw new Error('O CSV ultrapassa o limite de linhas ou colunas.');
+    rows.push([...row, field.trim()]);
+  }
   return rows;
 }
 
@@ -117,10 +131,14 @@ export function parseLabSheet(rows: string[][], sheet: string): LabRow[] {
     const reportedCode = row[codeIndex]?.trim();
     if (!reportedCode) return [];
     const source = sheet + ': linha ' + (headerIndex + index + 2);
-    const result = (label: string, original: string, unit: string, method: string, material: string): LabRow => ({
-      reported_code: reportedCode, parameter: names.get(normalize(label)) ?? label.trim(), original_value: original,
-      value: labNumber(original), unit, method, material, source,
-    });
+    const result = (label: string, original: string, unit: string, method: string, material: string, column?: number): LabRow => {
+      const parameter = names.get(normalize(label)) ?? label.trim();
+      return {
+        reported_code: reportedCode, parameter, ...(parameter !== label.trim() ? { original_parameter: label.trim() } : {}),
+        original_value: original, value: labNumber(original), unit, method, material,
+        source: column === undefined ? source : `${source}, coluna ${column + 1}`,
+      };
+    };
     if (parameterIndex >= 0 && valueIndex >= 0) {
       if (!row[parameterIndex]?.trim()) return [];
       return [result(row[parameterIndex], row[valueIndex] ?? '', row[unitIndex] ?? '', row[methodIndex] ?? '', row[materialIndex] ?? '')];
@@ -129,7 +147,7 @@ export function parseLabSheet(rows: string[][], sheet: string): LabRow[] {
       if (!heading || i === codeIndex || i === unitIndex || i === methodIndex || i === materialIndex || !row[i]?.trim() ||
         /^(talhao|fazenda|data|profundidade|observacoes?|identificador|status|cultura|laboratorio)$/i.test(normalize(heading))) return [];
       const unitInHeading = heading.match(/^(.*?)\s*[([]([^\])]+)[\])]\s*$/);
-      return [result(unitInHeading?.[1] ?? heading, row[i], unitInHeading?.[2] ?? row[unitIndex] ?? '', row[methodIndex] ?? '', row[materialIndex] ?? '')];
+      return [result(unitInHeading?.[1] ?? heading, row[i], unitInHeading?.[2] ?? row[unitIndex] ?? '', row[methodIndex] ?? '', row[materialIndex] ?? '', i)];
     });
   });
 }
@@ -138,8 +156,9 @@ export async function readLabWorkbook(file: File) {
   if (file.size < 1 || file.size > 2000000) throw new Error('Selecione um laudo de até 2 MB.');
   const data = await file.arrayBuffer();
   const sheets = /\.xlsx$/i.test(file.name) ? await readXlsx(data)
+    : /\.xls$/i.test(file.name) ? await readLegacyXls(data)
     : /\.csv$/i.test(file.name) ? [{ name: 'CSV', rows: readCsv(new TextDecoder().decode(data)) }]
-      : (() => { throw new Error('Selecione Excel XLSX ou CSV.'); })();
+      : (() => { throw new Error('Selecione Excel XLS, XLSX ou CSV.'); })();
   const rows = sheets.flatMap(sheet => parseLabSheet(sheet.rows, sheet.name));
   if (!rows.length) throw new Error('Nenhum resultado reconhecido. Use um cabeçalho com Amostra e colunas de parâmetros, ou Amostra, Parâmetro e Resultado.');
   if (rows.length > 2000) throw new Error('O laudo contém mais de 2.000 resultados. Divida o arquivo.');
@@ -147,4 +166,22 @@ export async function readLabWorkbook(file: File) {
   const bytes = new Uint8Array(data);
   for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
   return { rows, original: btoa(binary) };
+}
+
+async function readLegacyXls(data: ArrayBuffer) {
+  const magic = [208, 207, 17, 224, 161, 177, 26, 225];
+  if (!magic.every((byte, index) => new Uint8Array(data)[index] === byte)) throw new Error('Arquivo XLS inválido ou formato Excel antigo sem contêiner OLE.');
+  const { read, utils } = await import('xlsx');
+  const workbook = read(data, { type: 'array', sheetRows: 10001, cellHTML: false, cellFormula: false, cellStyles: false });
+  if (workbook.SheetNames.length > 40) throw new Error('O arquivo ultrapassa 40 abas.');
+  let cells = 0;
+  return workbook.SheetNames.map(name => {
+    const sheet = workbook.Sheets[name];
+    if (!sheet['!ref']) return { name, rows: [] };
+    const range = utils.decode_range(sheet['!ref']);
+    if (range.e.r >= 10000 || range.e.c >= 300) throw new Error('A aba ultrapassa o limite de 10.000 linhas ou 300 colunas.');
+    cells += (range.e.r - range.s.r + 1) * (range.e.c - range.s.c + 1);
+    if (cells > 400000) throw new Error('O arquivo XLS ultrapassa o limite de 400.000 células.');
+    return { name, rows: utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' }) };
+  });
 }

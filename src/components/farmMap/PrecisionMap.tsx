@@ -5,13 +5,15 @@ import type { SamplePoint } from '../../utils/farmMap/sampleLocation';
 
 export type MapField = Feature<Polygon | MultiPolygon, { id: string; name: string }>;
 export type MapSample = Feature<Point, { id: string; color: string; composite?: boolean }>;
+export type MapZone = Feature<Polygon, { id: string; name: string }>;
 export type IndexImage = { url: string; corners: [SamplePoint, SamplePoint, SamplePoint, SamplePoint] };
 
 export default function PrecisionMap({
-  fields, points, focus, onPoint, onSample, imagery, basemap = false, showBoundaries = true,
+  fields, points, focus, onPoint, onSample, imagery, basemap = false, showBoundaries = true, zones, draft,
 }: {
   fields: MapField[]; points: MapSample[]; focus: string; basemap?: boolean; showBoundaries?: boolean;
   onPoint?: (point: SamplePoint) => void; onSample?: (id: string) => void; imagery?: IndexImage;
+  zones?: MapZone[]; draft?: SamplePoint[];
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibre.Map | null>(null);
@@ -43,11 +45,16 @@ export default function PrecisionMap({
     const observer = new ResizeObserver(() => map.resize());
     observer.observe(container.current);
     map.once('style.load', () => {
-      for (const id of ['fields', 'samples']) {
+      for (const id of ['fields', 'samples', 'precision-zones', 'zone-draft']) {
         map.addSource(id, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       }
       map.addLayer({ id: 'field-fill', source: 'fields', type: 'fill', paint: { 'fill-color': '#438552', 'fill-opacity': 0.14 } });
       map.addLayer({ id: 'field-border', source: 'fields', type: 'line', paint: { 'line-color': '#176044', 'line-width': 2 } });
+      map.addLayer({ id: 'zone-fill', source: 'precision-zones', type: 'fill', paint: { 'fill-color': '#386cbb', 'fill-opacity': 0.23 } });
+      map.addLayer({ id: 'zone-border', source: 'precision-zones', type: 'line', paint: { 'line-color': '#30578b', 'line-width': 2, 'line-dasharray': [2, 2] } });
+      map.addLayer({ id: 'zone-drawing', source: 'zone-draft', type: 'line', paint: { 'line-color': '#c24c1e', 'line-width': 3 } });
+      map.addLayer({ id: 'zone-vertices', source: 'zone-draft', type: 'circle', filter: ['==', '$type', 'Point'],
+        paint: { 'circle-color': '#c24c1e', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2, 'circle-radius': 5 } });
       map.addLayer({ id: 'sample-points', source: 'samples', type: 'circle', paint: {
         'circle-radius': ['case', ['boolean', ['get', 'composite'], false], 9, 6],
         'circle-color': ['get', 'color'], 'circle-stroke-color': '#fff', 'circle-stroke-width': 2,
@@ -91,13 +98,25 @@ export default function PrecisionMap({
   }, [basemap, points, ready, showBoundaries]);
 
   useEffect(() => {
+    if (!ready) return;
+    const map = mapRef.current;
+    map?.getSource<maplibre.GeoJSONSource>('precision-zones')?.setData({ type: 'FeatureCollection', features: zones ?? [] });
+    const features: Feature[] = (draft ?? []).map(coordinates => ({ type: 'Feature', geometry: { type: 'Point', coordinates }, properties: {} }));
+    if (draft && draft.length > 1) {
+      features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: draft.length > 2 ? [...draft, draft[0]] : draft }, properties: {} });
+    }
+    map?.getSource<maplibre.GeoJSONSource>('zone-draft')?.setData({ type: 'FeatureCollection', features });
+  }, [draft, ready, zones]);
+
+  useEffect(() => {
     if (!ready || !mapRef.current) return;
     const map = mapRef.current;
     if (map.getLayer('index-image')) map.removeLayer('index-image');
     if (map.getSource('index-image')) map.removeSource('index-image');
     if (!imagery) return;
     map.addSource('index-image', { type: 'image', url: imagery.url, coordinates: imagery.corners });
-    map.addLayer({ type: 'raster', id: 'index-image', source: 'index-image', paint: { 'raster-opacity': 0.85 } }, 'field-border');
+    map.addLayer({ type: 'raster', id: 'index-image', source: 'index-image',
+      paint: { 'raster-opacity': 0.85, 'raster-resampling': 'nearest' } }, 'field-border');
   }, [imagery, ready]);
 
   return <div className="relative">
