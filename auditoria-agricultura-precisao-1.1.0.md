@@ -11,6 +11,7 @@ Revisão de 18 de novembro de 2026 na branch `codex/agricultura-de-precisao`. Os
 | Alta | Um serviço de IA não pode decidir o vínculo nem a medida do laboratório. | A solicitação exige sessão, instituição e ação explícita. A IA recebe cabeçalhos e devolve sugestões de uma lista fechada. O código da amostra, a unidade, o método, o valor e o original continuam controlados pela importação determinística. | `precision-lab-assist/`, `LabImport.tsx` |
 | Moderada | O registro npm apontou 11 ocorrências moderadas em dependências de desenvolvimento, herdadas da cadeia de lint e build. | A auditoria das dependências de produção retornou zero ocorrências conhecidas. As alternativas automáticas propostas para a cadeia de PWA incluem mudanças incompatíveis de versão e ficaram fora do empacotamento. | `package-lock.json` |
 | Média | A checagem global de tipos registrou 310 diagnósticos antes da mudança e 310 depois. | A checagem não apontou erro nos arquivos do módulo modificados. A compilação Vite foi validada. | `tsconfig.app.json` |
+| Baixa | O Git ainda rastreava um `.env` com URL e chave pública anônima do Supabase. Os ZIPs gerados a partir das etiquetas antigas incluíam esse arquivo. | O arquivo foi removido do índice e dos ZIPs locais, com a cópia de configuração mantida no workspace. O histórico Git anterior foi preservado. As variáveis privadas das funções Edge ficam exclusivamente no servidor. | `.env`, arquivos de recuperação |
 
 ## Testes
 

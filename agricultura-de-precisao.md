@@ -2,7 +2,7 @@
 
 ## Ponto de restauração
 
-A etiqueta local `agrigest-restauracao-2026-11-18` aponta para o estado do código antes do módulo, incluindo as alterações locais anteriores. A cópia ZIP verificada está em `checks.local/agrigest-restauracao-2026-11-18.zip`. O manifesto registra o SHA-256 dos 376 arquivos e as exclusões que já existiam. Os instaladores anteriores estão em `checks.local/instaladores-anteriores-2026-11-18`. O ZIP contém fontes e migrações. A configuração local `.env` e os dados do servidor ou do dispositivo ficam nos respectivos locais e não estão no arquivo.
+A etiqueta local `agrigest-restauracao-2026-11-18` aponta para o estado do código antes do módulo, incluindo as alterações locais anteriores. A cópia ZIP verificada está em `checks.local/agrigest-restauracao-2026-11-18.zip`. O manifesto registra os hashes dos arquivos arquivados e as exclusões que já existiam. Os instaladores anteriores estão em `checks.local/instaladores-anteriores-2026-11-18`. O ZIP contém fontes e migrações. A configuração local `.env` e os dados do servidor ou do dispositivo ficam nos respectivos locais e não estão no arquivo.
 
 Para abrir o código anterior em outra pasta, execute a partir do repositório:
 
