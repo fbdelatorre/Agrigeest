@@ -18,6 +18,7 @@ import Login from './pages/auth/Login';
 import Dashboard from './pages/Dashboard';
 import Rainfall from './pages/Rainfall';
 import FieldMonitoring from './pages/FieldMonitoring';
+import PrecisionAgriculture from './pages/PrecisionAgriculture';
 
 // Area Pages
 import AreasList from './pages/area/AreasList';
@@ -145,6 +146,7 @@ function App() {
             {/* Farm Map */}
             <Route path="farm-map" element={<FarmMapScreen />} />
             <Route path="monitoring" element={<FieldMonitoring />} />
+            <Route path="precision" element={<PrecisionAgriculture />} />
             <Route path="rainfall" element={<Rainfall />} />
 
             {/* Operations */}

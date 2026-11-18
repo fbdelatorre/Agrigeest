@@ -4,6 +4,7 @@ import type { FieldSubmission, RecommendedProduct } from './fieldData';
 export type FieldDraft =
   | { kind: 'report'; record: Omit<Extract<FieldSubmission, { kind: 'report' }>['record'], 'id'> }
   | { kind: 'rainfall'; record: Omit<Extract<FieldSubmission, { kind: 'rainfall' }>['record'], 'id'> }
+  | { kind: 'sample'; record: Omit<Extract<FieldSubmission, { kind: 'sample' }>['record'], 'id'> }
   | { kind: 'recommendation'; record: Omit<Extract<FieldSubmission, { kind: 'recommendation' }>['record'], 'id' | 'products'> & { products: RecommendedProduct[] } };
 export type QueueEntry = (
   | Exclude<FieldSubmission, { kind: 'recommendation' }>

@@ -384,7 +384,11 @@ const AreaDetail = () => {
             {area.size} {area.unit} · {area.location}
           </p>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex flex-wrap gap-2">
+          <Link to={`/precision?tab=history&area=${encodeURIComponent(area.id)}`}
+            className="inline-flex h-10 items-center rounded-md border border-gray-300 px-4 text-sm font-medium text-brand-700">
+            {language === 'pt' ? 'Análises do talhão' : 'Field analyses'}
+          </Link>
           <Button
             variant="secondary"
             leftIcon={<FileDown size={18} />}

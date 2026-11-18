@@ -125,6 +125,7 @@ export function FieldSyncProvider({ scope, userId, institutionId, children }: {
     let entry: QueueEntry;
     if (draft.kind === 'report') entry = { ...metadata, kind: draft.kind, record: { ...draft.record, id } };
     else if (draft.kind === 'rainfall') entry = { ...metadata, kind: draft.kind, record: { ...draft.record, id } };
+    else if (draft.kind === 'sample') entry = { ...metadata, kind: draft.kind, record: { ...draft.record, id } };
     else entry = { ...metadata, kind: draft.kind, record: { ...draft.record, id } };
     await writeFieldEntry(entry);
     wake();

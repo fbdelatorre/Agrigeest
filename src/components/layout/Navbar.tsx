@@ -2,7 +2,7 @@ import Select from '../ui/Select';
 import React from 'react';
 import {
   ClipboardList, CloudRain, Warehouse, LayoutDashboard, Map, MapPinned, PlaneTakeoff,
-  Settings, FileText, Bell, BarChart3, Wrench, StickyNote, LogOut, Sprout,
+  Settings, FileText, Bell, BarChart3, Wrench, StickyNote, LogOut, Sprout, Crosshair,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
@@ -36,6 +36,7 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onSignOut }) => {
         { to: '/areas', icon: <Map size={18} />, text: t('areas.title') },
         { to: '/monitoring', icon: <ClipboardList size={18} />, text: language === 'pt' ? 'Monitoramento' : 'Field Monitoring' },
         { to: '/rainfall', icon: <CloudRain size={18} />, text: language === 'pt' ? 'Pluviometria' : 'Rainfall' },
+        { to: '/precision', icon: <Crosshair size={18} />, text: language === 'pt' ? 'Agricultura de Precisão' : 'Precision Agriculture' },
         { to: '/operations', icon: <PlaneTakeoff size={18} />, text: t('operations.title') },
         { to: '/inventory', icon: <Warehouse size={18} />, text: t('inventory.title') },
       ],

@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Json } from './database.types';
 import { supabase } from './supabase';
 import { dateToInputValue } from '../utils/dateHelpers';
+import { precisionClient } from './precisionData';
+import type { SampleInput } from './precisionTypes';
 
 type FieldScope = { institution_id: string; season_id: string; area_id: string };
 type RecordMetadata = { id: string; created_at: string; created_by: string };
@@ -86,13 +88,15 @@ export async function getFieldRecommendation(id: string, seasonId: string, signa
 export type FieldSubmission =
   | { kind: 'report'; record: MonitoringInput & { id: string } }
   | { kind: 'recommendation'; record: RecommendationInput & { id: string } }
-  | { kind: 'rainfall'; record: RainfallInput & { id: string } };
+  | { kind: 'rainfall'; record: RainfallInput & { id: string } }
+  | { kind: 'sample'; record: SampleInput & { id: string } };
 
 export async function syncFieldSubmission(submission: FieldSubmission, userId: string, token: string, signal: AbortSignal) {
   const table = submission.kind === 'report' ? 'field_monitoring_reports'
     : submission.kind === 'recommendation' ? 'field_recommendations' : 'field_rainfall';
 
-  const insert = submission.kind === 'report' ? fieldClient.from('field_monitoring_reports').insert(submission.record)
+  const insert = submission.kind === 'sample' ? precisionClient.from('precision_samples').insert(submission.record)
+    : submission.kind === 'report' ? fieldClient.from('field_monitoring_reports').insert(submission.record)
     : submission.kind === 'recommendation' ? fieldClient.from('field_recommendations').insert(submission.record)
     : fieldClient.from('field_rainfall').insert(submission.record);
   const { error, status } = await insert.setHeader('Authorization', 'Bearer ' + token).abortSignal(signal);
@@ -102,7 +106,8 @@ export async function syncFieldSubmission(submission: FieldSubmission, userId: s
   }
 
   // An existing client ID can mean the write succeeded but the response was lost.
-  const receipt = await fieldClient.from(table).select('id')
+  const receiptQuery = submission.kind === 'sample' ? precisionClient.from('precision_samples').select('id') : fieldClient.from(table).select('id');
+  const receipt = await receiptQuery
     .eq('id', submission.record.id).eq('created_by', userId)
     .eq('institution_id', submission.record.institution_id).setHeader('Authorization', 'Bearer ' + token).abortSignal(signal).maybeSingle();
   if (receipt.error) return { state: 'retry' } as const;

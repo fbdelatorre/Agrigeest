@@ -15,6 +15,7 @@ const Topbar: React.FC = () => {
     if (pathname.startsWith('/areas')) return { title: language === 'pt' ? 'Áreas de Cultivo' : 'Cultivation Areas', subtitle: language === 'pt' ? 'Gestão de áreas' : 'Area management' };
     if (pathname.startsWith('/farm-map')) return { title: language === 'pt' ? 'Mapa da Fazenda' : 'Farm Map', subtitle: language === 'pt' ? 'Visão cartográfica' : 'Cartographic view' };
     if (pathname.startsWith('/rainfall')) return { title: language === 'pt' ? 'Pluviometria' : 'Rainfall', subtitle: '' };
+    if (pathname.startsWith('/precision')) return { title: language === 'pt' ? 'Agricultura de Precisão' : 'Precision Agriculture', subtitle: '' };
     if (pathname.startsWith('/monitoring')) return { title: language === 'pt' ? 'Monitoramento' : 'Monitoring', subtitle: '' };
     if (pathname.startsWith('/operations')) return { title: language === 'pt' ? 'Operações' : 'Operations', subtitle: language === 'pt' ? 'Atividades agrícolas' : 'Farming activities' };
     if (pathname.startsWith('/inventory')) return { title: language === 'pt' ? 'Estoque' : 'Inventory', subtitle: language === 'pt' ? 'Produtos e insumos' : 'Products and supplies' };

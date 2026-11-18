@@ -7,6 +7,9 @@ import * as maplibregl from '../../lib/maplibre';
 import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { getFieldRainfallTotals, type RainfallPeriod } from '../../lib/fieldData';
+import { useFieldPage } from '../../hooks/useFieldPage';
+import { listMapSamples } from '../../lib/precisionData';
+import { sampleColors } from '../../lib/precisionTypes';
 import { formatQuantity } from '../../utils/quantityFormat';
 import { AreaMapSummary, ViewMode, LayerSettings, MapFilters } from '../../types/farmMap';
 import {
@@ -21,7 +24,7 @@ import AreaDetailPanel from '../../components/farmMap/AreaDetailPanel';
 import ImportPerimeters from '../../components/farmMap/ImportPerimeters';
 import {
   Map as MapIcon, Layers, Upload, Filter, X,
-  Calendar, AlertTriangle, Sprout, FlaskConical, CloudRain,
+  Calendar, AlertTriangle, Sprout, FlaskConical, CloudRain, Crosshair,
 } from 'lucide-react';
 
 const SATELLITE_STYLE: maplibregl.StyleSpecification = {
@@ -97,6 +100,7 @@ export const FarmMapScreen: React.FC = () => {
   const { activeSeason, areas, getAreaMapSummary, operations, isOnline } = useAppContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const showRainfall = searchParams.get('layer') === 'rainfall';
+  const showSamples = searchParams.get('samples') === 'yes';
   const [rainfallPeriod, setRainfallPeriod] = useState<RainfallPeriod>('season');
   const [rainfallSnapshot, setRainfallSnapshot] = useState<{ key: string; totals: Record<string, number> } | null>(null);
   const [rainfallStatus, setRainfallStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -104,7 +108,9 @@ export const FarmMapScreen: React.FC = () => {
   const hasSeason = Boolean(seasonId);
   const isPt = language === 'pt';
   const scope = useContext(OfflineScope);
-  const { revision: fieldRevision } = useFieldSync();
+  const { revision: fieldRevision, entries } = useFieldSync();
+  const sampleRecords = useFieldPage('precision-farm-map', seasonId ?? '', '', 0,
+    isOnline && showSamples && !!seasonId, fieldRevision, listMapSamples);
   const rainfallKey = 'agrigest:v2:rainfall-totals:' + scope + ':' + seasonId + ':' + rainfallPeriod;
   const rainfall = rainfallSnapshot?.key === rainfallKey ? rainfallSnapshot.totals : null;
 
@@ -140,7 +146,7 @@ export const FarmMapScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [mapReady, setMapReady] = useState(false);
   const [mapUnavailable, setMapUnavailable] = useState(false);
-  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(() => searchParams.get('area'));
   const [viewMode, setViewMode] = useState<ViewMode>('lastFungicide');
   const [layerSettings, setLayerSettings] = useState<LayerSettings>({
     baseMap: 'satellite',
@@ -264,6 +270,11 @@ export const FarmMapScreen: React.FC = () => {
           'text-halo-width': 2,
         },
       });
+      m.addSource('farm-sample-points', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      m.addLayer({ id: 'farm-sample-points', source: 'farm-sample-points', type: 'circle', paint: {
+        'circle-radius': ['case', ['boolean', ['get', 'composite'], false], 9, 6],
+        'circle-color': ['get', 'color'], 'circle-stroke-color': '#fff', 'circle-stroke-width': 2,
+      } });
 
     };
 
@@ -301,6 +312,21 @@ export const FarmMapScreen: React.FC = () => {
     map.setLayoutProperty('satellite-layer', 'visibility', isOnline && layerSettings.baseMap === 'satellite' ? 'visible' : 'none');
     map.setLayoutProperty('osm-layer', 'visibility', isOnline && layerSettings.baseMap === 'streets' ? 'visible' : 'none');
   }, [isOnline, layerSettings.baseMap, mapReady]);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    const points = new Map((sampleRecords.data ?? []).map(sample => [sample.id, sample]));
+    for (const entry of entries) {
+      if (entry.kind === 'sample' && entry.record.season_id === seasonId && !points.has(entry.id)) points.set(entry.id, entry.record);
+    }
+    const features: GeoJSON.Feature<GeoJSON.Point>[] = showSamples ? [...points.values()]
+      .filter(sample => !selectedAreaId || sample.area_id === selectedAreaId)
+      .map(sample => ({
+        type: 'Feature', geometry: { type: 'Point', coordinates: [sample.longitude, sample.latitude] },
+        properties: { color: sampleColors[sample.sample_type] ?? '#777', composite: sample.sample_mode === 'composite' },
+      })) : [];
+    mapRef.current?.getSource<maplibregl.GeoJSONSource>('farm-sample-points')?.setData({ type: 'FeatureCollection', features });
+  }, [entries, mapReady, sampleRecords.data, seasonId, selectedAreaId, showSamples]);
 
   // Set up event handlers for area layers (added dynamically after style.load)
   const eventsSetupRef = useRef(false);
@@ -391,11 +417,14 @@ export const FarmMapScreen: React.FC = () => {
       currentFeaturesRef.current = features;
       source.setData({ type: 'FeatureCollection', features });
 
-      if (features.length && !selectedAreaId && fittedSeason.current !== seasonId) {
+      const viewKey = `${seasonId}:${selectedAreaId ?? ''}`;
+      if (features.length && fittedSeason.current !== viewKey) {
         const bounds = new maplibregl.LngLatBounds();
-        for (const feature of features) extendGeometryBounds(bounds, feature.geometry);
+        for (const feature of features) {
+          if (!selectedAreaId || feature.properties?.areaId === selectedAreaId) extendGeometryBounds(bounds, feature.geometry);
+        }
         if (!bounds.isEmpty()) {
-          fittedSeason.current = seasonId;
+          fittedSeason.current = viewKey;
           map.fitBounds(bounds, { padding: 52, maxZoom: 15, duration: 0 });
         }
       }
@@ -534,6 +563,10 @@ export const FarmMapScreen: React.FC = () => {
 
         {/* Top bar with stats and controls */}
         <div className="absolute top-2 left-2 right-14 z-10 flex flex-wrap items-center gap-2">
+          <Link to={'/precision?tab=map' + (selectedAreaId ? '&area=' + encodeURIComponent(selectedAreaId) : '')}
+            className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-brand-700 shadow-md hover:underline">
+            {isPt ? 'Mapa de análises' : 'Analysis map'}
+          </Link>
           {/* Stats bar */}
           <div className="bg-white rounded-lg shadow-md px-3 py-2 flex items-center gap-4 text-xs">
             <div className="flex items-center gap-1">
@@ -590,6 +623,17 @@ export const FarmMapScreen: React.FC = () => {
             }, { replace: true })}>
             {isPt ? 'Pluviometria' : 'Rainfall'}
           </Button>
+
+          <Button type="button" size="sm" variant={showSamples ? 'primary' : 'outline'} leftIcon={<Crosshair size={16} />}
+            aria-pressed={showSamples} onClick={() => setSearchParams(current => {
+              const next = new URLSearchParams(current);
+              if (showSamples) next.delete('samples');
+              else next.set('samples', 'yes');
+              return next;
+            }, { replace: true })}>{isPt ? 'Coletas' : 'Samples'}</Button>
+          {showSamples && sampleRecords.failed && <span role="status" className="rounded bg-white p-1 text-xs">
+            {isPt ? 'Coletas remotas indisponíveis.' : 'Remote samples unavailable.'}
+          </span>}
 
           <div className="w-full sm:w-64">
             <Select placeholder={isPt ? 'Buscar talhão' : 'Find a field'} value={selectedAreaId ?? ''}
