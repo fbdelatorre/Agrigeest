@@ -29,6 +29,7 @@ Deno.test('Sentinel controls access and sends the field geometry to both process
         assert.equal((raw as URLSearchParams).get('client_secret'), 'mock-secret');
         return Response.json({ access_token: 'sentinel-token', expires_in: 1000 });
       case '/catalog/v1/search': {
+        assert.equal(new Headers(init?.headers).get('accept'), 'application/geo+json');
         assert.deepEqual(body.intersects, geometry);
         const filtered = body.filter === 'eo:cloud_cover <= 0';
         return Response.json({ features: filtered ? [] : [
@@ -40,8 +41,11 @@ Deno.test('Sentinel controls access and sends the field geometry to both process
         assert.deepEqual(body.input.bounds.geometry, projected);
         assert.equal(body.aggregation.resx, 10);
         assert.equal(body.aggregation.resy, 10);
+        assert.equal(body.aggregation.timeRange.from, '2026-11-12T00:00:00.000Z');
+        assert.equal(body.aggregation.timeRange.to, '2026-11-13T00:00:00.000Z');
+        assert.deepEqual(body.calculations.index.histograms.default, { nBins: 10 });
         assert.ok(body.aggregation.evalscript.includes('"B03"'));
-        assert.equal(body.input.data[0].dataFilter.timeRange.from, '2026-11-12T13:59:59.000Z');
+        assert.equal(body.input.data[0].dataFilter.timeRange.from, '2026-11-12T13:30:00.000Z');
         return Response.json({ data: [{ outputs: {
           index: { bands: { B0: { stats: { sampleCount: 9, noDataCount: 4, min: 0.12, max: 0.71, mean: 0.5, stDev: 0.1 } } } },
           cloud: { bands: { B0: { stats: { sampleCount: 9, noDataCount: 2, mean: 2 / 7 } } } },

@@ -20,6 +20,7 @@ export default function PrecisionMap({
   const callbacks = useRef({ onPoint, onSample });
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   callbacks.current = { onPoint, onSample };
 
   useEffect(() => {
@@ -113,14 +114,29 @@ export default function PrecisionMap({
     const map = mapRef.current;
     if (map.getLayer('index-image')) map.removeLayer('index-image');
     if (map.getSource('index-image')) map.removeSource('index-image');
+    setImageFailed(false);
     if (!imagery) return;
-    map.addSource('index-image', { type: 'image', url: imagery.url, coordinates: imagery.corners });
-    map.addLayer({ type: 'raster', id: 'index-image', source: 'index-image',
-      paint: { 'raster-opacity': 0.85, 'raster-resampling': 'nearest' } }, 'field-border');
+    // Decode via img-src: MapLibre's URL loader uses fetch, which is correctly
+    // blocked for data: URLs by the native app's connect-src policy.
+    const image = new Image();
+    image.onload = () => {
+      try {
+        map.addSource('index-image', { type: 'image', coordinates: imagery.corners });
+        map.getSource<maplibre.ImageSource>('index-image')?.updateImage({ image });
+        map.addLayer({ type: 'raster', id: 'index-image', source: 'index-image',
+          paint: { 'raster-opacity': 0.85, 'raster-resampling': 'nearest' } }, 'field-border');
+      } catch {
+        setImageFailed(true);
+      }
+    };
+    image.onerror = () => setImageFailed(true);
+    image.src = imagery.url;
+    return () => { image.onload = null; image.onerror = null; };
   }, [imagery, ready]);
 
   return <div className="relative">
     <div ref={container} className="h-80 w-full overflow-hidden rounded-lg bg-green-50 sm:h-96" aria-label="Mapa dos talhões" />
     {failed && <p className="absolute inset-x-0 top-2 px-3 text-sm" role="status">Mapa indisponível neste dispositivo. Use os controles de seleção ou as coordenadas.</p>}
+    {imageFailed && <p className="absolute inset-x-0 top-2 rounded bg-white p-3 text-sm" role="status">Não foi possível exibir a imagem do índice. Clique em Exibir índice para tentar novamente.</p>}
   </div>;
 }

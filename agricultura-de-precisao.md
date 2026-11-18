@@ -37,6 +37,22 @@ Para habilitar a assistência opcional, configure `PRECISION_AI_URL`, `PRECISION
 
 A variável opcional `VITE_PUBLIC_APP_URL` deve apontar para o endereço HTTPS da PWA publicada para que as etiquetas das versões nativas abram a página correspondente. Sem o endereço, a etiqueta QR contém um identificador que pode ser colado na busca de amostras.
 
+## Implantação no Supabase
+
+As cinco migrações de Agricultura de Precisão foram aplicadas ao projeto AgroGest (`qnhykflwwihdpahvktmb`) pelo SQL Editor após autorização. A conferência confirmou RLS nas quatro tabelas novas, oito políticas e acesso anônimo negado às amostras, resultados e RPC de importação. A função `precision-sentinel` foi publicada pelo editor com o conteúdo consolidado dos arquivos locais. Os dois nomes de segredos Copernicus foram confirmados no painel. A consulta real identificou uma resposta HTTP 406 do catálogo, corrigida com `Accept: application/geo+json`. Reconcilie o histórico dessas cinco versões com a CLI antes de utilizar `supabase db push` neste projeto.
+
+A integração real também exigiu agregação estatística de um dia UTC completo, mantendo a seleção dos dados próxima à aquisição, e histograma com limites automáticos (`nBins: 10`). LAZARINI, aquisição de 06/11/2026 13:25:34 UTC, retornou 41.791 pixels válidos entre 41.880 observados, NDVI médio de aproximadamente 0,13 e 7,14% de nuvens na cena. Esses valores são uma conferência técnica da integração, não uma recomendação agronômica. Os registros de negócio existentes não foram alterados nessa implantação.
+
+## Correção de imagem e entrega 1.1.1
+
+O carregador de imagens do MapLibre usa `fetch`, bloqueado para URLs `data:` pela política `connect-src` do Windows. A versão 1.1.1 decodifica o PNG com `Image` e o entrega diretamente à fonte do mapa por `updateImage({ image })`, conforme a [API oficial do MapLibre](https://maplibre.org/maplibre-gl-js/docs/API/classes/ImageSource/). A política de segurança foi mantida. Uma falha de decodificação agora mostra mensagem no mapa, e a limpeza do efeito impede que uma imagem antiga seja aplicada depois de trocar ou ocultar a camada.
+
+O teste `node tests/precision-map.browser.mjs` reproduziu o bloqueio na implementação anterior e confirmou pixels coloridos realmente renderizados após a correção. Verifica também troca, ocultação e mensagem para PNG inválido, usando a política de segurança nativa em Edge isolado e dados sintéticos. O teste requer `playwright-core` em `checks.local/node_modules` e o Edge instalado. Os cinco testes de precisão/PostGIS e o teste Deno da função passaram. O build nativo foi concluído para Windows e Android. A checagem TypeScript geral ainda apresenta os mesmos 354 registros de saída anteriores; nenhum erro foi apontado no mapa alterado.
+
+Os instaladores e os hashes SHA-256 estão em `checks.local/entregas/agrigest-1.1.1`. O APK é de teste, assinado com a chave de depuração já utilizada; a distribuição em loja exige assinatura de produção. A versão Windows instalada foi atualizada para 1.1.1. O instalador 1.1.0 e os pontos de restauração anteriores foram conservados.
+
+A conferência final na versão Windows instalada mostrou o PNG real de LAZARINI com recorte do perímetro, cores NDVI e estatísticas da aquisição de 06/11/2026. O usuário também confirmou a imagem. A captura está em `checks.local/entregas/agrigest-1.1.1/LAZARINI-NDVI-validado.png`. O build PWA também foi gerado; a publicação do site não foi realizada nesta etapa.
+
 ## Recuperar uma versão
 
 A etiqueta `agrigest-precisao-pre-conclusao-26ea1c2` marca o estado anterior à conclusão. A etiqueta `agrigest-1.1.0` identifica a entrega. Cada etiqueta pode ser aberta em um worktree separado. Preserve as tabelas e os registros se for preciso voltar o executável. O backup do banco e os dados ainda pendentes no dispositivo têm procedimentos próprios.

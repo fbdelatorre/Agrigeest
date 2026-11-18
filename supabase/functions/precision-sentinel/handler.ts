@@ -41,9 +41,14 @@ async function copernicus(path: string, body: unknown, accept = 'application/jso
     headers: { Authorization: 'Bearer ' + await accessToken(), 'Content-Type': 'application/json', Accept: accept },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new ServiceError(response.status === 429 ? 429 : 502, response.status === 429
-    ? 'Limite de consultas do Copernicus atingido. Tente novamente mais tarde.'
-    : 'O Copernicus não conseguiu processar o talhão e período informados.');
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const detail = body?.error?.message ?? body?.description ?? body?.message ?? body?.detail;
+    console.warn('Copernicus request failed', { path, status: response.status, detail: typeof detail === 'string' ? detail.slice(0, 1000) : 'Unspecified upstream error' });
+    throw new ServiceError(response.status === 429 ? 429 : 502, response.status === 429
+      ? 'Limite de consultas do Copernicus atingido. Tente novamente mais tarde.'
+      : 'O Copernicus não conseguiu processar o talhão e período informados.');
+  }
   return response;
 }
 
@@ -56,7 +61,7 @@ async function catalog(geometry: object, from: string, to: string, clouds: numbe
   const features: Parameters<typeof acquisitions>[0] = [];
   let next: number | undefined;
   for (let page = 0; page < 5; page++) {
-    const response = await copernicus('/catalog/v1/search', { ...query, ...(next === undefined ? {} : { next }) });
+    const response = await copernicus('/catalog/v1/search', { ...query, ...(next === undefined ? {} : { next }) }, 'application/geo+json');
     const raw = await response.json();
     features.push(...(raw.features ?? []));
     const cursor = raw.context?.next;
@@ -82,21 +87,33 @@ async function inspect(bounds: Record<string, unknown>, time: string, clouds: nu
   if (width < 1 || height < 1 || width > 2500 || height > 2500 || width * height > 600000)
     throw new ServiceError(422, 'O talhão ultrapassa o limite de processamento de uma imagem de 10 m.');
   const acquired = new Date(time).valueOf();
-  const timeRange = { from: new Date(acquired - 1000).toISOString(), to: new Date(acquired + 1000).toISOString() };
+  const timeRange = {
+    from: new Date(Math.max(Date.parse(day + 'T00:00:00Z'), acquired - 30 * 60000)).toISOString(),
+    to: new Date(Math.min(Date.parse(day + 'T23:59:59.999Z'), acquired + 30 * 60000)).toISOString(),
+  };
+  const aggregationRange = {
+    from: day + 'T00:00:00.000Z',
+    to: new Date(Date.parse(day + 'T00:00:00Z') + 86400000).toISOString(),
+  };
   const input = {
     bounds: { geometry: bounds.projected, bbox: bounds.bbox, properties: { crs: 'http://www.opengis.net/def/crs/EPSG/0/' + bounds.srid } },
     data: [{ type: 'sentinel-2-l2a', dataFilter: { timeRange, maxCloudCoverage: clouds },
       processing: { upsampling: 'NEAREST', downsampling: 'NEAREST' } }],
   };
   const stats = await (await copernicus('/statistics/v1', { input, aggregation: {
-    timeRange, aggregationInterval: { of: 'P1D', lastIntervalBehavior: 'SHORTEN' }, resx: 10, resy: 10, evalscript: evalscript(index, false),
-  }, calculations: { index: { histograms: { default: { nBins: 10, lowEdge: -1, highEdge: 1 } } } } })).json();
+    timeRange: aggregationRange, aggregationInterval: { of: 'P1D' }, resx: 10, resy: 10, evalscript: evalscript(index, false),
+  }, calculations: { index: { histograms: { default: { nBins: 10 } } } } })).json();
   const output = stats.data?.[0]?.outputs;
+  if (!output) {
+    console.warn('Copernicus statistics returned no interval', { status: stats.status, data: stats.data, timeRange });
+    throw new ServiceError(422, 'A aquisição não retornou estatísticas para o intervalo selecionado. Selecione outra data.');
+  }
   const measurements = output?.index?.bands?.B0;
   const cloud = output?.cloud?.bands?.B0?.stats;
   const summary = measurements?.stats;
   const valid = Math.max(0, (summary?.sampleCount ?? 0) - (summary?.noDataCount ?? 0));
   const covered = Math.max(0, (cloud?.sampleCount ?? 0) - (cloud?.noDataCount ?? 0));
+  if (!covered) console.warn('Copernicus statistics empty coverage', { outputs: JSON.stringify(output).slice(0, 1800), timeRange });
   const gridPixels = countFieldPixels(bounds.projected as Parameters<typeof countFieldPixels>[0], {
     bbox: bounds.bbox as [number, number, number, number], width, height,
   });
