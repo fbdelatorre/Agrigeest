@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect, useCallback } from 'react';
+import { useAppContext } from './AppContext';
 import { supabase } from '../lib/supabase';
 import { Note } from '../types/notes';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflineStorage } from '../hooks/useOfflineStorage';
-import { dateToInputValue } from '../utils/dateHelpers';
+import { dateToInputValue, isDateInSeason, parseDate } from '../utils/dateHelpers';
 
 const READ_ONLY_MSG = 'Sem conexão. O AgriGest está em modo somente leitura.';
 
@@ -32,28 +33,19 @@ interface NotesProviderProps {
 }
 
 export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
-  const [notes, setNotes] = useState<Note[]>([]);
 
   const { isOnline } = useNetworkStatus();
+  const { profile, activeSeason } = useAppContext();
+  const institutionId = profile?.institutionId ?? '';
 
-  const {
-    data: cachedNotes,
-    setData: setCachedNotes,
-  } = useOfflineStorage<Note[]>('notes', []);
+  const [notes, setNotes] = useOfflineStorage<Note[]>('notes', []);
 
-  useEffect(() => {
-    if (isOnline) {
-      loadNotes();
-    } else {
-      if (cachedNotes.length > 0) setNotes(cachedNotes);
-    }
-  }, [isOnline]);
-
-  const loadNotes = async () => {
+  const loadNotes = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('notes')
         .select('*')
+        .eq('institution_id', institutionId)
         .order('note_date', { ascending: false });
 
       if (error) {
@@ -65,19 +57,24 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         ...note,
         userId: note.user_id,
         institutionId: note.institution_id,
-        noteDate: new Date(note.note_date),
+        noteDate: parseDate(note.note_date)!,
         isCompleted: note.is_completed,
-        completedDate: note.completed_date ? new Date(note.completed_date) : null,
+        completedDate: parseDate(note.completed_date) ?? null,
         createdAt: new Date(note.created_at),
         updatedAt: new Date(note.updated_at)
       }));
 
       setNotes(formattedNotes);
-      setCachedNotes(formattedNotes);
     } catch (error) {
       console.error('Error loading notes:', error);
     }
-  };
+  }, [institutionId, setNotes]);
+
+  useEffect(() => {
+    if (isOnline && institutionId) {
+      loadNotes();
+    }
+  }, [isOnline, institutionId, loadNotes]);
 
   const addNote = async (noteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt' | 'userId' | 'institutionId'>) => {
     if (!isOnline) throw new Error(READ_ONLY_MSG);
@@ -124,16 +121,15 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         ...data,
         userId: data.user_id,
         institutionId: data.institution_id,
-        noteDate: new Date(data.note_date),
+        noteDate: parseDate(data.note_date)!,
         isCompleted: data.is_completed,
-        completedDate: data.completed_date ? new Date(data.completed_date) : null,
+        completedDate: parseDate(data.completed_date) ?? null,
         createdAt: new Date(data.created_at),
         updatedAt: new Date(data.updated_at)
       };
 
       const updatedNotes = [newNote, ...notes];
       setNotes(updatedNotes);
-      setCachedNotes(updatedNotes);
     } catch (error) {
       console.error('Error adding note:', error);
       throw error;
@@ -169,9 +165,9 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         ...data,
         userId: data.user_id,
         institutionId: data.institution_id,
-        noteDate: new Date(data.note_date),
+        noteDate: parseDate(data.note_date)!,
         isCompleted: data.is_completed,
-        completedDate: data.completed_date ? new Date(data.completed_date) : null,
+        completedDate: parseDate(data.completed_date) ?? null,
         createdAt: new Date(data.created_at),
         updatedAt: new Date(data.updated_at)
       };
@@ -181,7 +177,6 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
       );
 
       setNotes(updatedNotes);
-      setCachedNotes(updatedNotes);
     } catch (error) {
       console.error('Error updating note:', error);
       throw error;
@@ -201,7 +196,6 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
 
       const updatedNotes = notes.filter(note => note.id !== id);
       setNotes(updatedNotes);
-      setCachedNotes(updatedNotes);
     } catch (error) {
       console.error('Error deleting note:', error);
       throw error;
@@ -226,7 +220,7 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
   };
 
   const value = {
-    notes,
+    notes: notes.filter(note => isDateInSeason(note.noteDate, activeSeason)),
     addNote,
     updateNote,
     deleteNote,

@@ -1,3 +1,4 @@
+import Select from '../ui/Select';
 import React, { useState, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -226,20 +227,12 @@ const ImportPerimeters: React.FC<ImportPerimetersProps> = ({ onClose, onImportCo
 
                       <div className="flex items-center gap-2">
                         <Link2 size={16} className="text-gray-400" />
-                        <select
-                          value={polygon.matchedAreaId || ''}
-                          onChange={(e) => handleMatchChange(polygon.id, e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                        >
-                          <option value="">
-                            {language === 'pt' ? 'Selecione uma area...' : 'Select an area...'}
-                          </option>
-                          {areas.map(area => (
-                            <option key={area.id} value={area.id}>
-                              {area.name} - {area.size} {area.unit}
-                            </option>
-                          ))}
-                        </select>
+                        <Select aria-label={language === 'pt' ? 'Talhão correspondente' : 'Matching field'} value={polygon.matchedAreaId || ''}
+                          onChange={event => handleMatchChange(polygon.id, event.target.value)}
+                          options={[
+                            { value: '', label: language === 'pt' ? 'Selecione uma área' : 'Select an area' },
+                            ...areas.map(area => ({ value: area.id, label: area.name + ' – ' + area.size + ' ' + area.unit })),
+                          ]} />
                       </div>
 
                       {matchedArea && (

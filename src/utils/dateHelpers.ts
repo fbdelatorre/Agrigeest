@@ -74,3 +74,12 @@ export function parseDate(dateString: string | null | undefined): Date | undefin
   const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
   return new Date(year, month - 1, day);
 }
+
+export function isDateInSeason(
+  date: Date,
+  season: { start_date: string; end_date: string | null } | null
+): boolean {
+  if (!season) return true;
+  const day = dateToInputValue(date);
+  return day >= season.start_date.slice(0, 10) && (!season.end_date || day <= season.end_date.slice(0, 10));
+}

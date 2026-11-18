@@ -83,6 +83,21 @@ const AreaCard: React.FC<AreaCardProps> = ({ area, onDelete }) => {
             )}
           </div>
         </div>
+        {activeSeason && (
+          <dl className="mb-3 grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <dt className="text-gray-600">{language === 'pt' ? 'Data de plantio' : 'Planting date'}</dt>
+              <dd className="font-medium">{area.plantingDate ? formatDate(area.plantingDate) : '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-gray-600">{language === 'pt' ? 'População' : 'Population'}</dt>
+              <dd className="font-medium">{area.plantingPopulation != null
+                ? area.plantingPopulation.toLocaleString(language === 'pt' ? 'pt-BR' : 'en-US') +
+                  (language === 'pt' ? ' sementes/ha' : ' seeds/ha')
+                : '—'}</dd>
+            </div>
+          </dl>
+        )}
         <p className="text-gray-600 text-sm mb-3">{area.description}</p>
         <div className="text-xs text-gray-500">
           {language === 'pt' ? 'Criado em: ' : 'Created: '}

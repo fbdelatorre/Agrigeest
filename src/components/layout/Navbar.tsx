@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import Select from '../ui/Select';
+import React from 'react';
 import {
-  Warehouse, LayoutDashboard, Map, MapPinned, PlaneTakeoff,
+  ClipboardList, CloudRain, Warehouse, LayoutDashboard, Map, MapPinned, PlaneTakeoff,
   Settings, FileText, Bell, BarChart3, Wrench, StickyNote, LogOut, Sprout,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAppContext } from '../../context/AppContext';
-import { supabase } from '../../lib/supabase';
 
 interface NavbarProps {
   isOpen: boolean;
@@ -17,37 +17,6 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onSignOut }) => {
   const { t, language } = useLanguage();
   const { seasons = [], activeSeason, setActiveSeason } = useAppContext();
-  const [loading, setLoading] = useState(false);
-
-  const handleSeasonChange = async (seasonId: string) => {
-    if (!seasonId) {
-      setActiveSeason(null);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const season = seasons.find(s => s.id === seasonId);
-      if (!season) return;
-
-      const { error } = await supabase.rpc('update_season_status', {
-        season_id_param: season.id,
-        new_status: 'active'
-      });
-
-      if (error) throw error;
-
-      setActiveSeason(season);
-    } catch (error) {
-      console.error('Error updating season status:', error);
-      alert(language === 'pt'
-        ? 'Erro ao atualizar o status da safra'
-        : 'Error updating season status');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   interface NavGroup {
     label: string;
     items: { to: string; icon: React.ReactNode; text: string }[];
@@ -65,6 +34,8 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onSignOut }) => {
       label: language === 'pt' ? 'LAVOURA' : 'CROPS',
       items: [
         { to: '/areas', icon: <Map size={18} />, text: t('areas.title') },
+        { to: '/monitoring', icon: <ClipboardList size={18} />, text: language === 'pt' ? 'Monitoramento' : 'Field Monitoring' },
+        { to: '/rainfall', icon: <CloudRain size={18} />, text: language === 'pt' ? 'Pluviometria' : 'Rainfall' },
         { to: '/operations', icon: <PlaneTakeoff size={18} />, text: t('operations.title') },
         { to: '/inventory', icon: <Warehouse size={18} />, text: t('inventory.title') },
       ],
@@ -131,45 +102,19 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onSignOut }) => {
           }}
         >
           <label
+            htmlFor="season-selector"
             className="block text-[10px] font-semibold tracking-wider uppercase mb-2"
             style={{ color: 'rgba(255,255,255,0.55)' }}
           >
-            {language === 'pt' ? 'Safra Atual' : 'Current Season'}
+            {language === 'pt' ? 'Safra selecionada' : 'Selected Season'}
           </label>
-          <select
-            value={activeSeason?.id || ''}
-            onChange={(e) => handleSeasonChange(e.target.value)}
-            className="w-full h-9 px-2.5 text-white text-sm rounded-md focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer"
-            style={{
-              backgroundColor: 'rgba(255,255,255,0.10)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              color: '#FFFFFF',
-            }}
-            disabled={loading}
-          >
-            <option value="" className="bg-white text-gray-900">
-              {language === 'pt' ? 'Selecione uma safra' : 'Select a season'}
-            </option>
-            {Array.isArray(seasons) && seasons.map(season => (
-              <option key={season.id} value={season.id} className="bg-white text-gray-900">
-                {season.name}
-              </option>
-            ))}
-          </select>
-          {activeSeason ? (
-            <div className="mt-2">
-              <span
-                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium"
-                style={{
-                  backgroundColor: 'rgba(46,139,87,0.25)',
-                  color: '#B8E6C8',
-                }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full mr-1.5 inline-block" style={{ backgroundColor: '#6FCF97' }} />
-                {language === 'pt' ? 'Safra Ativa' : 'Active'}
-              </span>
-            </div>
-          ) : (
+          <Select id="season-selector" value={activeSeason?.id || ''}
+            onChange={event => setActiveSeason(seasons.find(season => season.id === event.target.value) ?? null)}
+            options={[
+              { value: '', label: language === 'pt' ? 'Selecione uma safra' : 'Select a season' },
+              ...seasons.map(season => ({ value: season.id, label: season.name })),
+            ]} />
+          {!activeSeason && (
             <p className="text-[10px] mt-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
               {language === 'pt' ? 'Selecione para começar' : 'Select to start'}
             </p>

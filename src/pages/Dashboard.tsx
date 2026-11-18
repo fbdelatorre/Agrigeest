@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useMachineryContext } from '../context/MachineryContext';
 import { Link } from 'react-router-dom';
@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import PWAInstallPrompt from '../components/ui/PWAInstallPrompt';
-import { canInstallPWA } from '../pwa';
 import { formatDateForDisplay } from '../utils/dateHelpers';
 import { formatQuantity } from '../utils/quantityFormat';
 import StatCard from '../components/ui/StatCard';
@@ -20,16 +19,6 @@ const Dashboard = () => {
   const { areas, operations, products, isOnline, activeSeason } = useAppContext();
   const { machinery } = useMachineryContext();
   const { language } = useLanguage();
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-
-  useEffect(() => {
-    const checkInstallable = async () => {
-      const installable = await canInstallPWA();
-      setShowInstallPrompt(installable);
-    };
-    checkInstallable();
-  }, []);
-
   const isPt = language === 'pt';
 
   // Calculations
@@ -98,7 +87,7 @@ const Dashboard = () => {
   if (!activeSeason) {
     return (
       <div className="space-y-6">
-        {showInstallPrompt && <PWAInstallPrompt className="mb-4" />}
+        <PWAInstallPrompt className="mb-4" />
         <div className="flex flex-col items-center justify-center py-20 px-4">
           <div className="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center mb-4">
             <Sprout size={32} className="text-brand-600" />
@@ -118,7 +107,7 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {showInstallPrompt && <PWAInstallPrompt className="mb-2" />}
+      <PWAInstallPrompt className="mb-2" />
 
       {!isOnline && (
         <div className="bg-warning-50 border border-warning-100 rounded-xl p-3.5 flex items-center gap-3">

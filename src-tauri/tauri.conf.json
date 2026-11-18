@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AgriGest",
+  "version": "0.1.0",
+  "identifier": "com.agrigest.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev -- --mode native --host 127.0.0.1 --port 1420 --strictPort",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build:native",
+    "frontendDist": "../dist-native"
+  },
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com https://*.tile.openstreetmap.org; connect-src 'self' ipc: http://ipc.localhost https://*.supabase.co wss://*.supabase.co https://server.arcgisonline.com https://*.tile.openstreetmap.org; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'",
+      "devCsp": null
+    },
+    "windows": [
+      {
+        "title": "AgriGest",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 360,
+        "minHeight": 600
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ]
+  }
+}

@@ -8,9 +8,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please click "Connect to Supabase" button to set up your project.');
 }
 
+export const authStorageKey = 'sb-' + new URL(supabaseUrl).hostname.split('.')[0] + '-auth-token';
+
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
+    storageKey: authStorageKey,
     autoRefreshToken: true,
     detectSessionInUrl: true
   },
@@ -20,18 +23,3 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     }
   }
 });
-
-// Handle service worker registration only in production and if supported
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  try {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then(registration => {
-        console.log('Service Worker registered with scope:', registration.scope);
-      })
-      .catch(error => {
-        console.error('Service Worker registration failed:', error);
-      });
-  } catch (error) {
-    console.error('Service Worker registration error:', error);
-  }
-}

@@ -34,3 +34,7 @@ dist-ssr
 # PWA assets
 # public/workbox-*.js
 # public/sw.js
+# Native builds
+/dist-native/
+/src-tauri/target/
+/src-tauri/gen/schemas/

@@ -1,3 +1,4 @@
+import Select from '../ui/Select';
 import React, { useState, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -205,17 +206,12 @@ const GeometryManager: React.FC<GeometryManagerProps> = ({
           </div>
 
           {importedPolygons.length > 1 && (
-            <select
-              value={selectedPolygonIdx}
-              onChange={(e) => setSelectedPolygonIdx(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            >
-              {importedPolygons.map((p, idx) => (
-                <option key={p.id} value={idx}>
-                  {p.name || `Polígono ${idx + 1}`} - {p.areaHectares.toFixed(1)} ha
-                </option>
-              ))}
-            </select>
+            <Select aria-label={t('Polígono', 'Polygon')} value={String(selectedPolygonIdx)}
+              onChange={event => setSelectedPolygonIdx(Number(event.target.value))}
+              options={importedPolygons.map((polygon, index) => ({
+                value: String(index),
+                label: (polygon.name || t('Polígono', 'Polygon') + ' ' + (index + 1)) + ' – ' + polygon.areaHectares.toFixed(1) + ' ha',
+              }))} />
           )}
 
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">

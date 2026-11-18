@@ -1,16 +1,17 @@
+import { defaultSeedCrops, isSeedCategory } from '../../utils/seasonPlanting';
 import React, { useState } from 'react';
-import { Product, ProductLot } from '../../types';
+import { Product } from '../../types';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
-import { Save, X, Plus, Pencil, Trash2, Package, AlertTriangle, Calendar } from 'lucide-react';
+import { Save, X, Plus, Pencil, Trash2, Package, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAppContext } from '../../context/AppContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import LotManager from './LotManager';
-import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
+import { inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
 import { formatQuantity } from '../../utils/quantityFormat';
 
 export interface PendingLot {
@@ -42,12 +43,13 @@ const ProductForm: React.FC<ProductFormProps> = ({
 }) => {
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const { products, productLots } = useAppContext();
+  const { products, seedCrops } = useAppContext();
   const { isOnline } = useNetworkStatus();
 
   const [formData, setFormData] = useState({
     name: initialData.name || '',
     category: initialData.category || '',
+    crop: initialData.crop || '',
     unit: initialData.unit || '',
     minStockLevel: initialData.minStockLevel?.toString() || '0',
     price: initialData.price?.toString() || '',
@@ -59,6 +61,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [newCategory, setNewCategory] = useState('');
+  const [addingCrop, setAddingCrop] = useState(false);
+  const [newCrop, setNewCrop] = useState('');
+  const isSeed = isSeedCategory(formData.category);
+  const cropOptions = [...new Set([...defaultSeedCrops, ...seedCrops, formData.crop].filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   // Pending lots for new product creation
   const [pendingLots, setPendingLots] = useState<PendingLot[]>([]);
@@ -71,7 +78,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
     const categories = products
       .map(product => product.category)
       .filter(category => category && category.trim() !== '');
-    return [...new Set(categories)].sort();
+    return [...new Set([...(categories.some(isSeedCategory) ? [] : ['seed']), ...categories])].sort();
   }, [products]);
 
   const handleChange = (
@@ -205,6 +212,10 @@ const ProductForm: React.FC<ProductFormProps> = ({
       newErrors.category = language === 'pt' ? 'Categoria é obrigatória' : 'Category is required';
     }
 
+    if (isSeed && addingCrop) {
+      newErrors.crop = language === 'pt' ? 'Adicione a nova cultura antes de salvar.' : 'Add the new crop before saving.';
+    }
+
     if (!formData.unit.trim()) {
       newErrors.unit = language === 'pt' ? 'Unidade é obrigatória' : 'Unit is required';
     }
@@ -232,6 +243,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
     onSubmit({
       ...formData,
+      category: formData.category as Product['category'],
+      crop: isSeed ? formData.crop : undefined,
+      quantityInStock: initialData.quantityInStock ?? 0,
       minStockLevel: Number(formData.minStockLevel),
       price: Number(formData.price),
     }, !isEditing ? pendingLots : undefined, !isEditing ? Number(formData.untrackedQuantity) || 0 : undefined);
@@ -239,7 +253,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
   const categoryOptions = existingCategories.map(category => ({
     value: category,
-    label: category
+    label: category === 'seed' ? (language === 'pt' ? 'Semente' : 'Seed') : category
   }));
 
   return (
@@ -303,6 +317,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
           ) : (
             <Select
               name="category"
+              aria-label={language === 'pt' ? 'Categoria' : 'Category'}
               value={formData.category}
               onChange={handleChange}
               options={[
@@ -317,6 +332,35 @@ const ProductForm: React.FC<ProductFormProps> = ({
             />
           )}
         </div>
+
+        {isSeed && (
+          <div className="space-y-2">
+            <Select name="crop" label={language === 'pt' ? 'Cultura da semente' : 'Seed crop'}
+              value={formData.crop} onChange={handleChange}
+              options={[
+                { value: '', label: language === 'pt' ? 'Selecione uma cultura' : 'Select a crop' },
+                ...cropOptions.map(crop => ({ value: crop, label: crop })),
+              ]} error={errors.crop} />
+            {addingCrop ? (
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-40 flex-1"><Input label={language === 'pt' ? 'Nome da nova cultura' : 'New crop name'}
+                  maxLength={80} value={newCrop} onChange={event => setNewCrop(event.target.value)} /></div>
+                <Button type="button" size="sm" disabled={!newCrop.trim()} onClick={() => {
+                  const normalize = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase();
+                  const name = newCrop.trim().toUpperCase();
+                  const existing = cropOptions.find(option => normalize(option) === normalize(name));
+                  setFormData(previous => ({ ...previous, crop: existing ?? name }));
+                  setNewCrop('');
+                  setAddingCrop(false);
+                }}>{language === 'pt' ? 'Adicionar' : 'Add'}</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => { setNewCrop(''); setAddingCrop(false); }}>
+                  {language === 'pt' ? 'Cancelar' : 'Cancel'}
+                </Button>
+              </div>
+            ) : <Button type="button" size="sm" variant="ghost" leftIcon={<Plus size={16} />}
+              onClick={() => setAddingCrop(true)}>{language === 'pt' ? 'Nova cultura' : 'New crop'}</Button>}
+          </div>
+        )}
 
         <Input
           name="unit"
@@ -457,7 +501,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                         <div className="text-xs text-gray-500">{language === 'pt' ? 'Lote' : 'Lot'}</div>
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{formatQuantity(lot.quantity, language)} {formData.unit}</div>
+                        <div className="text-sm font-medium text-gray-900">{formatQuantity(Number(lot.quantity), language)} {formData.unit}</div>
                         <div className="text-xs text-gray-500">{language === 'pt' ? 'Quantidade' : 'Quantity'}</div>
                       </div>
                       <div>

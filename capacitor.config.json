@@ -1,0 +1,5 @@
+{
+  "appId": "com.agrigest.app",
+  "appName": "AgriGest",
+  "webDir": "dist-native"
+}

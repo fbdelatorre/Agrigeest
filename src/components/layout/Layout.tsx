@@ -1,3 +1,4 @@
+import { useFieldSync } from '../../context/FieldSyncContext';
 import React, { useState, useEffect } from 'react';
 import Navbar from './Navbar';
 import Topbar from './Topbar';
@@ -14,9 +15,13 @@ const Layout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
   const { profile } = useAppContext();
   const { isOnline } = useNetworkStatus();
   const { language } = useLanguage();
+  const fieldSync = useFieldSync();
+  const pending = fieldSync.entries.filter(entry => entry.state === 'pending').length;
+  const blocked = fieldSync.entries.filter(entry => entry.state === 'blocked').length;
   const legacyData = useLegacyOfflineData();
 
   useEffect(() => {
@@ -38,12 +43,14 @@ const Layout: React.FC = () => {
   }, [isSidebarOpen]);
 
   const handleSignOut = async () => {
+    setSignOutFailed(false);
     try {
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) throw error;
+      navigate('/login', { replace: true });
     } catch (error) {
       console.error('Sign out error:', error);
-    } finally {
-      navigate('/login');
+      setSignOutFailed(true);
     }
   };
 
@@ -105,10 +112,18 @@ const Layout: React.FC = () => {
                 <WifiOff size={18} className="text-amber-600 flex-shrink-0" />
                 <span className="text-sm text-amber-800 font-medium">
                   {language === 'pt'
-                    ? 'Sem conexão. O AgriGest está em modo somente leitura. As alterações estarão disponíveis quando a conexão for restabelecida.'
-                    : 'No connection. AgriGest is in read-only mode. Changes will be available when the connection is restored.'}
+                    ? 'Sem conexão. Você pode registrar chuvas, monitoramentos e recomendações neste dispositivo.'
+                    : 'No connection. You can record rainfall, reports, and recommendations on this device.'}
                 </span>
               </div>
+            )}
+            {(pending > 0 || blocked > 0 || fieldSync.localError) && (
+              <p role="status" className="mb-4 rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-900">
+                {fieldSync.localError
+                  ? (language === 'pt' ? 'Não foi possível ler os registros locais neste dispositivo.' : 'Could not read local records on this device.')
+                  : (language === 'pt' ? `${pending} aguardando sincronização · ${blocked} precisam de atenção` :
+                    `${pending} waiting to sync · ${blocked} need attention`)}
+              </p>
             )}
             {isOnline && legacyData.hasLegacyData && (
               <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center gap-2">
@@ -119,6 +134,13 @@ const Layout: React.FC = () => {
                     : 'There are old offline changes on this device that have not been sent. They have been preserved to avoid data loss.'}
                 </span>
               </div>
+            )}
+            {signOutFailed && (
+              <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-red-800">
+                {language === 'pt'
+                  ? 'Não foi possível encerrar a sessão. Verifique a conexão e tente novamente.'
+                  : 'Could not sign out. Check your connection and try again.'}
+              </p>
             )}
             <Outlet />
           </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Smartphone, Laptop, Info } from 'lucide-react';
 import Button from './Button';
-import { canInstallPWA, showInstallPrompt, isPWAInstalled } from '../../pwa';
+import { canInstallPWA, showInstallPrompt, isIOSDevice } from '../../pwa';
 import { useLanguage } from '../../context/LanguageContext';
 
 interface PWAInstallPromptProps {
@@ -9,67 +9,34 @@ interface PWAInstallPromptProps {
 }
 
 const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ className = '' }) => {
-  const [isInstallable, setIsInstallable] = useState(false);
-  const [isIOSDevice, setIsIOSDevice] = useState(false);
+  const [isInstallable, setIsInstallable] = useState(canInstallPWA);
+  const isIOS = isIOSDevice();
   const [showDetails, setShowDetails] = useState(false);
   const { language } = useLanguage();
 
   useEffect(() => {
-    // Verifica se é um dispositivo iOS
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    setIsIOSDevice(isIOS);
-
-    // Verifica se o PWA já está instalado
-    if (isPWAInstalled()) {
-      setIsInstallable(false);
-      return;
-    }
-
-    // Verifica se o PWA pode ser instalado
-    const checkInstallable = async () => {
-      const installable = await canInstallPWA();
-      setIsInstallable(installable);
-    };
-    
-    checkInstallable();
-
-    // Configura o listener para o evento personalizado
-    const handlePWAInstallable = () => {
-      console.log('pwaInstallable event received');
-      setIsInstallable(true);
-    };
-    
-    window.addEventListener('pwaInstallable', handlePWAInstallable);
-
-    return () => {
-      window.removeEventListener('pwaInstallable', handlePWAInstallable);
-    };
+    const refresh = () => setIsInstallable(canInstallPWA());
+    window.addEventListener('pwaInstallabilityChanged', refresh);
+    refresh();
+    return () => window.removeEventListener('pwaInstallabilityChanged', refresh);
   }, []);
 
-  // Se não for instalável ou já estiver instalado, não mostra nada
-  if (!isInstallable) {
-    return null;
-  }
+  if (!isInstallable) return null;
 
   const handleInstall = async () => {
-    if (isIOSDevice) {
-      // No iOS, apenas mostra as instruções
+    if (isIOS) {
       setShowDetails(true);
       return;
     }
 
-    // Em outros dispositivos, mostra o prompt de instalação
-    const installed = await showInstallPrompt();
-    if (installed) {
-      setIsInstallable(false);
-    }
+    await showInstallPrompt();
   };
 
   return (
     <div className={`bg-brand-50 border border-brand-200 rounded-lg p-4 ${className}`}>
       <div className="flex flex-col md:flex-row md:items-start">
         <div className="flex-shrink-0 mb-4 md:mb-0 md:mr-4">
-          {isIOSDevice ? (
+          {isIOS ? (
             <Smartphone className="h-12 w-12 text-brand-700" />
           ) : (
             <Laptop className="h-12 w-12 text-brand-700" />
@@ -81,7 +48,7 @@ const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ className = '' }) =
           </h3>
           
           <div className="mt-2 text-sm text-brand-700">
-            {isIOSDevice ? (
+            {isIOS ? (
               <div>
                 <p className="mb-2">
                   {language === 'pt'
@@ -139,7 +106,7 @@ const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ className = '' }) =
           </div>
           
           <div className="mt-4 flex flex-wrap gap-2">
-            {isIOSDevice ? (
+            {isIOS ? (
               <Button
                 size="sm"
                 variant={showDetails ? "outline" : "primary"}

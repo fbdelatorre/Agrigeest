@@ -1,3 +1,4 @@
+import Select from '../ui/Select';
 import React, { useState, useRef, useEffect } from 'react';
 import { Product, ProductLot } from '../../types';
 import { useAppContext } from '../../context/AppContext';
@@ -175,18 +176,12 @@ const StockActions: React.FC<StockActionsProps> = ({ product, mode, onClose, unt
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 {language === 'pt' ? 'Lote (opcional)' : 'Lot (optional)'}
               </label>
-              <select
-                className="w-full h-10 px-3 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                value={selectedLotId}
-                onChange={(e) => setSelectedLotId(e.target.value)}
-              >
-                <option value="">{language === 'pt' ? 'Sem lote (estoque geral)' : 'No lot (untracked)'}</option>
-                {lots.map(lot => (
-                  <option key={lot.id} value={lot.id}>
-                    {lot.lotNumber} ({formatQuantity(lot.quantity, language)} {product.unit})
-                  </option>
-                ))}
-              </select>
+              <Select aria-label={language === 'pt' ? 'Lote' : 'Lot'} value={selectedLotId}
+                onChange={event => setSelectedLotId(event.target.value)}
+                options={[
+                  { value: '', label: language === 'pt' ? 'Sem lote (estoque geral)' : 'No lot (untracked)' },
+                  ...lots.map(lot => ({ value: lot.id, label: lot.lotNumber + ' (' + formatQuantity(lot.quantity, language) + ' ' + product.unit + ')' })),
+                ]} />
             </div>
           )}
 

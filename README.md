@@ -9,7 +9,7 @@ AgriGest is a comprehensive farm management application designed to help farmers
 - **Inventory Management**: Keep track of products, stock levels, and usage
 - **Season Planning**: Organize operations by seasons
 - **Multi-tenant**: Support for multiple institutions with user management
-- **Offline Support**: PWA capabilities for offline access
+- **Offline Support**: Cached reading plus local rainfall, monitoring reports and recommendations that sync on reconnect
 - **Multilingual**: Support for English and Portuguese
 
 ## Technologies Used
@@ -24,8 +24,8 @@ AgriGest is a comprehensive farm management application designed to help farmers
 
 ### Prerequisites
 
-- Node.js (v16 or higher)
-- npm or yarn
+- Node.js 22.12 or newer
+- npm
 - Supabase account
 
 ### Installation
@@ -38,7 +38,7 @@ AgriGest is a comprehensive farm management application designed to help farmers
 
 2. Install dependencies:
    ```bash
-   npm install
+   npm ci
    ```
 
 3. Set up environment variables:
@@ -61,6 +61,34 @@ The application can be deployed to any static hosting service like Netlify, Verc
 npm run build
 ```
 
+## Build the native apps
+
+The Windows, Android and iOS apps share the same React frontend. The native build goes into `dist-native`, and the web PWA build goes into `dist`. Configure the Supabase URL and a public client key in the environment before building.
+
+- **Windows** — Install the Tauri prerequisites (Rust MSVC, Visual Studio C++ Build Tools and WebView2). Run `npm run desktop:build`. The x64 setup executable is generated under `src-tauri/target/release/bundle/nsis`.
+- **Android** — Install Android Studio, JDK 21 and Android SDK 36. Run `npm run mobile:sync:android`. From `android`, run `gradlew.bat assembleDebug` on Windows. The debug APK is under `android/app/build/outputs/apk/debug`.
+- **iOS** — On macOS with Xcode, run `npm run mobile:sync:ios`. Open `ios/App/App.xcodeproj` and configure the signing team before building for a device.
+
+## Field monitoring
+
+Select a season in the sidebar and open **Monitoramento**. Create a report for a field, then add a recommendation with products and their rates. **Realizar operação** opens a prefilled operation form. Saving it links the new operation to the recommendation in the same transaction. Open **Pluviometria** in the sidebar to record one daily rainfall reading per field and review the season’s readings. The rainfall layer on the farm map shows totals for the current week, month or selected season. Type any part of a label to filter a selection field.
+
+The field-data migration was applied to the AgroGest project through its SQL Editor. For that project, reconcile its CLI migration history before using `supabase db push` for this migration. Use the migration normally in new environments after provisioning the existing schema.
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+## Offline field records
+
+Sign in and load the selected season, fields and products before going offline.
+Rainfall, monitoring reports and recommendations are stored in SQLite on Android and Windows
+and IndexedDB in the PWA. The queue is scoped to the account and institution. It retries
+after reconnecting while the app is open, using the same ID to prevent duplicate writes.
+A recommendation linked to a local report waits for the report to sync. Executing a
+recommendation requires an online connection and uses the existing stock transaction.
+
+The migration granting authenticated clients permission to supply IDs for the three field
+tables was applied to AgroGest through the SQL Editor. Reconcile CLI migration history before
+using `supabase db push` for that project.
+
+The seed crop catalog migration (`20261117170000`) was also applied to AgroGest through the SQL Editor. Reconcile that version in the CLI migration history before running `supabase db push`.

@@ -1,3 +1,4 @@
+import { readProductCrop, toInventoryProduct } from '../../lib/seedCatalog';
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
@@ -38,13 +39,8 @@ const ProductEdit = () => {
 
     if (error || !data) return false;
 
-    const fresh: Product = {
-      ...data,
-      quantityInStock: Number(data.quantity_in_stock),
-      minStockLevel: Number(data.min_stock_level),
-      createdAt: new Date(data.created_at),
-      updatedAt: new Date(data.updated_at),
-    };
+    const crop = await readProductCrop(id).catch(() => currentProduct.crop);
+    const fresh = toInventoryProduct(data, crop);
 
     setCurrentProduct(fresh);
     setRefreshKey(prev => prev + 1);

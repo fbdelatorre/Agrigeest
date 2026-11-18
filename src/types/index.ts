@@ -11,6 +11,8 @@ export interface Area {
   description?: string;
   current_crop?: string;
   cultivar?: string;
+  plantingDate?: Date;
+  plantingPopulation?: number;
   geometry?: string | object;
   createdAt: Date;
   updatedAt: Date;
@@ -44,6 +46,7 @@ export interface Product {
   id: string;
   name: string;
   category: ProductCategory;
+  crop?: string;
   unit: string; // kg, L, bags, etc.
   quantityInStock: number;
   minStockLevel: number;
@@ -77,6 +80,8 @@ export interface ProductUsage {
   lotId?: string; // LEGACY: single lot, preserved for historical operations
   lotAllocations?: LotAllocation[]; // NEW: multiple lot sources per product
   productNameSnapshot?: string;
+  seedCultivarSnapshot?: string;
+  seedCropSnapshot?: string;
   unitSnapshot?: string;
   unitPriceSnapshot?: number;
 }

@@ -1,7 +1,8 @@
 import React from 'react';
+import Select from '../ui/Select';
 import { useLanguage } from '../../context/LanguageContext';
 import { LayerSettings, BaseMapStyle } from '../../types/farmMap';
-import { Layers, Satellite, Route, Eye, EyeOff } from 'lucide-react';
+import { Layers, Eye, EyeOff } from 'lucide-react';
 
 interface LayerControlProps {
   settings: LayerSettings;
@@ -26,25 +27,12 @@ const LayerControl: React.FC<LayerControlProps> = ({ settings, onChange }) => {
 
       <div className="p-4 space-y-4">
         <div>
-          <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-            {language === 'pt' ? 'Mapa Base' : 'Base Map'}
-          </h4>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => onChange({ ...settings, baseMap: 'satellite' as BaseMapStyle })}
-              className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm border transition-colors ${settings.baseMap === 'satellite' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
-            >
-              <Satellite size={16} />
-              {language === 'pt' ? 'Satelite' : 'Satellite'}
-            </button>
-            <button
-              onClick={() => onChange({ ...settings, baseMap: 'streets' as BaseMapStyle })}
-              className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm border transition-colors ${settings.baseMap === 'streets' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
-            >
-              <Route size={16} />
-              {language === 'pt' ? 'Ruas' : 'Streets'}
-            </button>
-          </div>
+          <Select label={language === 'pt' ? 'Mapa base' : 'Base map'} value={settings.baseMap}
+            onChange={event => onChange({ ...settings, baseMap: event.target.value as BaseMapStyle })}
+            options={[
+              { value: 'satellite', label: language === 'pt' ? 'Satélite' : 'Satellite' },
+              { value: 'streets', label: language === 'pt' ? 'Ruas' : 'Streets' },
+            ]} />
         </div>
 
         <div>

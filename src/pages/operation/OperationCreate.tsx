@@ -1,33 +1,68 @@
-import React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import OperationForm from '../../components/operations/OperationForm';
 import { Operation } from '../../types';
 import { ArrowLeft } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { getFieldRecommendation, type Recommendation } from '../../lib/fieldData';
 
 const OperationCreate = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const copyId = searchParams.get('copy');
   const areaIdParam = searchParams.get('areaId');
-  const { addOperation, activeSeason, areas, operations } = useAppContext();
+  const recommendationId = searchParams.get('recommendation');
+  const { addOperation, activeSeason, areas, operations, isOnline } = useAppContext();
   const { language } = useLanguage();
+  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
+  const [recommendationError, setRecommendationError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const seasonId = activeSeason?.id;
+  const isPt = language === 'pt';
+
+  useEffect(() => {
+    if (!recommendationId || !seasonId || !isOnline) return;
+    const controller = new AbortController();
+    setRecommendation(null);
+    setRecommendationError(null);
+    void getFieldRecommendation(recommendationId, seasonId, controller.signal)
+      .then(result => {
+        if (controller.signal.aborted) return;
+        if (result && !result.operation_id) setRecommendation(result);
+        else setRecommendationError(isPt
+          ? 'Recomendação indisponível na safra selecionada ou já realizada.'
+          : 'Recommendation unavailable in the selected season or already performed.');
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setRecommendationError(isPt ? 'Não foi possível carregar a recomendação.' : 'Could not load the recommendation.');
+      });
+    return () => controller.abort();
+  }, [isOnline, isPt, recommendationId, seasonId]);
+
 
   const operationToCopy = copyId ? operations.find(op => op.id === copyId) : undefined;
   const initialArea = areaIdParam ? areas.find(a => a.id === areaIdParam) : undefined;
   
   const handleSubmit = async (operationData: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (submittingRef.current || (recommendationId && (!recommendation || recommendation.season_id !== seasonId))) return;
+    submittingRef.current = true;
+    setSubmitting(true);
     try {
-      await addOperation(operationData);
-      navigate('/operations');
-    } catch (error: any) {
+      await addOperation(operationData, recommendationId ?? undefined);
+      navigate(recommendationId ? '/monitoring' : '/operations');
+    } catch (error) {
       console.error('Error creating operation:', error);
 
-      const msg = error.message || '';
-      const isPt = language === 'pt';
+      const msg = error && typeof error === 'object' && 'message' in error ? String(error.message) : '';
 
-      if (msg.includes('INSUFFICIENT_UNTRACKED_STOCK')) {
+      if (msg.includes('RECOMMENDATION_ALREADY_EXECUTED')) {
+        alert(isPt ? 'Esta recomendação já foi realizada.' : 'This recommendation was already performed.');
+        navigate('/monitoring');
+      } else if (msg.includes('OPERATION_DATES_OUT_OF_ORDER')) {
+        alert(isPt ? 'A data final deve ser igual ou posterior à data inicial.' : 'The end date must be on or after the start date.');
+      } else if (msg.includes('INSUFFICIENT_UNTRACKED_STOCK')) {
         alert(isPt
           ? 'Estoque sem lote insuficiente. Selecione um lote com saldo disponível ou ajuste a quantidade.'
           : 'Insufficient untracked stock. Select a lot with available balance or adjust the quantity.');
@@ -72,8 +107,41 @@ const OperationCreate = () => {
           ? 'Erro ao criar operação. Tente novamente.'
           : 'Error creating operation. Please try again.');
       }
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
+
+  if (recommendationId) {
+    const selected = recommendation?.id === recommendationId && recommendation.season_id === seasonId
+      ? recommendation : null;
+    const area = selected ? areas.find(item => item.id === selected.area_id) : null;
+    return (
+      <div className="space-y-4">
+        <Link className="font-medium text-brand-700 underline" to="/monitoring">{isPt ? 'Voltar ao monitoramento' : 'Back to monitoring'}</Link>
+        <h1 className="text-2xl font-bold">{isPt ? 'Realizar operação recomendada' : 'Perform recommended operation'}</h1>
+        {!isOnline ? <p role="status">{isPt ? 'Conecte-se para realizar a operação.' : 'Connect to perform the operation.'}</p>
+          : recommendationError ? <p role="alert">{recommendationError}</p>
+          : !seasonId ? <p>{isPt ? 'Selecione a safra da recomendação.' : 'Select the recommendation season.'}</p>
+          : !selected ? <p role="status">{isPt ? 'Carregando recomendação…' : 'Loading recommendation…'}</p>
+          : !area ? <p role="status">{isPt ? 'Talhão indisponível.' : 'Field unavailable.'}</p>
+          : (
+            <div className="rounded-lg bg-white p-4 shadow-sm">
+              <OperationForm key={selected.id} onSubmit={handleSubmit} lockAreaAndType submitting={submitting} initialData={{
+                areaId: area.id,
+                type: selected.operation_type,
+                operationSize: area.size,
+                description: selected.instructions || (isPt ? 'Aplicação recomendada' : 'Recommended application'),
+                productsUsed: selected.products.map(product => ({
+                  productId: product.productId, dose: product.dose, quantity: product.dose * area.size, lotAllocations: []
+                }))
+              }} />
+            </div>
+          )}
+      </div>
+    );
+  }
 
   // If no areas exist, show message to create an area first
   if (areas.length === 0) {
@@ -153,6 +221,7 @@ const OperationCreate = () => {
         <div className="bg-white p-6 rounded-lg shadow-sm">
           <OperationForm
             onSubmit={handleSubmit}
+            submitting={submitting}
             initialData={initialArea ? { areaId: initialArea.id, operationSize: initialArea.size } as Partial<Operation> : operationToCopy}
           />
         </div>

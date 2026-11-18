@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect, useCallback } from 'react';
+import { useAppContext } from './AppContext';
 import { supabase } from '../lib/supabase';
 import { Machinery, MaintenanceType, Maintenance } from '../types/machinery';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflineStorage } from '../hooks/useOfflineStorage';
-import { dateToDateString, parseDate } from '../utils/dateHelpers';
+import { dateToDateString, isDateInSeason, parseDate } from '../utils/dateHelpers';
 
 const READ_ONLY_MSG = 'Sem conexão. O AgriGest está em modo somente leitura.';
 
@@ -43,44 +44,23 @@ interface MachineryProviderProps {
 }
 
 export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }) => {
-  const [machinery, setMachinery] = useState<Machinery[]>([]);
-  const [maintenanceTypes, setMaintenanceTypes] = useState<MaintenanceType[]>([]);
-  const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
 
   const { isOnline } = useNetworkStatus();
+  const { profile, activeSeason } = useAppContext();
+  const institutionId = profile?.institutionId ?? '';
 
-  const {
-    data: cachedMachinery,
-    setData: setCachedMachinery,
-  } = useOfflineStorage<Machinery[]>('machinery', []);
+  const [machinery, setMachinery] = useOfflineStorage<Machinery[]>('machinery', []);
 
-  const {
-    data: cachedMaintenanceTypes,
-    setData: setCachedMaintenanceTypes,
-  } = useOfflineStorage<MaintenanceType[]>('maintenanceTypes', []);
+  const [maintenanceTypes, setMaintenanceTypes] = useOfflineStorage<MaintenanceType[]>('maintenanceTypes', []);
 
-  const {
-    data: cachedMaintenances,
-    setData: setCachedMaintenances,
-  } = useOfflineStorage<Maintenance[]>('maintenances', []);
+  const [maintenances, setMaintenances] = useOfflineStorage<Maintenance[]>('maintenances', []);
 
-  useEffect(() => {
-    if (isOnline) {
-      loadMachinery();
-      loadMaintenanceTypes();
-      loadMaintenances();
-    } else {
-      if (cachedMachinery.length > 0) setMachinery(cachedMachinery);
-      if (cachedMaintenanceTypes.length > 0) setMaintenanceTypes(cachedMaintenanceTypes);
-      if (cachedMaintenances.length > 0) setMaintenances(cachedMaintenances);
-    }
-  }, [isOnline]);
-
-  const loadMachinery = async () => {
+  const loadMachinery = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('machinery')
         .select('*')
+        .eq('institution_id', institutionId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -97,17 +77,17 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
       }));
 
       setMachinery(formattedMachinery);
-      setCachedMachinery(formattedMachinery);
     } catch (error) {
       console.error('Error loading machinery:', error);
     }
-  };
+  }, [institutionId, setMachinery]);
 
-  const loadMaintenanceTypes = async () => {
+  const loadMaintenanceTypes = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('maintenance_types')
         .select('*')
+        .eq('institution_id', institutionId)
         .order('name', { ascending: true });
 
       if (error) {
@@ -123,17 +103,17 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
       }));
 
       setMaintenanceTypes(formattedTypes);
-      setCachedMaintenanceTypes(formattedTypes);
     } catch (error) {
       console.error('Error loading maintenance types:', error);
     }
-  };
+  }, [institutionId, setMaintenanceTypes]);
 
-  const loadMaintenances = async () => {
+  const loadMaintenances = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('maintenances')
         .select('*')
+        .eq('institution_id', institutionId)
         .order('date', { ascending: false });
 
       if (error) {
@@ -150,17 +130,24 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
         machineHours: maintenance.machine_hours,
         userId: maintenance.user_id,
         institutionId: maintenance.institution_id,
-        date: new Date(maintenance.date),
+        date: parseDate(maintenance.date)!,
         createdAt: new Date(maintenance.created_at),
         updatedAt: new Date(maintenance.updated_at)
       }));
 
       setMaintenances(formattedMaintenances);
-      setCachedMaintenances(formattedMaintenances);
     } catch (error) {
       console.error('Error loading maintenances:', error);
     }
-  };
+  }, [institutionId, setMaintenances]);
+
+  useEffect(() => {
+    if (isOnline && institutionId) {
+      loadMachinery();
+      loadMaintenanceTypes();
+      loadMaintenances();
+    }
+  }, [isOnline, institutionId, loadMachinery, loadMaintenanceTypes, loadMaintenances]);
 
   const addMachinery = async (machineryData: Omit<Machinery, 'id' | 'createdAt' | 'updatedAt' | 'userId' | 'institutionId'>) => {
     if (!isOnline) throw new Error(READ_ONLY_MSG);
@@ -204,7 +191,6 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const updatedMachinery = [newMachinery, ...machinery];
       setMachinery(updatedMachinery);
-      setCachedMachinery(updatedMachinery);
     } catch (error) {
       console.error('Error adding machinery:', error);
       throw error;
@@ -242,7 +228,6 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
       );
 
       setMachinery(updatedMachinery);
-      setCachedMachinery(updatedMachinery);
     } catch (error) {
       console.error('Error updating machinery:', error);
       throw error;
@@ -262,7 +247,6 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const updatedMachinery = machinery.filter(machine => machine.id !== id);
       setMachinery(updatedMachinery);
-      setCachedMachinery(updatedMachinery);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT')) {
@@ -316,7 +300,6 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const updatedTypes = [newType, ...maintenanceTypes];
       setMaintenanceTypes(updatedTypes);
-      setCachedMaintenanceTypes(updatedTypes);
 
       return newType;
     } catch (error) {
@@ -353,7 +336,6 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
       );
 
       setMaintenanceTypes(updatedTypes);
-      setCachedMaintenanceTypes(updatedTypes);
     } catch (error) {
       console.error('Error updating maintenance type:', error);
       throw error;
@@ -373,7 +355,6 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const updatedTypes = maintenanceTypes.filter(type => type.id !== id);
       setMaintenanceTypes(updatedTypes);
-      setCachedMaintenanceTypes(updatedTypes);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT')) {
@@ -436,7 +417,6 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const updatedMaintenances = [newMaintenance, ...maintenances];
       setMaintenances(updatedMaintenances);
-      setCachedMaintenances(updatedMaintenances);
     } catch (error) {
       console.error('Error adding maintenance:', error);
       throw error;
@@ -484,7 +464,6 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
       );
 
       setMaintenances(updatedMaintenances);
-      setCachedMaintenances(updatedMaintenances);
     } catch (error) {
       console.error('Error updating maintenance:', error);
       throw error;
@@ -504,15 +483,16 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const updatedMaintenances = maintenances.filter(maintenance => maintenance.id !== id);
       setMaintenances(updatedMaintenances);
-      setCachedMaintenances(updatedMaintenances);
     } catch (error) {
       console.error('Error deleting maintenance:', error);
       throw error;
     }
   };
 
+  const seasonMaintenances = maintenances.filter(maintenance => isDateInSeason(maintenance.date, activeSeason));
+
   const getMaintenancesByMachineryId = (machineryId: string) => {
-    return maintenances.filter((maintenance) => maintenance.machineryId === machineryId);
+    return seasonMaintenances.filter((maintenance) => maintenance.machineryId === machineryId);
   };
 
   const value = {
@@ -525,7 +505,7 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
     addMaintenanceType,
     updateMaintenanceType,
     deleteMaintenanceType,
-    maintenances,
+    maintenances: seasonMaintenances,
     addMaintenance,
     updateMaintenance,
     deleteMaintenance,

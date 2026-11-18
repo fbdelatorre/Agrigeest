@@ -18,10 +18,11 @@ import { Operation } from '../../types';
 
 interface AreaDetailPanelProps {
   summary: AreaMapSummary;
+  rainfallLabel?: string;
   onClose: () => void;
 }
 
-const AreaDetailPanel: React.FC<AreaDetailPanelProps> = ({ summary, onClose }) => {
+const AreaDetailPanel: React.FC<AreaDetailPanelProps> = ({ summary, rainfallLabel, onClose }) => {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const { operations, products, activeSeason } = useAppContext();
@@ -33,7 +34,6 @@ const AreaDetailPanel: React.FC<AreaDetailPanelProps> = ({ summary, onClose }) =
       .sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
   }, [operations, summary.areaId]);
 
-  const recentOperations = areaOperations.slice(0, 5);
 
   const lastOperation = areaOperations[0];
 
@@ -51,8 +51,6 @@ const AreaDetailPanel: React.FC<AreaDetailPanelProps> = ({ summary, onClose }) =
   }, [lastOperation, products]);
 
   const daysSinceFungicide = getDaysSince(summary.lastFungicideDate);
-  const daysSinceInsecticide = getDaysSince(summary.lastInsecticideDate);
-  const daysSinceHerbicide = getDaysSince(summary.lastHerbicideDate);
   const daysUntilNext = getDaysUntil(summary.nextOperationDate);
 
   const handleRegisterOperation = () => {
@@ -138,6 +136,11 @@ const AreaDetailPanel: React.FC<AreaDetailPanelProps> = ({ summary, onClose }) =
             <MapPin size={24} />
             <div>
               <h2 className="text-lg font-bold">{summary.areaName}</h2>
+              {rainfallLabel && (
+                <p className="text-sm font-medium text-blue-100">
+                  {language === 'pt' ? 'Chuva acumulada' : 'Rainfall total'} · {rainfallLabel}
+                </p>
+              )}
               <p className="text-sm text-brand-100">
                 {summary.areaSize} {summary.areaUnit}
               </p>

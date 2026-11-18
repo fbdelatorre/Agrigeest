@@ -1,11 +1,12 @@
 import React from 'react';
-import { useLocation, Link } from 'react-router-dom';
-import { Bell } from 'lucide-react';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Bell } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 
 const Topbar: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { profile, activeSeason } = useAppContext();
   const { language } = useLanguage();
 
@@ -13,6 +14,8 @@ const Topbar: React.FC = () => {
     if (pathname === '/') return { title: language === 'pt' ? 'Painel da Fazenda' : 'Farm Dashboard', subtitle: language === 'pt' ? 'Visão geral da propriedade' : 'Property overview' };
     if (pathname.startsWith('/areas')) return { title: language === 'pt' ? 'Áreas de Cultivo' : 'Cultivation Areas', subtitle: language === 'pt' ? 'Gestão de áreas' : 'Area management' };
     if (pathname.startsWith('/farm-map')) return { title: language === 'pt' ? 'Mapa da Fazenda' : 'Farm Map', subtitle: language === 'pt' ? 'Visão cartográfica' : 'Cartographic view' };
+    if (pathname.startsWith('/rainfall')) return { title: language === 'pt' ? 'Pluviometria' : 'Rainfall', subtitle: '' };
+    if (pathname.startsWith('/monitoring')) return { title: language === 'pt' ? 'Monitoramento' : 'Monitoring', subtitle: '' };
     if (pathname.startsWith('/operations')) return { title: language === 'pt' ? 'Operações' : 'Operations', subtitle: language === 'pt' ? 'Atividades agrícolas' : 'Farming activities' };
     if (pathname.startsWith('/inventory')) return { title: language === 'pt' ? 'Estoque' : 'Inventory', subtitle: language === 'pt' ? 'Produtos e insumos' : 'Products and supplies' };
     if (pathname.startsWith('/machinery')) return { title: language === 'pt' ? 'Máquinas' : 'Machinery', subtitle: language === 'pt' ? 'Equipamentos agrícolas' : 'Agricultural equipment' };
@@ -37,9 +40,17 @@ const Topbar: React.FC = () => {
     <header className="sticky top-0 z-10 bg-white border-b" style={{ borderColor: '#E3E8E4' }}>
       <div className="flex items-center justify-between px-5 lg:px-6 h-16">
         {/* Left: page title */}
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-3">
+          {import.meta.env.MODE === 'native' && (window.history.state?.idx ?? 0) > 0 && (
+            <button type="button" onClick={() => navigate(-1)} className="rounded-lg p-2 hover:bg-gray-100"
+              aria-label={language === 'pt' ? 'Voltar à página anterior' : 'Go to previous page'}>
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <div className="min-w-0">
           <h1 className="text-[22px] font-semibold text-gray-900 truncate leading-tight">{title}</h1>
           {subtitle && <p className="text-[13px] text-gray-500 truncate mt-0.5">{subtitle}</p>}
+          </div>
         </div>
 
         {/* Right: date, notifications, profile */}

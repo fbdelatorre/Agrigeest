@@ -105,11 +105,6 @@ const AreaDetail = () => {
     return variants[type] || 'secondary';
   };
 
-  // Get latest planting and harvest data
-  const latestPlanting = operations
-    .filter(op => op.type === 'plantio')
-    .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())[0];
-
   const latestHarvest = operations
     .filter(op => op.type === 'colheita')
     .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())[0];
@@ -189,13 +184,13 @@ const AreaDetail = () => {
 
     // Add planting and harvest data
     yPos += 15;
-    if (latestPlanting) {
+    if (area.plantingDate) {
       doc.setFont('helvetica', 'bold');
       doc.text(language === 'pt' ? 'População:' : 'Population:', detailsStartX, yPos);
       doc.setFont('helvetica', 'normal');
       doc.text(
-        latestPlanting.seedsPerHectare 
-          ? `${latestPlanting.seedsPerHectare.toLocaleString()} ${language === 'pt' ? 'sementes/ha' : 'seeds/ha'}`
+        area.plantingPopulation != null
+          ? `${area.plantingPopulation.toLocaleString()} ${language === 'pt' ? 'sementes/ha' : 'seeds/ha'}`
           : language === 'pt' ? 'Não informada' : 'Not informed',
         detailsStartX, 
         yPos + 5
@@ -462,17 +457,19 @@ const AreaDetail = () => {
               </h3>
               <p className="font-medium text-gray-900">{area.location}</p>
             </div>
-            {latestPlanting && (
+            {area.plantingDate && (
               <div>
                 <h3 className="text-sm font-medium text-gray-500">
                   {language === 'pt' ? 'População' : 'Population'}
                 </h3>
                 <p className="font-medium text-gray-900">
-                  {latestPlanting.seedsPerHectare?.toLocaleString()} {language === 'pt' ? 'sementes/ha' : 'seeds/ha'}
+                  {area.plantingPopulation != null
+                    ? `${area.plantingPopulation.toLocaleString(language === 'pt' ? 'pt-BR' : 'en-US')} ${language === 'pt' ? 'sementes/ha' : 'seeds/ha'}`
+                    : '—'}
                 </p>
                 <p className="text-sm text-gray-600">
                   {language === 'pt' ? 'Data do plantio: ' : 'Planting date: '}
-                  {formatDate(latestPlanting.startDate)}
+                  {formatDate(area.plantingDate)}
                 </p>
               </div>
             )}

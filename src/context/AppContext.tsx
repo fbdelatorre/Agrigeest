@@ -1,5 +1,9 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { createProductWithCrop, loadSeedCatalog, toInventoryProduct, updateProductWithCrop, type ProductRow } from '../lib/seedCatalog';
+import { isSeedCategory, plantingDetails, plantingsForSeason, snapshotPlantingSeeds } from '../utils/seasonPlanting';
+import { FieldSyncProvider } from './FieldSyncContext';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
+import { executeFieldRecommendation } from '../lib/fieldData';
 import {
   Area,
   Operation,
@@ -7,10 +11,11 @@ import {
   ProductLot
 } from '../types';
 import { AreaMapSummary } from '../types/farmMap';
+import { parseAreaBoundary } from '../utils/farmMap/areaBoundary';
 import { stripZCoordinates } from '../utils/farmMap/farmMapHelpers';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
-import { useOfflineStorage } from '../hooks/useOfflineStorage';
-import { dateToISOString, dateToDateString, parseDate } from '../utils/dateHelpers';
+import { OfflineScope, readOfflineValue, useOfflineStorage, writeOfflineValue } from '../hooks/useOfflineStorage';
+import { dateToDateString, parseDate } from '../utils/dateHelpers';
 
 const READ_ONLY_MSG = 'Sem conexão. O AgriGest está em modo somente leitura.';
 
@@ -46,7 +51,7 @@ interface AppContextType {
   getAreaById: (id: string) => Area | undefined;
 
   operations: Operation[];
-  addOperation: (operation: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  addOperation: (operation: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>, recommendationId?: string) => Promise<void>;
   updateOperation: (id: string, operation: Partial<Operation>) => Promise<void>;
   deleteOperation: (id: string) => Promise<void>;
   getOperationsByAreaId: (areaId: string) => Operation[];
@@ -68,6 +73,8 @@ interface AppContextType {
   classifyUntrackedStock: (productId: string, quantity: number, lotNumber: string, expirationDate?: string | null, notes?: string | null) => Promise<void>;
 
   seasons: Season[];
+  reloadSeasons: () => Promise<void>;
+  seedCrops: string[];
   activeSeason: Season | null;
   setActiveSeason: (season: Season | null) => void;
 
@@ -90,90 +97,119 @@ export const useAppContext = () => {
 
 interface AppProviderProps {
   children: ReactNode;
+  userId: string;
+  email?: string;
 }
 
-export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [areas, setAreas] = useState<Area[]>([]);
-  const [operations, setOperations] = useState<Operation[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productLots, setProductLots] = useState<ProductLot[]>([]);
-  const [seasons, setSeasons] = useState<Season[]>([]);
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null);
-
+export const AppProvider: React.FC<AppProviderProps> = ({ children, userId, email }) => {
+  const profileKey = 'agrigest:v2:profile:' + userId;
   const { isOnline } = useNetworkStatus();
+  const [profile, setProfile] = useState<UserProfile | null>(() =>
+    navigator.onLine ? null : readOfflineValue(profileKey, null)
+  );
+  const [profileFailed, setProfileFailed] = useState(false);
 
-  const {
-    data: cachedAreas,
-    setData: setCachedAreas,
-  } = useOfflineStorage<Area[]>('areas', []);
-
-  const {
-    data: cachedOperations,
-    setData: setCachedOperations,
-  } = useOfflineStorage<Operation[]>('operations', []);
-
-  const {
-    data: cachedProducts,
-    setData: setCachedProducts,
-  } = useOfflineStorage<Product[]>('products', []);
-
-  const {
-    data: cachedSeasons,
-    setData: setCachedSeasons,
-  } = useOfflineStorage<Season[]>('seasons', []);
-
-  useEffect(() => {
-    loadUserProfile();
-
-    if (isOnline) {
-      loadAreas();
-      loadOperations();
-      loadProducts();
-      loadProductLots();
-      loadSeasons();
-    } else {
-      if (cachedAreas.length > 0) setAreas(cachedAreas);
-      if (cachedOperations.length > 0) setOperations(cachedOperations);
-      if (cachedProducts.length > 0) setProducts(cachedProducts);
-      if (cachedSeasons.length > 0) setSeasons(cachedSeasons);
+  const reloadProfile = useCallback(async (signal?: AbortSignal) => {
+    if (!isOnline) {
+      setProfile(previous => previous ?? readOfflineValue(profileKey, null));
+      return;
     }
-  }, [isOnline]);
-
-  const loadUserProfile = async () => {
+    setProfileFailed(false);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
+      const query = supabase.from('user_profiles').select('*').eq('id', userId);
+      if (signal) query.abortSignal(signal);
+      const { data, error } = await query.single();
+      if (signal?.aborted) return;
       if (error) throw error;
 
-      setProfile({
+      const nextProfile: UserProfile = {
         id: data.id,
         firstName: data.first_name,
         lastName: data.last_name,
-        email: data.email || user.email || '',
+        email: data.email || email || '',
         phone: data.phone || '',
         role: data.role || '',
         institution: data.institution || '',
         institutionId: data.institution_id || '',
         isAdmin: data.is_admin || false
-      });
+      };
+      writeOfflineValue(profileKey, nextProfile);
+      setProfile(nextProfile);
     } catch (error) {
+      if (signal?.aborted) return;
       console.error('Error loading user profile:', error);
+      setProfileFailed(true);
     }
-  };
+  }, [email, isOnline, profileKey, userId]);
 
-  const loadAreas = async () => {
+  useEffect(() => {
+    const controller = new AbortController();
+    void reloadProfile(controller.signal);
+    return () => controller.abort();
+  }, [reloadProfile]);
+
+  if (!profile) {
+    return (
+      <div className="p-6" role="status">
+        {!isOnline ? 'Conecte-se à internet para carregar seu perfil neste dispositivo.' :
+          profileFailed ? (
+            <>
+              <p>Não foi possível carregar seu perfil.</p>
+              <button className="mt-3 underline" onClick={() => void reloadProfile()}>Tentar novamente</button>
+            </>
+          ) : 'Carregando perfil…'}
+      </div>
+    );
+  }
+
+  const scope = profile.institutionId ? userId + ':' + profile.institutionId : null;
+  return (
+    <OfflineScope.Provider value={scope}>
+      <FieldSyncProvider key={scope ?? userId} scope={scope} userId={userId} institutionId={profile.institutionId}>
+        <InstitutionData profile={profile} reloadProfile={reloadProfile}>
+          {children}
+        </InstitutionData>
+      </FieldSyncProvider>
+    </OfflineScope.Provider>
+  );
+};
+
+const InstitutionData: React.FC<{
+  children: ReactNode;
+  profile: UserProfile;
+  reloadProfile: () => Promise<void>;
+}> = ({ children, profile, reloadProfile }) => {
+  const { institutionId } = profile;
+  const scope = useContext(OfflineScope);
+  const { isOnline } = useNetworkStatus();
+
+  const [areas, setAreas] = useOfflineStorage<Area[]>('areas', []);
+
+  const [operations, setOperations] = useOfflineStorage<Operation[]>('operations', []);
+
+  const [products, setProducts] = useOfflineStorage<Product[]>('products', []);
+  const [seedCrops, setSeedCrops] = useOfflineStorage<string[]>('seedCrops', []);
+
+  const [seasons, setSeasons] = useOfflineStorage<Season[]>('seasons', []);
+  const [productLots, setProductLots] = useOfflineStorage<ProductLot[]>('productLots', []);
+  const [selectedSeasonId, setSelectedSeasonId] = useOfflineStorage<string | null | undefined>('selectedSeasonId', undefined);
+  const activeSeason = selectedSeasonId === null ? null :
+    seasons.find(season => season.id === selectedSeasonId) ??
+    seasons.find(season => season.status === 'active') ?? null;
+  const setActiveSeason = (season: Season | null) => setSelectedSeasonId(season?.id ?? null);
+
+
+  const seasonalAreas = useMemo(() => {
+    const plantings = plantingsForSeason(operations, activeSeason?.id);
+    return areas.map(area => ({ ...area, ...plantingDetails(plantings.get(area.id), products) }));
+  }, [activeSeason?.id, areas, operations, products]);
+
+  const loadAreas = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('areas')
         .select('*')
+        .eq('institution_id', institutionId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -190,17 +226,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }));
 
       setAreas(formattedAreas);
-      setCachedAreas(formattedAreas);
     } catch (error) {
       console.error('Error loading areas:', error);
     }
-  };
+  }, [institutionId, setAreas]);
 
-  const loadOperations = async () => {
+  const loadOperations = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('operations')
         .select('*')
+        .eq('institution_id', institutionId)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: false });
 
@@ -225,17 +261,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       }));
 
       setOperations(formattedOperations);
-      setCachedOperations(formattedOperations);
     } catch (error) {
       console.error('Error loading operations:', error);
     }
-  };
+  }, [institutionId, setOperations]);
 
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('products')
         .select('*')
+        .eq('institution_id', institutionId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -243,26 +279,29 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         return;
       }
 
-      const formattedProducts = data.map(product => ({
-        ...product,
-        quantityInStock: product.quantity_in_stock,
-        minStockLevel: product.min_stock_level,
-        createdAt: new Date(product.created_at),
-        updatedAt: new Date(product.updated_at || product.created_at)
-      }));
+      const catalog = await loadSeedCatalog(institutionId).catch(error => {
+        console.error('Error loading seed cultures:', error);
+        return null;
+      });
+      if (catalog) setSeedCrops(catalog.names);
+      const formattedProducts = (data as ProductRow[]).map(product => toInventoryProduct(product, catalog?.byProduct.get(product.id)));
 
-      setProducts(formattedProducts);
-      setCachedProducts(formattedProducts);
+      setProducts(previous => {
+        if (catalog) return formattedProducts;
+        const previousCrops = new Map(previous.map(product => [product.id, product.crop]));
+        return formattedProducts.map(product => ({ ...product, crop: previousCrops.get(product.id) }));
+      });
     } catch (error) {
       console.error('Error loading products:', error);
     }
-  };
+  }, [institutionId, setProducts, setSeedCrops]);
 
-  const loadProductLots = async () => {
+  const loadProductLots = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('product_lots')
-        .select('*')
+        .select('*, products!inner(institution_id)')
+        .eq('products.institution_id', institutionId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -285,38 +324,40 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error loading product lots:', error);
     }
-  };
+  }, [institutionId, setProductLots]);
 
-  const loadSeasons = async () => {
+  const loadSeasons = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('seasons')
         .select('*')
+        .eq('institution_id', institutionId)
         .order('start_date', { ascending: false });
 
       if (error) {
         console.error('Error loading seasons:', error);
         if (error.code === 'PGRST205') {
           setSeasons([]);
-          setCachedSeasons([]);
           return;
         }
         throw error;
       }
 
       setSeasons(data || []);
-      setCachedSeasons(data || []);
-
-      const activeSeasonData = data?.find(season => season.status === 'active');
-      if (activeSeasonData) {
-        setActiveSeason(activeSeasonData);
-      }
     } catch (error) {
       console.error('Error loading seasons:', error);
-      setSeasons([]);
-      setCachedSeasons([]);
     }
-  };
+  }, [institutionId, setSeasons]);
+
+  useEffect(() => {
+    if (isOnline && institutionId) {
+      loadAreas();
+      loadOperations();
+      loadProducts();
+      loadProductLots();
+      loadSeasons();
+    }
+  }, [isOnline, institutionId, loadAreas, loadOperations, loadProducts, loadProductLots, loadSeasons]);
 
   const addArea = async (area: Omit<Area, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (!isOnline) throw new Error(READ_ONLY_MSG);
@@ -339,7 +380,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         .from('areas')
         .insert([{
           name: area.name, size: area.size, unit: area.unit, location: area.location,
-          description: area.description, current_crop: area.current_crop, cultivar: area.cultivar,
+          description: area.description,
           user_id: user.id, institution_id: userProfile.institution_id
         }])
         .select()
@@ -354,7 +395,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       const updatedAreas = [newArea, ...areas];
       setAreas(updatedAreas);
-      setCachedAreas(updatedAreas);
     } catch (error) {
       console.error('Error adding area:', error);
       throw error;
@@ -370,7 +410,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         .update({
           name: updatedData.name, size: updatedData.size, unit: updatedData.unit,
           location: updatedData.location, description: updatedData.description,
-          current_crop: updatedData.current_crop, cultivar: updatedData.cultivar
         })
         .eq('id', id)
         .select()
@@ -385,7 +424,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       const updatedAreas = areas.map(area => area.id === id ? updatedArea : area);
       setAreas(updatedAreas);
-      setCachedAreas(updatedAreas);
     } catch (error) {
       console.error('Error updating area:', error);
       throw error;
@@ -401,7 +439,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       const updatedAreas = areas.filter(area => area.id !== id);
       setAreas(updatedAreas);
-      setCachedAreas(updatedAreas);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT')) {
@@ -412,7 +449,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
-  const getAreaById = (id: string) => areas.find((area) => area.id === id);
+  const getAreaById = (id: string) => seasonalAreas.find((area) => area.id === id);
 
   const archiveDepletedLots = async (productsUsed: Record<string, unknown>[]) => {
     const lotIds = new Set<string>();
@@ -440,27 +477,40 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     if ((data ?? []).length > 0) await loadProductLots();
   };
 
-  const addOperation = async (operation: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const addOperation = async (operation: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>, recommendationId?: string) => {
     if (!isOnline) throw new Error(READ_ONLY_MSG);
     if (!activeSeason) throw new Error('No active season selected');
 
     try {
-      const { data, error } = await supabase.rpc('create_operation_with_stock', {
-        p_area_id: operation.areaId,
-        p_type: operation.type,
-        p_start_date: dateToDateString(operation.startDate),
+      const used = operation.productsUsed ?? [];
+      const plantingProducts = operation.type === 'plantio' ? snapshotPlantingSeeds(used, products) : used;
+      const payload = {
+        p_start_date: dateToDateString(operation.startDate)!,
         p_description: operation.description,
         p_operated_by: operation.operatedBy,
-        p_season_id: activeSeason.id,
-        p_end_date: operation.endDate ? dateToDateString(operation.endDate) : null,
-        p_next_operation_date: operation.nextOperationDate ? dateToDateString(operation.nextOperationDate) : null,
+        p_end_date: dateToDateString(operation.endDate),
+        p_next_operation_date: dateToDateString(operation.nextOperationDate),
         p_notes: operation.notes || null,
-        p_products_used: operation.productsUsed || [],
+        p_products_used: plantingProducts.map(({ lotAllocations, ...product }) => ({
+          ...product, lotAllocations: lotAllocations?.map(allocation => ({ ...allocation }))
+        })),
         p_operation_size: operation.operationSize ?? null,
         p_yield_per_hectare: operation.yieldPerHectare ?? null,
         p_seeds_per_hectare: operation.seedsPerHectare ?? null,
-      });
+      };
 
+      if (recommendationId) {
+        await executeFieldRecommendation(recommendationId, payload);
+        await Promise.all([loadOperations(), loadProducts(), loadProductLots()]);
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('create_operation_with_stock', {
+        ...payload,
+        p_area_id: operation.areaId,
+        p_type: operation.type,
+        p_season_id: activeSeason.id,
+      });
       if (error) throw error;
 
       const newOperation: Operation = {
@@ -474,7 +524,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       const updatedOperations = [newOperation, ...operations];
       setOperations(updatedOperations);
-      setCachedOperations(updatedOperations);
 
       await loadProducts();
       await loadProductLots();
@@ -492,6 +541,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       const originalOperation = operations.find(op => op.id === id);
       if (!originalOperation) throw new Error('Operation not found');
 
+      const used = updatedData.productsUsed ?? originalOperation.productsUsed ?? [];
+      const type = updatedData.type ?? originalOperation.type;
+      const plantingProducts = type === 'plantio' ? snapshotPlantingSeeds(used, products, originalOperation.productsUsed) : used;
       const { data, error } = await supabase.rpc('update_operation_with_stock', {
         p_operation_id: id,
         p_area_id: updatedData.areaId ?? originalOperation.areaId,
@@ -500,10 +552,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         p_description: updatedData.description ?? originalOperation.description,
         p_operated_by: updatedData.operatedBy ?? originalOperation.operatedBy,
         p_season_id: (originalOperation as Record<string, unknown>).season_id as string | null,
-        p_end_date: updatedData.endDate !== undefined ? (updatedData.endDate ? dateToDateString(updatedData.endDate) : null) : (originalOperation.endDate ? dateToDateString(originalOperation.endDate) : null),
-        p_next_operation_date: updatedData.nextOperationDate !== undefined ? (updatedData.nextOperationDate ? dateToDateString(updatedData.nextOperationDate) : null) : (originalOperation.nextOperationDate ? dateToDateString(originalOperation.nextOperationDate) : null),
+        p_end_date: dateToDateString('endDate' in updatedData ? updatedData.endDate : originalOperation.endDate),
+        p_next_operation_date: dateToDateString('nextOperationDate' in updatedData ? updatedData.nextOperationDate : originalOperation.nextOperationDate),
         p_notes: updatedData.notes !== undefined ? updatedData.notes : (originalOperation.notes || null),
-        p_products_used: updatedData.productsUsed ?? (originalOperation.productsUsed || []),
+        p_products_used: plantingProducts,
         p_operation_size: updatedData.operationSize ?? originalOperation.operationSize ?? null,
         p_yield_per_hectare: updatedData.yieldPerHectare !== undefined ? updatedData.yieldPerHectare ?? null : (originalOperation.yieldPerHectare ?? null),
         p_seeds_per_hectare: updatedData.seedsPerHectare !== undefined ? updatedData.seedsPerHectare ?? null : (originalOperation.seedsPerHectare ?? null),
@@ -524,7 +576,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         operation.id === id ? updatedOperation : operation
       );
       setOperations(updatedOperations);
-      setCachedOperations(updatedOperations);
 
       await loadProducts();
       await loadProductLots();
@@ -575,7 +626,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         expiration_date: l.expirationDate ? dateToDateString(l.expirationDate) : null,
       }));
 
-      const { data, error } = await supabase.rpc('create_product_with_lots', {
+      const payload = {
         p_name: product.name,
         p_category: product.category,
         p_unit: product.unit,
@@ -585,19 +636,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         p_description: product.description ?? null,
         p_untracked_quantity: untrackedQuantity ?? 0,
         p_lots: lotsJsonb,
-      });
-
-      if (error) throw error;
-
-      const p = data.product;
-      const newProduct: Product = {
-        ...p, quantityInStock: Number(p.quantity_in_stock), minStockLevel: Number(p.min_stock_level),
-        createdAt: new Date(p.created_at), updatedAt: new Date(p.updated_at)
       };
+      const crop = isSeedCategory(product.category) ? product.crop?.trim() : undefined;
+      const { data, error } = await createProductWithCrop(payload, crop);
+      if (error) throw error;
+      const newProduct = toInventoryProduct(data.product, crop);
 
       const updatedProducts = [newProduct, ...products];
       setProducts(updatedProducts);
-      setCachedProducts(updatedProducts);
+      if (crop) setSeedCrops(previous => [...new Set([...previous, crop])]);
 
       if (data.lots && Array.isArray(data.lots) && data.lots.length > 0) {
         const newLots: ProductLot[] = data.lots.map((lot: Record<string, string | number | null>) => ({
@@ -622,7 +669,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { data, error } = await supabase.rpc('update_product_details', {
+      const payload = {
         p_product_id: id,
         p_name: updatedData.name,
         p_category: updatedData.category,
@@ -632,18 +679,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         p_supplier: updatedData.supplier ?? null,
         p_description: updatedData.description ?? null,
         p_expected_updated_at: expectedUpdatedAt?.toISOString() ?? null,
-      });
-
-      if (error) throw error;
-
-      const updatedProduct: Product = {
-        ...data, quantityInStock: Number(data.quantity_in_stock), minStockLevel: Number(data.min_stock_level),
-        createdAt: new Date(data.created_at), updatedAt: new Date(data.updated_at)
       };
+      const previousProduct = products.find(product => product.id === id);
+      const crop = isSeedCategory(updatedData.category ?? previousProduct?.category ?? '')
+        ? (updatedData.crop ?? previousProduct?.crop)?.trim() || undefined : undefined;
+      const { data, error } = await updateProductWithCrop(payload,
+        crop || previousProduct?.crop || updatedData.crop !== undefined ? crop ?? null : undefined);
+      if (error) throw error;
+      const updatedProduct = toInventoryProduct(data, crop);
 
       const updatedProducts = products.map(product => product.id === id ? updatedProduct : product);
       setProducts(updatedProducts);
-      setCachedProducts(updatedProducts);
+      if (crop) setSeedCrops(previous => [...new Set([...previous, crop])]);
     } catch (error) {
       console.error('Error updating product:', error);
       throw error;
@@ -659,7 +706,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       const updatedProducts = products.filter(product => product.id !== id);
       setProducts(updatedProducts);
-      setCachedProducts(updatedProducts);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT')) {
@@ -942,6 +988,32 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const getAreaMapSummary = useCallback(async (seasonId: string): Promise<AreaMapSummary[]> => {
+    if (!scope) return [];
+    const cacheKey = 'agrigest:v2:' + scope + ':map:' + seasonId;
+    const mergeAreas = (summaries: AreaMapSummary[]) => {
+      const plantings = plantingsForSeason(operations, seasonId);
+      const byId = new Map(summaries.map(summary => {
+        const geometry = parseAreaBoundary(summary.geojson);
+        const details = plantingDetails(plantings.get(summary.areaId), products);
+        return [summary.areaId, { ...summary, currentCrop: details.current_crop ?? null, cultivar: details.cultivar ?? null, geojson: geometry ? JSON.stringify(geometry) : null }];
+      }));
+      for (const area of areas) {
+        const summary = byId.get(area.id);
+        const geometry = parseAreaBoundary(area.geometry) ?? parseAreaBoundary(summary?.geojson);
+        const details = plantingDetails(plantings.get(area.id), products);
+        byId.set(area.id, {
+          lastOperationDate: null, lastFungicideDate: null, lastInsecticideDate: null,
+          lastHerbicideDate: null, lastDessecacaoDate: null, nextOperationDate: null,
+          ...summary,
+          areaId: area.id, areaName: area.name, areaSize: area.size, areaUnit: area.unit,
+          currentCrop: details.current_crop ?? null,
+          cultivar: details.cultivar ?? null,
+          geojson: geometry ? JSON.stringify(geometry) : null,
+        });
+      }
+      return Array.from(byId.values()).sort((a, b) => a.areaName.localeCompare(b.areaName));
+    };
+    if (!isOnline) return mergeAreas(readOfflineValue(cacheKey, []));
     try {
       const { data, error } = await supabase.rpc('get_area_map_summary', {
         season_id_param: seasonId,
@@ -949,7 +1021,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       if (error) throw error;
 
-      return (data || []).map((row: Record<string, unknown>) => ({
+      const summary = (data || []).map((row: Record<string, unknown>) => ({
         areaId: row.area_id as string,
         areaName: row.area_name as string,
         areaSize: Number(row.area_size),
@@ -964,23 +1036,25 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         lastDessecacaoDate: row.last_dessecacao_date as string | null,
         nextOperationDate: row.next_operation_date as string | null,
       }));
+      writeOfflineValue(cacheKey, summary);
+      return mergeAreas(summary);
     } catch (error) {
       console.error('Error loading area map summary:', error);
-      return [];
+      return mergeAreas(readOfflineValue(cacheKey, []));
     }
-  }, []);
+  }, [areas, isOnline, operations, products, scope]);
 
   const value: AppContextType = {
     profile,
-    reloadProfile: loadUserProfile,
-    areas, addArea, updateArea, deleteArea, getAreaById,
+    reloadProfile,
+    areas: seasonalAreas, addArea, updateArea, deleteArea, getAreaById,
     operations: operations.filter(op => !activeSeason || op.season_id === activeSeason.id),
     addOperation, updateOperation, deleteOperation, getOperationsByAreaId,
     products, addProduct, updateProduct, deleteProduct, getProductById,
     productLots, addLot, updateLot, deleteLot, getLotsByProductId,
   addInventoryStock, adjustInventoryStock, archiveLot,
   receiveProductLot, classifyUntrackedStock,
-    seasons, activeSeason, setActiveSeason,
+    seasons, reloadSeasons: loadSeasons, seedCrops, activeSeason, setActiveSeason,
     isOnline,
     saveAreaGeometry, deleteAreaGeometry, getAreaMapSummary
   };

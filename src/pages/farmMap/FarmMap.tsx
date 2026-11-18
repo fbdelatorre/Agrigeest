@@ -1,26 +1,27 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import * as maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import { useFieldSync } from '../../context/FieldSyncContext';
+import { OfflineScope, readOfflineValue, writeOfflineValue } from '../../hooks/useOfflineStorage';
+import Select from '../../components/ui/Select';
+import React, { useContext, useState, useEffect, useRef, useMemo } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import * as maplibregl from '../../lib/maplibre';
 import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { getFieldRainfallTotals, type RainfallPeriod } from '../../lib/fieldData';
+import { formatQuantity } from '../../utils/quantityFormat';
 import { AreaMapSummary, ViewMode, LayerSettings, MapFilters } from '../../types/farmMap';
 import {
   getAreaColor,
   getLegendForViewMode,
   getViewModeLabel,
-  getDaysSince,
   getDaysUntil,
-  formatDateBR,
 } from '../../utils/farmMap/farmMapHelpers';
 import Button from '../../components/ui/Button';
-import Badge from '../../components/ui/Badge';
 import LayerControl from '../../components/farmMap/LayerControl';
 import AreaDetailPanel from '../../components/farmMap/AreaDetailPanel';
 import ImportPerimeters from '../../components/farmMap/ImportPerimeters';
 import {
-  Map as MapIcon, Layers, Upload, Search, Filter, X, ChevronDown,
-  Calendar, AlertTriangle, Sprout, FlaskConical,
+  Map as MapIcon, Layers, Upload, Filter, X,
+  Calendar, AlertTriangle, Sprout, FlaskConical, CloudRain,
 } from 'lucide-react';
 
 const SATELLITE_STYLE: maplibregl.StyleSpecification = {
@@ -93,18 +94,52 @@ function extendGeometryBounds(bounds: maplibregl.LngLatBounds, geometry: GeoJSON
 
 export const FarmMapScreen: React.FC = () => {
   const { language } = useLanguage();
-  const navigate = useNavigate();
-  const { activeSeason, areas, getAreaMapSummary, products, operations } = useAppContext();
+  const { activeSeason, areas, getAreaMapSummary, operations, isOnline } = useAppContext();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const showRainfall = searchParams.get('layer') === 'rainfall';
+  const [rainfallPeriod, setRainfallPeriod] = useState<RainfallPeriod>('season');
+  const [rainfallSnapshot, setRainfallSnapshot] = useState<{ key: string; totals: Record<string, number> } | null>(null);
+  const [rainfallStatus, setRainfallStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const seasonId = activeSeason?.id;
+  const hasSeason = Boolean(seasonId);
+  const isPt = language === 'pt';
+  const scope = useContext(OfflineScope);
+  const { revision: fieldRevision } = useFieldSync();
+  const rainfallKey = 'agrigest:v2:rainfall-totals:' + scope + ':' + seasonId + ':' + rainfallPeriod;
+  const rainfall = rainfallSnapshot?.key === rainfallKey ? rainfallSnapshot.totals : null;
+
+  useEffect(() => {
+    if (!showRainfall || !seasonId || !scope) return;
+    const cached = readOfflineValue<Record<string, number> | null>(rainfallKey, null);
+    setRainfallSnapshot(cached ? { key: rainfallKey, totals: cached } : null);
+    if (!isOnline) return;
+    const controller = new AbortController();
+    setRainfallStatus('loading');
+    void getFieldRainfallTotals(seasonId, rainfallPeriod, controller.signal)
+      .then(totals => {
+        if (controller.signal.aborted) return;
+        writeOfflineValue(rainfallKey, totals);
+        setRainfallSnapshot({ key: rainfallKey, totals });
+        setRainfallStatus('ready');
+      })
+      .catch(error => {
+        if (controller.signal.aborted) return;
+        console.error('Error loading field rainfall:', error);
+        setRainfallStatus('error');
+      });
+    return () => controller.abort();
+  }, [fieldRevision, isOnline, rainfallKey, rainfallPeriod, scope, seasonId, showRainfall]);
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const popupRef = useRef<maplibregl.Popup | null>(null);
   const currentFeaturesRef = useRef<GeoJSON.Feature[]>([]);
 
   const [summaries, setSummaries] = useState<AreaMapSummary[]>([]);
-  const summariesRef = useRef<AreaMapSummary[]>([]);
+  const [mapRevision, setMapRevision] = useState(0);
+  const fittedSeason = useRef<string>();
   const [loading, setLoading] = useState(true);
   const [mapReady, setMapReady] = useState(false);
+  const [mapUnavailable, setMapUnavailable] = useState(false);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('lastFungicide');
   const [layerSettings, setLayerSettings] = useState<LayerSettings>({
@@ -119,56 +154,59 @@ export const FarmMapScreen: React.FC = () => {
   const [showLayerControl, setShowLayerControl] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [showViewModeDropdown, setShowViewModeDropdown] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState<MapFilters>({
     crop: '', cultivar: '', operationType: '', operator: '', product: '', nextAppStatus: '',
   });
   const [referenceDate] = useState(new Date());
 
-  // Load map summary data when active season changes
   useEffect(() => {
-    if (!activeSeason) {
+    if (!seasonId) {
       setSummaries([]);
       setLoading(false);
       return;
     }
-
+    let cancelled = false;
     setLoading(true);
-    console.log('[FarmMap] STEP 0: fetching map summaries for season', activeSeason.id);
-    getAreaMapSummary(activeSeason.id).then(data => {
-      const withGeom = data.filter(d => d.geojson);
-      console.log('[FarmMap] STEP 0a: got', data.length, 'summaries,', withGeom.length, 'with geojson');
-      if (withGeom.length > 0) {
-        console.log('[FarmMap] STEP 0b: first geojson:', withGeom[0].areaName, withGeom[0].geojson?.substring(0, 120));
+    void getAreaMapSummary(seasonId).then(data => {
+      if (!cancelled) {
+        setSummaries(data);
+        setLoading(false);
       }
-      summariesRef.current = data;
-      setSummaries(data);
-      setLoading(false);
-    }).catch(err => {
-      console.error('[FarmMap] STEP 0-ERR: failed to fetch summaries:', err);
-      setLoading(false);
     });
-  }, [activeSeason, getAreaMapSummary]);
+    return () => { cancelled = true; };
+  }, [seasonId, getAreaMapSummary, mapRevision]);
 
   // Initialize map
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    if (!hasSeason || !mapContainerRef.current) return;
     if (mapRef.current) return;
 
-    console.log('[FarmMap] INIT: creating map. container:', mapContainerRef.current.clientWidth, 'x', mapContainerRef.current.clientHeight);
 
-    const initialStyle = layerSettings.baseMap === 'satellite' ? SATELLITE_STYLE : STREETS_STYLE;
+    const initialStyle: maplibregl.StyleSpecification = {
+      version: 8,
+      sources: { ...SATELLITE_STYLE.sources, ...STREETS_STYLE.sources },
+      layers: [
+        { id: 'base-background', type: 'background', paint: { 'background-color': '#34424b' } },
+        ...SATELLITE_STYLE.layers,
+        ...STREETS_STYLE.layers.map(layer => ({ ...layer, layout: { visibility: 'none' as const } })),
+      ]
+    };
 
-    const map = new maplibregl.Map({
-      container: mapContainerRef.current,
-      style: initialStyle,
-      center: [-51.0, -16.0],
-      zoom: 8,
-      attributionControl: true,
-    });
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: mapContainerRef.current,
+        style: initialStyle,
+        center: [-51.0, -16.0],
+        zoom: 8,
+      });
+      setMapUnavailable(false);
+    } catch (error) {
+      console.error('Error initializing farm map:', error);
+      setMapUnavailable(true);
+      return;
+    }
 
-    console.log('[FarmMap] INIT: map instance created');
 
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
     map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
@@ -227,85 +265,42 @@ export const FarmMapScreen: React.FC = () => {
         },
       });
 
-      console.log('[FarmMap] style.load: dynamically added areas-geojson source + 4 layers');
     };
 
     // style.load fires when the style is parsed and is the right time to add
     // GeoJSON sources/layers dynamically. We use this instead of 'load' because
     // 'load' waits for raster tiles to download, which may never complete if tile
     // servers are unreachable.
-    map.on('style.load', () => {
-      console.log('[FarmMap] style.load fired - adding source/layers and setting mapReady');
+    map.once('style.load', () => {
       addAreasSourceAndLayers(map);
       setMapReady(true);
     });
 
-    map.on('error', (e: any) => {
-      console.error('[FarmMap] MAP ERROR:', e.error?.message || e.type, e.error || e);
-    });
-
-    map.on('webglcontextcreationerror', (e: any) => {
-      console.error('[FarmMap] WebGL context creation error:', e);
+    map.on('error', (event) => {
+      console.error('Error loading farm map:', event.error);
     });
 
     mapRef.current = map;
-    requestAnimationFrame(() => map.resize());
+    const observer = new ResizeObserver(() => map.resize());
+    observer.observe(mapContainerRef.current);
+    requestAnimationFrame(() => { if (mapRef.current === map) map.resize(); });
 
     return () => {
+      observer.disconnect();
       map.remove();
       mapRef.current = null;
-      hasInitializedStyle.current = false;
+      fittedSeason.current = undefined;
       eventsSetupRef.current = false;
       setMapReady(false);
     };
-  }, []);
-
-  // Update base map style
-  const hasInitializedStyle = useRef(false);
+  }, [hasSeason]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    if (!hasInitializedStyle.current) {
-      hasInitializedStyle.current = true;
-      return;
-    }
-    const style = layerSettings.baseMap === 'satellite' ? SATELLITE_STYLE : STREETS_STYLE;
-    map.setStyle(style);
-    // After style change, re-add the GeoJSON source/layers and restore data
-    map.once('style.load', () => {
-      // Re-add source + layers since setStyle wipes everything
-      if (!map.getSource('areas-geojson')) {
-        map.addSource('areas-geojson', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: currentFeaturesRef.current },
-        });
-        map.addLayer({
-          id: 'areas-fill', type: 'fill', source: 'areas-geojson',
-          paint: { 'fill-color': ['get', 'color'], 'fill-opacity': layerSettings.boundaryOpacity, 'fill-outline-color': '#ffffff' },
-          layout: { visibility: layerSettings.showBoundaries ? 'visible' : 'none' },
-        });
-        map.addLayer({
-          id: 'areas-outline', type: 'line', source: 'areas-geojson',
-          paint: { 'line-color': '#ffffff', 'line-width': 4, 'line-opacity': 0.9 },
-          layout: { visibility: layerSettings.showBoundaries ? 'visible' : 'none' },
-        });
-        map.addLayer({
-          id: 'areas-border', type: 'line', source: 'areas-geojson',
-          paint: { 'line-color': ['get', 'color'], 'line-width': 2, 'line-opacity': 1 },
-          layout: { visibility: layerSettings.showBoundaries ? 'visible' : 'none' },
-        });
-        map.addLayer({
-          id: 'areas-label', type: 'symbol', source: 'areas-geojson',
-          layout: { 'text-field': ['get', 'label'], 'text-size': 12, 'text-anchor': 'center', 'text-allow-overlap': false, visibility: layerSettings.showNames ? 'visible' : 'none' },
-          paint: { 'text-color': '#ffffff', 'text-halo-color': '#000000', 'text-halo-width': 2 },
-        });
-      } else {
-        const source = map.getSource('areas-geojson') as maplibregl.GeoJSONSource;
-        if (source) source.setData({ type: 'FeatureCollection', features: currentFeaturesRef.current });
-      }
-    });
-  }, [layerSettings.baseMap, mapReady]);
+    map.setLayoutProperty('satellite-layer', 'visibility', isOnline && layerSettings.baseMap === 'satellite' ? 'visible' : 'none');
+    map.setLayoutProperty('osm-layer', 'visibility', isOnline && layerSettings.baseMap === 'streets' ? 'visible' : 'none');
+  }, [isOnline, layerSettings.baseMap, mapReady]);
 
   // Set up event handlers for area layers (added dynamically after style.load)
   const eventsSetupRef = useRef(false);
@@ -347,11 +342,9 @@ export const FarmMapScreen: React.FC = () => {
     if (!map || !mapReady) return;
 
     const updateData = () => {
-      console.log('[FarmMap] STEP 2: updateData called. mapReady:', mapReady, 'summaries:', summaries.length);
       setupLayerEvents(map);
 
       const source = map.getSource('areas-geojson') as maplibregl.GeoJSONSource;
-      console.log('[FarmMap] STEP 2a: source exists:', !!source, 'type:', source?.type);
       if (!source) return;
 
       const features: GeoJSON.Feature[] = [];
@@ -362,13 +355,11 @@ export const FarmMapScreen: React.FC = () => {
         // Apply filters
         if (filters.crop && summary.currentCrop?.toLowerCase() !== filters.crop.toLowerCase()) continue;
         if (filters.cultivar && summary.cultivar?.toLowerCase() !== filters.cultivar.toLowerCase()) continue;
-        if (searchTerm && !summary.areaName.toLowerCase().includes(searchTerm.toLowerCase())) continue;
 
         let geom: GeoJSON.Geometry;
         try {
           geom = JSON.parse(summary.geojson) as GeoJSON.Geometry;
         } catch {
-          console.log('[FarmMap] STEP 2b: failed to parse geojson for', summary.areaName);
           continue;
         }
 
@@ -377,7 +368,11 @@ export const FarmMapScreen: React.FC = () => {
         if (layerSettings.showCrop && summary.currentCrop) labelParts.push(summary.currentCrop);
         if (layerSettings.showCultivar && summary.cultivar) labelParts.push(summary.cultivar);
 
-        const color = getAreaColor(viewMode, summary, referenceDate);
+        const rain = rainfall?.[summary.areaId];
+        if (showRainfall && rain !== undefined) labelParts.push(formatQuantity(rain, language) + ' mm');
+        const color = showRainfall
+          ? rain === undefined ? '#64748b' : rain >= 50 ? '#1d4ed8' : rain > 0 ? '#0284c7' : '#bae6fd'
+          : getAreaColor(viewMode, summary, referenceDate);
 
         features.push({
           type: 'Feature',
@@ -392,46 +387,22 @@ export const FarmMapScreen: React.FC = () => {
         });
       }
 
-      console.log('[FarmMap] STEP 2c: built', features.length, 'features');
-      if (features.length > 0) {
-        console.log('[FarmMap] STEP 2d: first feature:', features[0].properties?.name, 'geom:', features[0].geometry.type, JSON.stringify(features[0].geometry).substring(0, 100));
-      }
 
       currentFeaturesRef.current = features;
       source.setData({ type: 'FeatureCollection', features });
-      console.log('[FarmMap] STEP 2e: setData called');
 
-      // Check layer visibility
-      if (map.getLayer('areas-fill')) {
-        console.log('[FarmMap] STEP 2f: areas-fill visibility:', map.getLayoutProperty('areas-fill', 'visibility'));
-        console.log('[FarmMap] STEP 2g: areas-fill paint color:', map.getPaintProperty('areas-fill', 'fill-color'));
-        console.log('[FarmMap] STEP 2h: areas-fill paint opacity:', map.getPaintProperty('areas-fill', 'fill-opacity'));
-      } else {
-        console.log('[FarmMap] STEP 2f: areas-fill layer NOT FOUND');
-      }
-
-      // Fit bounds if we have features and no area is selected
-      if (features.length > 0 && !selectedAreaId) {
+      if (features.length && !selectedAreaId && fittedSeason.current !== seasonId) {
         const bounds = new maplibregl.LngLatBounds();
         for (const feature of features) extendGeometryBounds(bounds, feature.geometry);
         if (!bounds.isEmpty()) {
-          console.log('[FarmMap] STEP 2i: fitBounds to', bounds.toArray());
-          map.fitBounds(bounds, { padding: 50, maxZoom: 14 });
+          fittedSeason.current = seasonId;
+          map.fitBounds(bounds, { padding: 52, maxZoom: 15, duration: 0 });
         }
       }
-
-      // After a delay, check if features rendered
-      setTimeout(() => {
-        const rendered = map.queryRenderedFeatures(undefined, { layers: ['areas-fill'] });
-        const sourceFeats = map.querySourceFeatures('areas-geojson');
-        console.log('[FarmMap] STEP 3 (after 1.5s): rendered features:', rendered.length, 'source features:', sourceFeats.length);
-        console.log('[FarmMap] STEP 3a: center:', map.getCenter(), 'zoom:', map.getZoom());
-        console.log('[FarmMap] STEP 3b: container:', map.getContainer().clientWidth, 'x', map.getContainer().clientHeight, 'canvas:', map.getCanvas().clientWidth, 'x', map.getCanvas().clientHeight);
-      }, 1500);
     };
 
     updateData();
-  }, [summaries, viewMode, layerSettings, searchTerm, filters, selectedAreaId, referenceDate, mapReady]);
+  }, [summaries, viewMode, layerSettings, filters, selectedAreaId, seasonId, referenceDate, mapReady, showRainfall, rainfall, rainfallStatus, isOnline, language]);
 
   // Toggle label visibility
   useEffect(() => {
@@ -466,12 +437,11 @@ export const FarmMapScreen: React.FC = () => {
 
   const filteredSummaries = useMemo(() => {
     return summaries.filter(s => {
-      if (searchTerm && !s.areaName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
       if (filters.crop && s.currentCrop?.toLowerCase() !== filters.crop.toLowerCase()) return false;
       if (filters.cultivar && s.cultivar?.toLowerCase() !== filters.cultivar.toLowerCase()) return false;
       return true;
     });
-  }, [summaries, searchTerm, filters]);
+  }, [summaries, filters]);
 
   // Summary stats
   const stats = useMemo(() => {
@@ -504,13 +474,12 @@ export const FarmMapScreen: React.FC = () => {
 
   const handleSearchSelect = (areaId: string) => {
     const summary = summaries.find(s => s.areaId === areaId);
-    if (!summary || !summary.geojson) return;
+    if (!summary) return;
 
     setSelectedAreaId(areaId);
 
-    // Fly to the area
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !summary.geojson) return;
     const geom = JSON.parse(summary.geojson) as GeoJSON.Geometry;
     const bounds = new maplibregl.LngLatBounds();
     extendGeometryBounds(bounds, geom)
@@ -557,9 +526,14 @@ export const FarmMapScreen: React.FC = () => {
       {/* Map area */}
       <div className="flex-1 relative">
         <div ref={mapContainerRef} className="absolute inset-0" />
+        {mapUnavailable && (
+          <p role="status" className="absolute inset-x-4 top-1/2 text-center text-sm text-gray-600">
+            {isPt ? 'O mapa não pôde ser exibido neste dispositivo.' : 'The map could not be displayed on this device.'}
+          </p>
+        )}
 
         {/* Top bar with stats and controls */}
-        <div className="absolute top-2 left-2 right-2 z-10 flex flex-wrap items-center gap-2">
+        <div className="absolute top-2 left-2 right-14 z-10 flex flex-wrap items-center gap-2">
           {/* Stats bar */}
           <div className="bg-white rounded-lg shadow-md px-3 py-2 flex items-center gap-4 text-xs">
             <div className="flex items-center gap-1">
@@ -600,59 +574,30 @@ export const FarmMapScreen: React.FC = () => {
             )}
           </div>
 
-          {/* View mode dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowViewModeDropdown(!showViewModeDropdown)}
-              className="bg-white rounded-lg shadow-md px-3 py-2 flex items-center gap-2 text-sm hover:bg-gray-50 transition-colors"
-            >
-              <Layers size={16} className="text-brand-700" />
-              <span className="text-gray-700">{getViewModeLabel(viewMode, language)}</span>
-              <ChevronDown size={14} className="text-gray-400" />
-            </button>
-            {showViewModeDropdown && (
-              <div className="absolute top-full mt-1 left-0 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[200px] z-20">
-                {VIEW_MODES.map(mode => (
-                  <button
-                    key={mode}
-                    onClick={() => { setViewMode(mode); setShowViewModeDropdown(false); }}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${mode === viewMode ? 'bg-brand-50 text-brand-700 font-medium' : 'text-gray-700'}`}
-                  >
-                    {getViewModeLabel(mode, language)}
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="w-48">
+            <Select aria-label={isPt ? 'Visualização do mapa' : 'Map view'} value={viewMode}
+              onChange={event => setViewMode(event.target.value as ViewMode)}
+              options={VIEW_MODES.map(mode => ({ value: mode, label: getViewModeLabel(mode, language) }))} />
           </div>
 
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <input
-              type="text"
-              placeholder={language === 'pt' ? 'Buscar area...' : 'Search area...'}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 text-sm bg-white rounded-lg shadow-md border-0 focus:ring-2 focus:ring-brand-500"
-            />
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            {searchTerm && (
-              <div className="absolute top-full mt-1 left-0 right-0 bg-white rounded-lg shadow-xl border border-gray-200 py-1 max-h-60 overflow-y-auto z-20">
-                {filteredSummaries.slice(0, 10).map(s => (
-                  <button
-                    key={s.areaId}
-                    onClick={() => { handleSearchSelect(s.areaId); setSearchTerm(''); }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-gray-700"
-                  >
-                    {s.areaName}
-                  </button>
-                ))}
-                {filteredSummaries.length === 0 && (
-                  <div className="px-3 py-2 text-sm text-gray-400">
-                    {language === 'pt' ? 'Nenhuma area encontrada' : 'No areas found'}
-                  </div>
-                )}
-              </div>
-            )}
+          <Button type="button" size="sm" variant={showRainfall ? 'primary' : 'outline'}
+            leftIcon={<CloudRain size={16} />} aria-pressed={showRainfall}
+            onClick={() => setSearchParams(current => {
+              const next = new URLSearchParams(current);
+              if (showRainfall) next.delete('layer');
+              else next.set('layer', 'rainfall');
+              return next;
+            }, { replace: true })}>
+            {isPt ? 'Pluviometria' : 'Rainfall'}
+          </Button>
+
+          <div className="w-full sm:w-64">
+            <Select placeholder={isPt ? 'Buscar talhão' : 'Find a field'} value={selectedAreaId ?? ''}
+              onChange={event => handleSearchSelect(event.target.value)}
+              options={filteredSummaries.map(summary => ({
+                value: summary.areaId, label: summary.areaName,
+                content: <span>{summary.areaName}{!summary.geojson && <span className="ml-2 text-xs text-gray-500">{isPt ? 'Sem perímetro' : 'No boundary'}</span>}</span>,
+              }))} />
           </div>
 
           {/* Action buttons */}
@@ -698,8 +643,17 @@ export const FarmMapScreen: React.FC = () => {
           )}
         </div>
 
+        {!loading && !stats.geomCount && !mapUnavailable && (
+          <div role="status" className="absolute inset-x-4 top-1/2 mx-auto w-fit rounded-lg bg-white p-3 text-center text-sm shadow">
+            <p>{isPt ? 'Nenhum perímetro disponível nesta safra.' : 'No field boundaries available for this season.'}</p>
+            <button type="button" onClick={() => setShowImport(true)} className="mt-1 font-medium text-brand-700 underline">
+              {isPt ? 'Importar perímetros' : 'Import boundaries'}
+            </button>
+          </div>
+        )}
+
         {/* Legend */}
-        {legend.length > 0 && (
+        {!showRainfall && legend.length > 0 && (
           <div className="absolute bottom-2 left-2 z-10 bg-white rounded-lg shadow-md p-3">
             <h4 className="text-xs font-semibold text-gray-600 mb-2">
               {getViewModeLabel(viewMode, language)}
@@ -716,6 +670,43 @@ export const FarmMapScreen: React.FC = () => {
               ))}
             </div>
           </div>
+        )}
+
+        {showRainfall && (
+          <section className="absolute bottom-10 right-2 z-10 w-64 max-w-[calc(100%-1rem)] rounded-lg bg-white p-3 text-sm shadow-md">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor="rainfall-period" className="font-semibold">{isPt ? 'Chuva acumulada' : 'Rainfall totals'}</label>
+              <div className="w-full">
+                <Select id="rainfall-period" value={rainfallPeriod} onChange={event => setRainfallPeriod(event.target.value as RainfallPeriod)}
+                  options={[
+                    { value: 'week', label: isPt ? 'Esta semana' : 'This week' },
+                    { value: 'month', label: isPt ? 'Este mês' : 'This month' },
+                    { value: 'season', label: isPt ? 'Safra selecionada' : 'Selected season' },
+                  ]} />
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">{activeSeason.name}</p>
+            {!isOnline && <p className="mt-2 text-xs text-gray-600">{rainfall
+              ? (isPt ? 'Última consulta neste dispositivo' : 'Last result on this device')
+              : (isPt ? 'Nenhum total armazenado para este período.' : 'No cached totals for this period.')}</p>}
+            {isOnline && rainfallStatus === 'loading' && <p className="mt-2" role="status">{isPt ? 'Atualizando…' : 'Refreshing…'}</p>}
+            {isOnline && rainfallStatus === 'error' && <p className="mt-2" role="alert">{isPt ? 'Não foi possível atualizar as chuvas.' : 'Could not update rainfall.'}</p>}
+            {rainfall && (
+                <ul className="mt-2 max-h-28 space-y-1 overflow-y-auto">
+                  {areas.map(area => (
+                    <li className="flex justify-between gap-2" key={area.id}>
+                      <span>{area.name}</span>
+                      <span className="shrink-0 font-medium">{rainfall[area.id] === undefined
+                        ? (isPt ? 'Sem leitura' : 'No reading')
+                        : formatQuantity(rainfall[area.id], language) + ' mm'}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            <Link to="/rainfall" className="mt-2 inline-block text-xs text-brand-700 underline">
+              {isPt ? 'Registrar chuva' : 'Record rainfall'}
+            </Link>
+          </section>
         )}
 
         {/* Layer control panel */}
@@ -739,25 +730,15 @@ export const FarmMapScreen: React.FC = () => {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">{language === 'pt' ? 'Cultura' : 'Crop'}</label>
-                <select
-                  value={filters.crop}
-                  onChange={(e) => setFilters({ ...filters, crop: e.target.value })}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-500"
-                >
-                  <option value="">{language === 'pt' ? 'Todas' : 'All'}</option>
-                  {uniqueCrops.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <Select aria-label={isPt ? 'Cultura' : 'Crop'} value={filters.crop}
+                  onChange={event => setFilters({ ...filters, crop: event.target.value })}
+                  options={[{ value: '', label: isPt ? 'Todas' : 'All' }, ...uniqueCrops.map(crop => ({ value: crop, label: crop }))]} />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">{language === 'pt' ? 'Cultivar' : 'Cultivar'}</label>
-                <select
-                  value={filters.cultivar}
-                  onChange={(e) => setFilters({ ...filters, cultivar: e.target.value })}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-500"
-                >
-                  <option value="">{language === 'pt' ? 'Todos' : 'All'}</option>
-                  {uniqueCultivars.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <Select aria-label="Cultivar" value={filters.cultivar}
+                  onChange={event => setFilters({ ...filters, cultivar: event.target.value })}
+                  options={[{ value: '', label: isPt ? 'Todos' : 'All' }, ...uniqueCultivars.map(cultivar => ({ value: cultivar, label: cultivar }))]} />
               </div>
               <Button
                 variant="outline"
@@ -789,6 +770,11 @@ export const FarmMapScreen: React.FC = () => {
         <div className="hidden lg:flex w-80 flex-none border-l border-gray-200">
           <AreaDetailPanel
             summary={selectedSummary}
+            rainfallLabel={showRainfall && rainfall
+              ? rainfall[selectedSummary.areaId] === undefined
+                ? (isPt ? 'Sem leitura' : 'No reading')
+                : formatQuantity(rainfall[selectedSummary.areaId], language) + ' mm'
+              : undefined}
             onClose={() => setSelectedAreaId(null)}
           />
         </div>
@@ -799,6 +785,11 @@ export const FarmMapScreen: React.FC = () => {
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 max-h-[70vh]">
           <AreaDetailPanel
             summary={selectedSummary}
+            rainfallLabel={showRainfall && rainfall
+              ? rainfall[selectedSummary.areaId] === undefined
+                ? (isPt ? 'Sem leitura' : 'No reading')
+                : formatQuantity(rainfall[selectedSummary.areaId], language) + ' mm'
+              : undefined}
             onClose={() => setSelectedAreaId(null)}
           />
         </div>
@@ -808,16 +799,7 @@ export const FarmMapScreen: React.FC = () => {
       {showImport && (
         <ImportPerimeters
           onClose={() => setShowImport(false)}
-          onImportComplete={() => {
-            if (activeSeason) {
-              setLoading(true);
-              getAreaMapSummary(activeSeason.id).then(data => {
-                summariesRef.current = data;
-                setSummaries(data);
-                setLoading(false);
-              });
-            }
-          }}
+          onImportComplete={() => setMapRevision(value => value + 1)}
         />
       )}
     </div>

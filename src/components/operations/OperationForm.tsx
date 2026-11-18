@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
-import { Operation, ProductUsage, LotAllocation, ProductLot } from '../../types';
+import { Operation, ProductUsage, ProductLot } from '../../types';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
@@ -16,6 +16,8 @@ interface OperationFormProps {
   initialData?: Partial<Operation>;
   onSubmit: (data: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => void;
   isEditing?: boolean;
+  lockAreaAndType?: boolean;
+  submitting?: boolean;
 }
 
 interface FormProductUsage {
@@ -37,6 +39,8 @@ const OperationForm: React.FC<OperationFormProps> = ({
   initialData = {},
   onSubmit,
   isEditing = false,
+  lockAreaAndType = false,
+  submitting = false,
 }) => {
   const navigate = useNavigate();
   const { areas, products, activeSeason, getLotsByProductId } = useAppContext();
@@ -59,7 +63,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
       : '',
     description: initialData.description || '',
     operatedBy: initialData.operatedBy || '',
-    productsUsed: (initialData.productsUsed || []).map(usage => {
+    productsUsed: (initialData.productsUsed || []).map<FormProductUsage>(usage => {
       const isLegacy = !usage.lotAllocations;
       if (isLegacy) {
         return {
@@ -348,12 +352,14 @@ const OperationForm: React.FC<OperationFormProps> = ({
   };
 
   // Debits this operation already applied, grouped as the save function records them (by line lot id).
-  const previousConsumption = (initialData.productsUsed || []).reduce(
+  const previousConsumption = (isEditing ? initialData.productsUsed ?? [] : []).reduce(
     (acc, usage) => {
-      if (usage.lotId) {
-        acc.lots[usage.lotId] = (acc.lots[usage.lotId] || 0) + usage.quantity;
-      } else {
-        acc.untracked[usage.productId] = (acc.untracked[usage.productId] || 0) + usage.quantity;
+      for (const allocation of usage.lotAllocations ?? [usage]) {
+        if (allocation.lotId) {
+          acc.lots[allocation.lotId] = (acc.lots[allocation.lotId] || 0) + allocation.quantity;
+        } else {
+          acc.untracked[usage.productId] = (acc.untracked[usage.productId] || 0) + allocation.quantity;
+        }
       }
       return acc;
     },
@@ -579,6 +585,11 @@ const OperationForm: React.FC<OperationFormProps> = ({
     if (!formData.startDate) {
       newErrors.startDate = language === 'pt' ? 'Data inicial é obrigatória' : 'Start date is required';
     }
+    if (formData.startDate && formData.endDate && formData.endDate < formData.startDate) {
+      newErrors.endDate = language === 'pt'
+        ? 'A data final deve ser igual ou posterior à data inicial.'
+        : 'The end date must be on or after the start date.';
+    }
 
     if (!formData.description.trim()) {
       newErrors.description = language === 'pt' ? 'Descrição é obrigatória' : 'Description is required';
@@ -734,6 +745,10 @@ const OperationForm: React.FC<OperationFormProps> = ({
     ...customOperationTypes.map(type => ({ value: type, label: type }))
   ];
 
+  if (initialData.type && !operationTypeOptions.some(option => option.value === initialData.type)) {
+    operationTypeOptions.push({ value: initialData.type, label: initialData.type });
+  }
+
   const areaOptions = areas.map((area) => ({
     value: area.id,
     label: area.name,
@@ -761,6 +776,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Select
           name="areaId"
+          disabled={lockAreaAndType}
           label={language === 'pt' ? 'Área' : 'Area'}
           value={formData.areaId}
           onChange={handleChange}
@@ -784,6 +800,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
               type="button"
               variant="ghost"
               size="sm"
+              disabled={lockAreaAndType}
               onClick={() => setShowNewTypeInput(true)}
               leftIcon={<Plus size={16} />}
               className="text-brand-700 hover:text-brand-800"
@@ -823,6 +840,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
           ) : (
             <Select
               name="type"
+              disabled={lockAreaAndType}
               value={formData.type}
               onChange={handleChange}
               options={operationTypeOptions}
@@ -867,6 +885,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
           type="date"
           value={formData.endDate}
           onChange={handleChange}
+          error={errors.endDate}
           helperText={language === 'pt'
             ? 'Deixe em branco se a operação foi concluída em um dia'
             : 'Leave blank if operation was completed in one day'}
@@ -1059,31 +1078,21 @@ const OperationForm: React.FC<OperationFormProps> = ({
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         {language === 'pt' ? 'Lote' : 'Lot'}
                       </label>
-                      <select
-                        value={usage.lotId || ''}
-                        onChange={(e) => handleProductChange(index, 'lotId', e.target.value)}
+                      <Select aria-label={language === 'pt' ? 'Lote' : 'Lot'} value={usage.lotId || ''}
+                        onChange={event => handleProductChange(index, 'lotId', event.target.value)}
                         disabled={!product || availableLots.length === 0}
-                        className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 ${(!product || availableLots.length === 0) ? 'bg-gray-100 text-gray-400' : ''}`}
-                      >
-                        <option value="">
-                          {availableLots.length === 0
-                            ? (language === 'pt' ? 'Sem lotes' : 'No lots')
-                            : (language === 'pt' ? 'Selecione um lote' : 'Select a lot')}
-                        </option>
-                        {sortLotsForDisplay(getSelectableLots(availableLots, usage.lotId)).map(lot => {
-                          const expLabel = getExpirationLabel(lot.expirationDate);
-                          return (
-                            <option key={lot.id} value={lot.id}>
-                              {lot.lotNumber} — {formatQuantity(getLotAvailable(lot), language)} {product?.unit} — {expLabel}
-                            </option>
-                          );
-                        })}
-                        {usage.lotId && !availableLots.find(l => l.id === usage.lotId) && (
-                          <option value={usage.lotId}>
-                            {language === 'pt' ? 'Lote histórico indisponível' : 'Historical lot unavailable'}
-                          </option>
-                        )}
-                      </select>
+                        options={[
+                          { value: '', label: availableLots.length
+                            ? (language === 'pt' ? 'Selecione um lote' : 'Select a lot')
+                            : (language === 'pt' ? 'Sem lotes' : 'No lots') },
+                          ...sortLotsForDisplay(getSelectableLots(availableLots, usage.lotId)).map(lot => ({
+                            value: lot.id, label: lot.lotNumber + ' — ' + formatQuantity(getLotAvailable(lot), language) +
+                              ' ' + (product?.unit ?? '') + ' — ' + getExpirationLabel(lot.expirationDate),
+                          })),
+                          ...(usage.lotId && !availableLots.some(lot => lot.id === usage.lotId)
+                            ? [{ value: usage.lotId, label: language === 'pt' ? 'Lote histórico indisponível' : 'Historical lot unavailable' }]
+                            : []),
+                        ]} />
                       {(() => {
                         if (!usage.lotId) return null;
                         const selectedLot = availableLots.find(l => l.id === usage.lotId);
@@ -1125,7 +1134,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
                     const allocLot = alloc.lotId ? availableLots.find(l => l.id === alloc.lotId) : null;
                     return (
                       <p key={aIdx}>
-                        {allocLot?.lotNumber || (language === 'pt' ? 'Sem lote' : 'No lot')}: {formatQuantity(alloc.quantity, language)} {product?.unit || ''}
+                        {allocLot?.lotNumber || (language === 'pt' ? 'Sem lote' : 'No lot')}: {formatQuantity(parseNumber(alloc.quantity), language)} {product?.unit || ''}
                       </p>
                     );
                   })}
@@ -1196,29 +1205,19 @@ const OperationForm: React.FC<OperationFormProps> = ({
                     return (
                       <div key={aIdx} className="flex items-start gap-2">
                         <div className="flex-1">
-                          <select
-                            value={alloc.lotId}
-                            onChange={(e) => handleAllocationChange(index, aIdx, 'lotId', e.target.value)}
+                          <Select aria-label={language === 'pt' ? 'Lote da origem' : 'Source lot'} value={alloc.lotId}
+                            onChange={event => handleAllocationChange(index, aIdx, 'lotId', event.target.value)}
                             disabled={!product}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm"
-                          >
-                            <option value="">
-                              {language === 'pt' ? 'Sem lote' : 'No lot'}
-                            </option>
-                            {sortLotsForDisplay(getSelectableLots(availableLots, alloc.lotId)).map(lot => {
-                              const expLabel = getExpirationLabel(lot.expirationDate);
-                              return (
-                                <option key={lot.id} value={lot.id}>
-                                  {lot.lotNumber} — {formatQuantity(getLotAvailable(lot), language)} {product?.unit} — {expLabel}
-                                </option>
-                              );
-                            })}
-                            {isHistoricalLot && (
-                              <option value={alloc.lotId}>
-                                {language === 'pt' ? 'Lote histórico indisponível' : 'Historical lot unavailable'}
-                              </option>
-                            )}
-                          </select>
+                            options={[
+                              { value: '', label: language === 'pt' ? 'Sem lote' : 'No lot' },
+                              ...sortLotsForDisplay(getSelectableLots(availableLots, alloc.lotId)).map(lot => ({
+                                value: lot.id, label: lot.lotNumber + ' — ' + formatQuantity(getLotAvailable(lot), language) +
+                                  ' ' + (product?.unit ?? '') + ' — ' + getExpirationLabel(lot.expirationDate),
+                              })),
+                              ...(isHistoricalLot
+                                ? [{ value: alloc.lotId, label: language === 'pt' ? 'Lote histórico indisponível' : 'Historical lot unavailable' }]
+                                : []),
+                            ]} />
                           {isNoLot && (
                             <div className="mt-1 text-xs space-y-0.5">
                               <p className="text-gray-600">{language === 'pt' ? 'Sem lote identificado' : 'No lot identified'}</p>
@@ -1371,7 +1370,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
         <Button
           type="submit"
           leftIcon={<Save size={18} />}
-          disabled={!isOnline}
+          disabled={!isOnline || submitting}
         >
           {isEditing
             ? (language === 'pt' ? 'Atualizar Operação' : 'Update Operation')

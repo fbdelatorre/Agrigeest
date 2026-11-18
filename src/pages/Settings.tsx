@@ -68,7 +68,7 @@ interface Season {
 
 export default function Settings() {
   const { language, setLanguage } = useLanguage();
-  const { isOnline, products = [] } = useAppContext();
+  const { isOnline, products = [], reloadSeasons } = useAppContext();
   const { connectionType, connectionSpeed } = useNetworkStatus();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -464,8 +464,8 @@ export default function Settings() {
           : 'Season created successfully!'
       });
       
-      // Reload seasons
-      await loadSeasons();
+      // Refresh both Settings and the shared season selector.
+      await Promise.all([loadSeasons(), reloadSeasons()]);
     } catch (error) {
       console.error('Error creating season:', error);
       setSeasonMessage({
@@ -491,8 +491,8 @@ export default function Settings() {
       
       if (error) throw error;
       
-      // Reload seasons
-      await loadSeasons();
+      // Refresh both Settings and the shared season selector.
+      await Promise.all([loadSeasons(), reloadSeasons()]);
     } catch (error) {
       console.error('Error updating season status:', error);
       alert(language === 'pt'
@@ -536,7 +536,7 @@ export default function Settings() {
 
       if (error) throw error;
 
-      await loadSeasons();
+      await Promise.all([loadSeasons(), reloadSeasons()]);
 
       setSeasonMessage({
         type: 'success',
@@ -1044,9 +1044,9 @@ export default function Settings() {
                         </td>
                         <td className="px-4 py-4 text-gray-500">
                 
-                          {new Date(season.start_date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US')}
+                          {formatDateForDisplay(season.start_date, language === 'pt' ? 'pt-BR' : 'en-US')}
                           {season.end_date && (
-                            <> - {new Date(season.end_date).toLocaleDateString(language === 'pt' ? 'pt-BR' : 'en-US')}</>
+                            <> - {formatDateForDisplay(season.end_date, language === 'pt' ? 'pt-BR' : 'en-US')}</>
                           )}
                         </td>
                         <td className="px-4 py-4">

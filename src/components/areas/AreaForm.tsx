@@ -28,8 +28,6 @@ const AreaForm: React.FC<AreaFormProps> = ({
     unit: initialData.unit || 'hectare' as AreaUnit,
     location: initialData.location || '',
     description: initialData.description || '',
-    current_crop: initialData.current_crop || '',
-    cultivar: initialData.cultivar || '',
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -127,21 +125,6 @@ const AreaForm: React.FC<AreaFormProps> = ({
           placeholder={language === 'pt' ? 'ex: Setor Norte' : 'e.g., North sector'}
         />
         
-        <Input
-          name="current_crop"
-          label={language === 'pt' ? 'Cultivo Atual (opcional)' : 'Current Crop (optional)'}
-          value={formData.current_crop}
-          onChange={handleChange}
-          placeholder={language === 'pt' ? 'ex: Milho' : 'e.g., Corn'}
-        />
-
-        <Input
-          name="cultivar"
-          label={language === 'pt' ? 'Cultivar Plantada (opcional)' : 'Planted Cultivar (optional)'}
-          value={formData.cultivar}
-          onChange={handleChange}
-          placeholder={language === 'pt' ? 'ex: DKB 390' : 'e.g., DKB 390'}
-        />
       </div>
       
       <div>

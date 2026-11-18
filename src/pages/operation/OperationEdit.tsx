@@ -1,4 +1,4 @@
-import React from 'react';
+import { useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import OperationForm from '../../components/operations/OperationForm';
@@ -11,6 +11,8 @@ const OperationEdit = () => {
   const navigate = useNavigate();
   const { operations, updateOperation, activeSeason } = useAppContext();
   const { language } = useLanguage();
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   
   if (!id) {
     navigate('/operations');
@@ -25,6 +27,9 @@ const OperationEdit = () => {
   }
   
   const handleSubmit = async (operationData: Omit<Operation, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitting(true);
     try {
       await updateOperation(id, operationData);
       navigate('/operations');
@@ -35,6 +40,7 @@ const OperationEdit = () => {
       const isPt = language === 'pt';
 
       const errorMessages: Record<string, { pt: string; en: string }> = {
+        OPERATION_DATES_OUT_OF_ORDER: { pt: 'A data final deve ser igual ou posterior à data inicial.', en: 'The end date must be on or after the start date.' },
         AUTH_REQUIRED: { pt: 'Você precisa estar autenticado.', en: 'You must be authenticated.' },
         PROFILE_NOT_FOUND: { pt: 'Perfil de usuário não encontrado.', en: 'User profile not found.' },
         PROFILE_NO_INSTITUTION: { pt: 'Você não pertence a uma instituição.', en: 'You do not belong to an institution.' },
@@ -61,6 +67,9 @@ const OperationEdit = () => {
           ? 'Erro ao atualizar operação. Tente novamente.'
           : 'Error updating operation. Please try again.');
       }
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -119,6 +128,7 @@ const OperationEdit = () => {
           initialData={operation}
           onSubmit={handleSubmit}
           isEditing={true}
+          submitting={submitting}
         />
       </div>
     </div>
