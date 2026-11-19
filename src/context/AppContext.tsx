@@ -23,6 +23,7 @@ import { stripZCoordinates } from '../utils/farmMap/farmMapHelpers';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { OfflineScope, readOfflineValue, useOfflineStorage, writeOfflineValue } from '../hooks/useOfflineStorage';
 import { dateToDateString, parseDate } from '../utils/dateHelpers';
+import { useMonitoringStages } from '../hooks/useMonitoringStages';
 
 const READ_ONLY_MSG = 'Sem conexão. O AgriGest está em modo somente leitura.';
 
@@ -205,12 +206,18 @@ const InstitutionData: React.FC<{
     seasons.find(season => season.id === selectedSeasonId) ??
     seasons.find(season => season.status === 'active') ?? null;
   const setActiveSeason = (season: Season | null) => setSelectedSeasonId(season?.id ?? null);
+  const { latest: latestMonitoring, pending: pendingMonitoring } = useMonitoringStages(activeSeason?.id, institutionId, isOnline);
 
 
   const seasonalAreas = useMemo(() => {
     const plantings = plantingsForSeason(operations, activeSeason?.id);
-    return areas.map(area => ({ ...area, ...plantingDetails(plantings.get(area.id), products) }));
-  }, [activeSeason?.id, areas, operations, products]);
+    return areas.map(area => {
+      const report = latestMonitoring.get(area.id);
+      return { ...area, ...plantingDetails(plantings.get(area.id), products),
+        phenologicalStage:report?.phenological_stage, monitoringDate:report?.observed_on,
+        monitoringPending:report ? pendingMonitoring.has(report.id) : false };
+    });
+  }, [activeSeason?.id, areas, operations, products, latestMonitoring, pendingMonitoring]);
 
   const loadAreas = useCallback(async () => {
     try {
@@ -1013,6 +1020,9 @@ const InstitutionData: React.FC<{
           areaId: area.id, areaName: area.name, areaSize: area.size, areaUnit: area.unit,
           currentCrop: details.current_crop ?? null,
           cultivar: details.cultivar ?? null,
+          phenologicalStage: seasonId === activeSeason?.id ? latestMonitoring.get(area.id)?.phenological_stage ?? null : null,
+          monitoringDate: seasonId === activeSeason?.id ? latestMonitoring.get(area.id)?.observed_on ?? null : null,
+          monitoringPending: seasonId === activeSeason?.id && pendingMonitoring.has(latestMonitoring.get(area.id)?.id ?? ''),
           geojson: geometry ? JSON.stringify(geometry) : null,
         });
       }
@@ -1047,7 +1057,7 @@ const InstitutionData: React.FC<{
       console.error('Error loading area map summary:', error);
       return mergeAreas(readOfflineValue(cacheKey, []));
     }
-  }, [areas, isOnline, operations, products, scope]);
+  }, [areas, isOnline, operations, products, scope, activeSeason?.id, latestMonitoring, pendingMonitoring]);
 
   const value: AppContextType = {
     profile,

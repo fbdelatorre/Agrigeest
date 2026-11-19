@@ -5,6 +5,7 @@ import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 import AreaCard from '../../components/areas/AreaCard';
 import Button from '../../components/ui/Button';
+import Select from '../../components/ui/Select';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { Plus, Filter } from 'lucide-react';
 
@@ -13,13 +14,20 @@ const AreasList = () => {
   const { language } = useLanguage();
   const { isOnline } = useNetworkStatus();
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortOrder, setSortOrder] = useState('name-asc');
   
   // Filter areas based on search term
   const filteredAreas = areas.filter((area) =>
     area.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (area.location ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (area.current_crop ?? '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ).sort((a, b) => {
+    if (sortOrder.startsWith('name')) {
+      const result = a.name.localeCompare(b.name, language === 'pt' ? 'pt-BR' : 'en', { numeric:true, sensitivity:'base' });
+      return sortOrder === 'name-asc' ? result : -result;
+    }
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
   
   const handleDeleteArea = async (id: string) => {
     const areaOperations = operations.filter((op) => op.areaId === id);
@@ -76,7 +84,14 @@ const AreasList = () => {
           </div>
         </div>
       </div>
-      
+      <div className="mb-4 max-w-sm">
+        <Select label={language === 'pt' ? 'Ordenar áreas' : 'Sort fields'} value={sortOrder}
+          onChange={event => setSortOrder(event.target.value)} options={[
+            { value:'name-asc', label:language === 'pt' ? 'Nome: A–Z' : 'Name: A–Z' },
+            { value:'name-desc', label:language === 'pt' ? 'Nome: Z–A' : 'Name: Z–A' },
+            { value:'newest', label:language === 'pt' ? 'Cadastro mais recente' : 'Newest registration' },
+          ]} />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredAreas.length > 0 ? (
           filteredAreas.map((area) => (

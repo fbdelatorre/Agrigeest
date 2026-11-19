@@ -3,6 +3,8 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { syncFieldSubmission } from '../lib/fieldData';
 import { discardFieldEntry, readFieldQueue, writeFieldEntry, type FieldDraft, type QueueEntry } from '../lib/fieldQueue';
 import { supabase } from '../lib/supabase';
+import { readOfflineValue, writeOfflineValue } from '../hooks/useOfflineStorage';
+import { monitoringCacheKey, monitoringCachePrefix, monitoringMetadata, patchMonitoringMetadata, type MonitoringMetadata } from '../utils/monitoringStages';
 
 interface FieldSync {
   entries: QueueEntry[];
@@ -91,6 +93,11 @@ export function FieldSyncProvider({ scope, userId, institutionId, children }: {
             if (result.state === 'retry') break;
             const updated = { ...entry, ...result };
             await writeFieldEntry(updated);
+            if (entry.kind === 'report' && result.state === 'sent') {
+              const key = monitoringCacheKey(scope, entry.record.season_id);
+              const cached = readOfflineValue<MonitoringMetadata[]>(key, []);
+              if (!cached.some(row => row.id === entry.id)) writeOfflineValue(key, [...cached, monitoringMetadata({ ...entry.record, created_at:entry.createdAt })]);
+            }
             byId.set(entry.id, updated);
             notify(result.state === 'sent');
           }
@@ -153,6 +160,9 @@ export function FieldSyncProvider({ scope, userId, institutionId, children }: {
         record: { ...entry.record, ...updated } } as QueueEntry);
       const prefix = 'agrigest:v2:field:' + scope + ':';
       for (const key of Object.keys(localStorage)) if (key.startsWith(prefix)) localStorage.removeItem(key);
+      for (const key of Object.keys(localStorage)) if (key.startsWith(monitoringCachePrefix(scope))) {
+        writeOfflineValue(key, patchMonitoringMetadata(readOfflineValue<MonitoringMetadata[]>(key, []), id, updated));
+      }
     };
     if (navigator.locks) await navigator.locks.request('agrigest-field:' + scope, hideReceipt);
     else await hideReceipt();

@@ -168,6 +168,14 @@ const AreaDetailPanel: React.FC<AreaDetailPanelProps> = ({ summary, rainfallLabe
             {language === 'pt' ? 'Safra:' : 'Season:'} {activeSeason.name}
           </div>
         )}
+        <div className="mt-3 text-sm">
+          <span className="text-brand-100">{language === 'pt' ? 'Estádio fenológico: ' : 'Growth stage: '}</span>
+          <strong>{summary.phenologicalStage || (language === 'pt' ? 'Não informado nesta safra' : 'Not recorded this season')}</strong>
+          {summary.monitoringDate && <p className="mt-1 text-xs text-brand-100">
+            {language === 'pt' ? 'Último monitoramento: ' : 'Latest monitoring: '}{formatDateBR(summary.monitoringDate)}
+            {summary.monitoringPending && (language === 'pt' ? ' · Aguardando sincronização' : ' · Waiting to sync')}
+          </p>}
+        </div>
       </div>
 
       {/* Alert */}

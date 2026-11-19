@@ -15,6 +15,9 @@ export interface AreaMapSummary {
   areaUnit: string;
   currentCrop: string | null;
   cultivar: string | null;
+  phenologicalStage?: string | null;
+  monitoringDate?: string | null;
+  monitoringPending?: boolean;
   geojson: string | null;
   lastOperationDate: string | null;
   lastFungicideDate: string | null;
@@ -42,6 +45,7 @@ export interface LayerSettings {
   showNames: boolean;
   showCrop: boolean;
   showCultivar: boolean;
+  showPhenologicalStage: boolean;
   showLastApplication: boolean;
 }
 

@@ -4,6 +4,7 @@ import { supabase } from './supabase';
 import { dateToInputValue } from '../utils/dateHelpers';
 import { precisionClient } from './precisionData';
 import type { SampleInput } from './precisionTypes';
+import type { MonitoringMetadata } from '../utils/monitoringStages';
 
 type FieldScope = { institution_id: string; season_id: string; area_id: string };
 type RecordMetadata = { id: string; created_at: string; created_by: string };
@@ -60,11 +61,11 @@ type FieldDatabase = {
 const fieldClient = supabase as unknown as SupabaseClient<FieldDatabase>;
 const REPORT_PAGE_SIZE = 30;
 
-export async function listFieldReports(seasonId: string, areaId: string, page: number, signal: AbortSignal) {
+export async function listFieldReports(seasonId: string, areaId: string, page: number, signal: AbortSignal, ascending = false) {
   const first = page * REPORT_PAGE_SIZE;
   const query = fieldClient.from('field_monitoring_reports').select('*', { count: 'exact' })
     .eq('season_id', seasonId)
-    .order('observed_on', { ascending: false }).order('created_at', { ascending: false }).order('id')
+    .order('observed_on', { ascending }).order('created_at', { ascending }).order('id', { ascending })
     .range(first, first + REPORT_PAGE_SIZE - 1).abortSignal(signal);
   if (areaId) query.eq('area_id', areaId);
   const { data: reports, error, count } = await query;
@@ -76,6 +77,22 @@ export async function listFieldReports(seasonId: string, areaId: string, page: n
     .order('created_at', { ascending: false }).abortSignal(signal);
   if (recommendationError) throw recommendationError;
   return { reports, recommendations, hasNext: (count ?? 0) > first + reports.length };
+}
+
+export async function listMonitoringMetadata(seasonId: string, institutionId: string, signal: AbortSignal): Promise<MonitoringMetadata[]> {
+  const rows: MonitoringMetadata[] = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await fieldClient.from('field_monitoring_reports')
+      .select('id,area_id,season_id,observed_on,created_at,phenological_stage')
+      .eq('institution_id', institutionId).eq('season_id', seasonId)
+      .order('observed_on', { ascending:false }).order('created_at', { ascending:false }).order('id', { ascending:false })
+      .range(offset, offset + pageSize - 1).abortSignal(signal);
+    if (error) throw error;
+    if (signal.aborted) return [];
+    rows.push(...data);
+    if (data.length < pageSize) return rows;
+  }
 }
 
 export async function getFieldRecommendation(id: string, seasonId: string, signal: AbortSignal) {

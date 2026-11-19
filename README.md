@@ -77,6 +77,16 @@ The Windows, Android and iOS apps share the same React frontend. The native buil
 
 ## Field monitoring
 
+Area cards and the farm map show the growth stage from the latest observation date
+in the selected season, with the monitoring date. Pending local reports are marked
+as waiting to sync. The map layer can be toggled. Editing or deleting a report
+refreshes the derived stage, including its local cache. Metadata is read in pages
+so fields are not omitted after the first page of monitoring records.
+
+Field cards default to natural A–Z ordering and also support Z–A or newest registration.
+Monitoring reports default to newest observation date first and can be switched to
+oldest first; the server query and the page cache use the same chosen order.
+
 Select a season in the sidebar and open **Monitoramento**. Create a report for a field, then add a recommendation with products and their rates. **Realizar operação** opens a prefilled operation form. Saving it links the new operation to the recommendation in the same transaction. Open **Pluviometria** in the sidebar to record one daily rainfall reading per field and review the season’s readings. The rainfall layer on the farm map shows totals for the current week, month or selected season. Type any part of a label to filter a selection field.
 
 The field-data migration was applied to the AgroGest project through its SQL Editor. For that project, reconcile its CLI migration history before using `supabase db push` for this migration. Use the migration normally in new environments after provisioning the existing schema.

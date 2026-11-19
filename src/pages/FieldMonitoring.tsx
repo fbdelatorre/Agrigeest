@@ -2,7 +2,7 @@ import { useFieldSync } from '../context/FieldSyncContext';
 import { useFieldPage } from '../hooks/useFieldPage';
 import FieldSyncStatus from '../components/ui/FieldSyncStatus';
 import RecordActions from '../components/ui/RecordActions';
-import { useRef, useState, type FormEvent } from 'react';
+import { useCallback, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ClipboardList, Plus, X } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
@@ -14,6 +14,7 @@ import {
   listFieldReports, type MonitoringReport
 } from '../lib/fieldData';
 import { dateToInputValue, formatDateForDisplay } from '../utils/dateHelpers';
+import { compareMonitoringDates } from '../utils/monitoringStages';
 
 const panel = 'rounded-xl border border-gray-200 bg-white p-4 sm:p-6';
 const textarea = 'block w-full rounded-lg border border-gray-300 p-3 text-sm';
@@ -40,6 +41,7 @@ function SeasonMonitoring({ season, institutionId }: {
   const t = (pt: string, en: string) => language === 'pt' ? pt : en;
   const [filterArea, setFilterArea] = useState('');
   const [page, setPage] = useState(0);
+  const [oldestFirst, setOldestFirst] = useState(false);
   const [reload, setReload] = useState(0);
 
   const [entry, setEntry] = useState(false);
@@ -51,8 +53,10 @@ function SeasonMonitoring({ season, institutionId }: {
   const today = dateToInputValue(new Date());
   const doseFormat = new Intl.NumberFormat(language === 'pt' ? 'pt-BR' : 'en-US', { maximumFractionDigits: 8 });
 
+  const loadReports = useCallback((seasonId: string, areaId: string, pageNumber: number, signal: AbortSignal) =>
+    listFieldReports(seasonId, areaId, pageNumber, signal, oldestFirst), [oldestFirst]);
   const { data: remote, loading, failed: loadError } = useFieldPage(
-    'monitoring', season.id, filterArea, page, isOnline, reload + sync.revision, listFieldReports
+    oldestFirst ? 'monitoring:asc' : 'monitoring', season.id, filterArea, page, isOnline, reload + sync.revision, loadReports
   );
   const saved = remote ?? emptyData;
   const local = sync.entries.filter(record => record.record.season_id === season.id &&
@@ -71,7 +75,7 @@ function SeasonMonitoring({ season, institutionId }: {
       recommendations.push({ ...record.record, ...metadata, operation_id: null, executed_at: null, executed_by: null });
     }
   }
-  reports.sort((a, b) => b.observed_on.localeCompare(a.observed_on) || b.created_at.localeCompare(a.created_at));
+  reports.sort((a, b) => compareMonitoringDates(a, b, oldestFirst));
 
   const close = () => { setEntry(false); setTarget(null); };
   const openEntry = () => { setMessage(null); setTarget(null); setEntry(true); };
@@ -142,6 +146,10 @@ function SeasonMonitoring({ season, institutionId }: {
         </div>
       </header>
 
+      <div className="max-w-sm"><Select label={t('Ordenar monitoramentos', 'Sort monitoring reports')}
+        value={oldestFirst ? 'asc' : 'desc'} onChange={event => { setOldestFirst(event.target.value === 'asc'); setPage(0); }}
+        options={[{value:'desc',label:t('Data: mais recentes primeiro', 'Date: newest first')},
+          {value:'asc',label:t('Data: mais antigos primeiro', 'Date: oldest first')}]} /></div>
       {message && <p role={message.error ? 'alert' : 'status'} className={message.error ? 'text-red-800' : 'text-brand-700'}>{message.text}</p>}
       {(entry || target) && (
         <form className={panel + ' space-y-4'} onSubmit={submit} key={target?.id ?? 'report'}>

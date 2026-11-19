@@ -155,6 +155,7 @@ export const FarmMapScreen: React.FC = () => {
     showNames: true,
     showCrop: false,
     showCultivar: false,
+    showPhenologicalStage: true,
     showLastApplication: false,
   });
   const [showLayerControl, setShowLayerControl] = useState(false);
@@ -393,6 +394,8 @@ export const FarmMapScreen: React.FC = () => {
         const labelParts: string[] = [summary.areaName];
         if (layerSettings.showCrop && summary.currentCrop) labelParts.push(summary.currentCrop);
         if (layerSettings.showCultivar && summary.cultivar) labelParts.push(summary.cultivar);
+        if (layerSettings.showPhenologicalStage && summary.phenologicalStage) labelParts.push(
+          (isPt ? 'Estádio: ' : 'Stage: ') + summary.phenologicalStage + (summary.monitoringPending ? ' *' : ''));
 
         const rain = rainfall?.[summary.areaId];
         if (showRainfall && rain !== undefined) labelParts.push(formatQuantity(rain, language) + ' mm');
@@ -431,7 +434,7 @@ export const FarmMapScreen: React.FC = () => {
     };
 
     updateData();
-  }, [summaries, viewMode, layerSettings, filters, selectedAreaId, seasonId, referenceDate, mapReady, showRainfall, rainfall, rainfallStatus, isOnline, language]);
+  }, [summaries, viewMode, layerSettings, filters, selectedAreaId, seasonId, referenceDate, mapReady, showRainfall, rainfall, rainfallStatus, isOnline, language, isPt]);
 
   // Toggle label visibility
   useEffect(() => {

@@ -88,6 +88,11 @@ const LayerControl: React.FC<LayerControlProps> = ({ settings, onChange }) => {
               visible={settings.showLastApplication}
               onToggle={() => toggle('showLastApplication')}
             />
+            <LayerToggle
+              label={language === 'pt' ? 'Estádio fenológico' : 'Growth stage'}
+              visible={settings.showPhenologicalStage}
+              onToggle={() => toggle('showPhenologicalStage')}
+            />
           </div>
         </div>
       </div>

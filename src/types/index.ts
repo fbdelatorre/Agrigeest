@@ -13,6 +13,9 @@ export interface Area {
   cultivar?: string;
   plantingDate?: Date;
   plantingPopulation?: number;
+  phenologicalStage?: string;
+  monitoringDate?: string;
+  monitoringPending?: boolean;
   geometry?: string | object;
   createdAt: Date;
   updatedAt: Date;

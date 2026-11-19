@@ -11,6 +11,8 @@
     "test:writes": "node --test tests/writes.test.mjs",
     "test:writes:ui": "node tests/audit-ui.browser.cjs",
     "test:offline": "node tests/offline-startup.browser.cjs",
+    "test:monitoring": "node --test tests/monitoring-stages.test.mjs",
+    "test:monitoring:ui": "node tests/monitoring-stage-ui.browser.cjs",
     "preview": "vite preview",
     "build:native": "vite build --mode native --outDir dist-native",
     "desktop:dev": "tauri dev",

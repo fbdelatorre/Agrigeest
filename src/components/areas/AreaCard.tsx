@@ -98,6 +98,14 @@ const AreaCard: React.FC<AreaCardProps> = ({ area, onDelete }) => {
             </div>
           </dl>
         )}
+        <div className="mb-3 text-sm">
+          <p className="text-gray-600">{language === 'pt' ? 'Estádio fenológico' : 'Growth stage'}</p>
+          <p className="font-semibold text-brand-800">{area.phenologicalStage || (language === 'pt' ? 'Não informado nesta safra' : 'Not recorded this season')}</p>
+          {area.monitoringDate && <p className="text-xs text-gray-500">
+            {language === 'pt' ? 'Monitoramento: ' : 'Monitoring: '}{formatDate(area.monitoringDate)}
+            {area.monitoringPending && (language === 'pt' ? ' · Aguardando sincronização' : ' · Waiting to sync')}
+          </p>}
+        </div>
         <p className="text-gray-600 text-sm mb-3">{area.description}</p>
         <div className="text-xs text-gray-500">
           {language === 'pt' ? 'Criado em: ' : 'Created: '}
