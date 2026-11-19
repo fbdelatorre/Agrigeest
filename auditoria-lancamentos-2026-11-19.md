@@ -1,6 +1,6 @@
 # Auditoria de lançamentos — AgriGest 1.2.0
 
-Data: 19/11/2026. Estado: implementação e testes locais concluídos; publicação SQL aguardando execução/retorno do SQL Editor. Instaladores gerados; atualização do Windows ainda não aplicada. PWA hospedada não publicada nesta rodada.
+Data: 19/11/2026. Estado: implementação e testes locais concluídos. O usuário executou o script e informou sucesso; a mensagem de sucesso também foi observada no SQL Editor. API de produção confirmou as tabelas/funções novas e recusou acesso anônimo. Windows atualizado e versão do executável instalada conferida: 1.2.0. APK disponível para atualização manual. PWA hospedada não publicada nesta rodada.
 
 ## Problema principal de estoque
 
@@ -62,6 +62,7 @@ Os testes usam dados fictícios e PostgreSQL local compatível; não fizeram ope
 - `npm run test:precision`: cinco testes aprovados.
 - `node tests/audit-ui.browser.cjs`: aprovado; CRUD de campo, exclusão/cache offline, recomendação sem baixa, correção de estoque, histórico de índice, auditoria, envio duplicado de manutenção, limpeza de opcionais e preservação de formulário após falha.
 - `node tests/precision-map.browser.mjs`: aprovado; imagem visível, substituição/ocultação e erro de imagem sob a CSP nativa.
+- Produção: três tabelas novas e cinco funções públicas verificadas pela API; acesso anônimo recusado com erro de permissão. As consultas não criaram lançamentos. A comparação dos hashes de todos os registros depois da publicação não foi executada, pois a substituição automática do texto no SQL Editor permaneceu indisponível.
 - Build de Windows e Android: concluídos. APK mantém o certificado da 1.1.1. APK de teste; publicação em loja exige assinatura de produção.
 
 ## Publicação e restauração
