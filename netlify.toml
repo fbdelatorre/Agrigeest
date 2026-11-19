@@ -4,3 +4,14 @@ publish = "dist"
 
 [build.environment]
 NODE_VERSION = "22"
+
+[[headers]]
+for = "/sw.js"
+[headers.values]
+Content-Type = "application/javascript; charset=utf-8"
+Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+for = "/service-worker.js"
+[headers.values]
+Cache-Control = "no-cache, no-store, must-revalidate"

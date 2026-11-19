@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => ({
         cleanupOutdatedCaches: true,
         navigateFallback: 'index.html',
         globPatterns: ['**/*.{js,css,html,woff2}'],
+        globIgnores: ['**/sw.js'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       }
     })

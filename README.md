@@ -57,6 +57,12 @@ AgriGest is a comprehensive farm management application designed to help farmers
 
 The application can be deployed to any static hosting service like Netlify, Vercel, or GitHub Pages.
 
+Keep `public/sw.js` when deploying the PWA: previously installed versions still check this
+original worker URL for updates. It imports the current `service-worker.js` so those devices
+can recover from an outdated application shell without clearing localStorage or IndexedDB.
+Netlify serves both worker URLs without long-lived caching. Do not clear site data to fix
+an outdated installation while unsynced field records may still exist on the device.
+
 ```bash
 npm run build
 ```
