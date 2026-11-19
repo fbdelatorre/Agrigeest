@@ -33,10 +33,10 @@ const OperationEdit = () => {
     try {
       await updateOperation(id, operationData);
       navigate('/operations');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating operation:', error);
 
-      const msg = error?.message || '';
+      const msg = error instanceof Error ? error.message : '';
       const isPt = language === 'pt';
 
       const errorMessages: Record<string, { pt: string; en: string }> = {
@@ -64,7 +64,7 @@ const OperationEdit = () => {
         alert(isPt ? errorMessages[matched].pt : errorMessages[matched].en);
       } else {
         alert(isPt
-          ? 'Erro ao atualizar operação. Tente novamente.'
+          ? msg || 'Erro ao atualizar operação. Tente novamente.'
           : 'Error updating operation. Please try again.');
       }
     } finally {
@@ -124,7 +124,7 @@ const OperationEdit = () => {
       </div>
       
       <div className="bg-white p-6 rounded-lg shadow-sm">
-        <OperationForm
+        <OperationForm key={id}
           initialData={operation}
           onSubmit={handleSubmit}
           isEditing={true}

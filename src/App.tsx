@@ -36,6 +36,7 @@ import OperationEdit from './pages/operation/OperationEdit';
 
 // Inventory Pages
 import InventoryList from './pages/inventory/InventoryList';
+import WriteAudit from './pages/WriteAudit';
 import ProductCreate from './pages/inventory/ProductCreate';
 import ProductEdit from './pages/inventory/ProductEdit';
 
@@ -156,6 +157,8 @@ function App() {
 
             {/* Inventory */}
             <Route path="inventory" element={<InventoryList />} />
+            <Route path="inventory/history" element={<WriteAudit stockOnly />} />
+            <Route path="audit" element={<WriteAudit />} />
             <Route path="inventory/new" element={<ProductCreate />} />
             <Route path="inventory/:id/edit" element={<ProductEdit />} />
 

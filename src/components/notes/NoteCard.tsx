@@ -1,9 +1,10 @@
 import React from 'react';
+import { writeErrorMessage } from '../../lib/businessWrites';
 import { Note } from '../../types/notes';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
-import { Calendar, CheckCircle2, Circle, Pencil, Trash2, StickyNote } from 'lucide-react';
+import { Calendar, CheckCircle2, Circle, Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNotesContext } from '../../context/NotesContext';
@@ -29,6 +30,7 @@ const NoteCard: React.FC<NoteCardProps> = ({ note, onDelete }) => {
       await toggleNoteComplete(note.id);
     } catch (error) {
       console.error('Error toggling note completion:', error);
+      alert(writeErrorMessage(error));
     }
   };
 

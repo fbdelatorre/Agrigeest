@@ -1,4 +1,4 @@
-import React from 'react';
+import { writeErrorMessage } from '../../lib/businessWrites';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import AreaForm from '../../components/areas/AreaForm';
@@ -22,9 +22,9 @@ const AreaEdit = () => {
     return null;
   }
   
-  const handleSubmit = (areaData: Omit<Area, 'id' | 'createdAt' | 'updatedAt'>) => {
-    updateArea(id, areaData);
-    navigate(`/areas/${id}`);
+  const handleSubmit = async (areaData: Omit<Area, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try { await updateArea(id, areaData); navigate(`/areas/${id}`); }
+    catch (error) { alert(writeErrorMessage(error)); }
   };
 
   return (
@@ -45,7 +45,7 @@ const AreaEdit = () => {
       </div>
       
       <div className="bg-white p-6 rounded-lg shadow-sm">
-        <AreaForm
+        <AreaForm key={id}
           initialData={area}
           onSubmit={handleSubmit}
           isEditing={true}

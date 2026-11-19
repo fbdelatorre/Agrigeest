@@ -9,6 +9,7 @@ interface FieldSync {
   enqueue: (draft: FieldDraft) => Promise<void>;
   retry: (entry: QueueEntry) => Promise<void>;
   discard: (entry: QueueEntry) => Promise<void>;
+  forget: (id: string, updated?: object) => Promise<void>;
   revision: number;
   localError: boolean;
 }
@@ -142,5 +143,21 @@ export function FieldSyncProvider({ scope, userId, institutionId, children }: {
     notify();
   };
 
-  return <FieldSyncContext.Provider value={{ entries, enqueue, retry, discard, revision, localError }}>{children}</FieldSyncContext.Provider>;
+  const forget = async (id: string, updated?: object) => {
+    if (!scope) return;
+    const hideReceipt = async () => {
+      const entry = (await readFieldQueue(scope)).find(item => item.id === id);
+      // Keep dependency ordering and a fresh offline copy after an edit; a
+      // deletion leaves a tombstone so old insert receipts cannot resurrect it.
+      if (entry) await writeFieldEntry({ ...entry, state: 'sent', hidden: !updated,
+        record: { ...entry.record, ...updated } } as QueueEntry);
+      const prefix = 'agrigest:v2:field:' + scope + ':';
+      for (const key of Object.keys(localStorage)) if (key.startsWith(prefix)) localStorage.removeItem(key);
+    };
+    if (navigator.locks) await navigator.locks.request('agrigest-field:' + scope, hideReceipt);
+    else await hideReceipt();
+    notify(true);
+  };
+
+  return <FieldSyncContext.Provider value={{ entries: entries.filter(entry => !entry.hidden), enqueue, retry, discard, forget, revision, localError }}>{children}</FieldSyncContext.Provider>;
 }

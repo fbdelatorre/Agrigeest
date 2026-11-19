@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useNotesContext } from '../../context/NotesContext';
 import NoteForm from '../../components/notes/NoteForm';
@@ -80,7 +80,7 @@ const NoteEdit = () => {
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-sm">
-        <NoteForm
+        <NoteForm key={id}
           initialData={note}
           onSubmit={handleSubmit}
           isEditing={true}

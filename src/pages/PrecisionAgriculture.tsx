@@ -14,6 +14,8 @@ import PrecisionMap, { type MapField, type MapSample } from '../components/farmM
 import SampleForm from '../components/precision/SampleForm';
 import LabImport from '../components/precision/LabImport';
 import SatellitePanel from '../components/precision/SatellitePanel';
+import RecordActions from '../components/ui/RecordActions';
+import { mutateBusinessRecord } from '../lib/businessWrites';
 import ZoneEditor, { zoneFeatures } from '../components/precision/ZoneEditor';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -170,9 +172,11 @@ export default function PrecisionAgriculture() {
   }
 
   async function updateSample(sample: Sample, changes: Partial<Pick<Sample, 'status' | 'label' | 'zone_id'>>) {
-    const { error } = await precisionClient.from('precision_samples').update(changes).eq('id', sample.id).select('id').single();
-    if (error) setMessage('Não foi possível atualizar a amostra.');
-    else setRevision(old => old + 1);
+    try {
+      const updated = await mutateBusinessRecord<object>('precision_samples', sample, 'update', changes);
+      await sync.forget(sample.id, updated);
+      setRevision(old => old + 1);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar a amostra.'); }
   }
 
   const sampleZone = selectedSample && zones.find(zone => zone.id === selectedSample.zone_id);
@@ -197,10 +201,12 @@ export default function PrecisionAgriculture() {
         {result.original_parameter && result.original_parameter !== result.parameter && <span className="ml-2 text-xs">Cabeçalho original: {result.original_parameter}</span>}
         {isOnline && <button type="button" className="ml-2 text-brand-700 underline"
           onClick={() => void downloadReport(result.import_id).catch(() => setMessage('Não foi possível baixar o laudo.'))}>Baixar laudo original</button>}
+        <RecordActions table="precision_lab_results" record={result} onSaved={() => setRevision(old => old + 1)} />
       </li>)}
     </ul>}
     <Button variant="outline" onClick={() => void downloadLabel(selectedSample, profile?.institution ?? '', areas.find(item => item.id === selectedSample.area_id)?.name ?? '')
       .catch(() => setMessage('Não foi possível gerar a etiqueta.'))}>Baixar etiqueta PDF com QR</Button>
+    <RecordActions key={selectedSample.id} table="precision_samples" record={selectedSample} queued={entries.find(entry => entry.id === selectedSample.id)} onSaved={() => setRevision(old => old + 1)} />
     {isOnline && rows.data?.some(sample => sample.id === selected) && <>
       {(eligibleZones.length > 0 || selectedSample.zone_id) && <Select label="Vincular zona" value={selectedSample.zone_id ?? ''}
         options={[{ value: '', label: 'Sem zona' }, ...eligibleZones.map(zone => ({ value: zone.id, label: zone.name }))]}
@@ -283,7 +289,7 @@ export default function PrecisionAgriculture() {
               onChange={event => setLayers(old => ({ ...old, [key]: event.target.checked }))} />{label}</label>;
           })}
         </fieldset>
-        {tab === 'satellite' ? <SatellitePanel area={area} fields={fields} points={points} zones={zoneLayer} basemap={layers.basemap && isOnline}
+        {tab === 'satellite' || tab === 'history' ? <SatellitePanel key={tab} historyOnly={tab === 'history'} area={area} fields={fields} points={points} zones={zoneLayer} basemap={layers.basemap && isOnline}
           showBoundaries={layers.boundaries} online={isOnline} onSample={setSelected} />
           : <PrecisionMap fields={fields} focus={area} points={points} zones={zoneLayer} basemap={layers.basemap && isOnline} showBoundaries={layers.boundaries} onSample={setSelected} />}
         <Link to={'/farm-map?samples=yes' + (area ? '&area=' + encodeURIComponent(area) : '')}

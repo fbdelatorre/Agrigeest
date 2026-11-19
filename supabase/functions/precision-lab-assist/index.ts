@@ -26,7 +26,7 @@ Deno.serve(async request => {
     if (raw.length > 6000) return reply({ error: 'Lista de cabeçalhos muito extensa.' }, 413);
     const payload = JSON.parse(raw);
     if (!payload || !Array.isArray(payload.labels) || payload.labels.length < 1 || payload.labels.length > 40 ||
-      payload.labels.some((word: unknown) => typeof word !== 'string' || !word.trim() || word.length > 120 || /[\u0000-\u001f]/.test(word))) {
+      payload.labels.some((word: unknown) => typeof word !== 'string' || !word.trim() || word.length > 120 || Array.from(word).some(character => character.charCodeAt(0) < 32))) {
       return reply({ error: 'Cabeçalhos inválidos.' }, 400);
     }
     const url = Deno.env.get('PRECISION_AI_URL');

@@ -1,3 +1,4 @@
+import { useSubmitGuard } from '../../hooks/useSubmitGuard';
 import { defaultSeedCrops, isSeedCategory } from '../../utils/seasonPlanting';
 import React, { useState } from 'react';
 import { Product } from '../../types';
@@ -42,6 +43,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
   isSubmitting = false,
 }) => {
   const navigate = useNavigate();
+  const { saving, runSubmit } = useSubmitGuard();
+  const initialRevision = React.useRef(initialData.updatedAt);
   const { language } = useLanguage();
   const { products, seedCrops } = useAppContext();
   const { isOnline } = useNetworkStatus();
@@ -236,19 +239,20 @@ const ProductForm: React.FC<ProductFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validate()) return;
 
-    onSubmit({
+    await runSubmit(() => onSubmit({
+      ...{ updatedAt: initialRevision.current },
       ...formData,
       category: formData.category as Product['category'],
       crop: isSeed ? formData.crop : undefined,
       quantityInStock: initialData.quantityInStock ?? 0,
       minStockLevel: Number(formData.minStockLevel),
       price: Number(formData.price),
-    }, !isEditing ? pendingLots : undefined, !isEditing ? Number(formData.untrackedQuantity) || 0 : undefined);
+    }, !isEditing ? pendingLots : undefined, !isEditing ? Number(formData.untrackedQuantity) || 0 : undefined));
   };
 
   const categoryOptions = existingCategories.map(category => ({
@@ -619,7 +623,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
         </Button>
         <Button
           type="submit"
-          disabled={!isOnline || isSubmitting}
+          isLoading={saving}
+          disabled={saving || !isOnline || isSubmitting}
           leftIcon={<Save size={18} />}
         >
           {isEditing

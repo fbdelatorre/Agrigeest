@@ -24,7 +24,7 @@ const Planning = () => {
     label: getOperationTypeLabel(type)
   }));
 
-  const getOperationTypeLabel = (type: string) => {
+  function getOperationTypeLabel(type: string) {
     const labels: Record<string, string> = {
       gradagem: 'Gradagem',
       subsolagem: 'Subsolagem',
@@ -54,13 +54,14 @@ const Planning = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validate()) return;
 
     const newOperation = {
       areaId: selectedArea,
+      operationSize: areas.find(area => area.id === selectedArea)?.size ?? 0,
       type: selectedOperation,
       startDate: new Date(),
       nextOperationDate: new Date(plannedDate),
@@ -70,7 +71,8 @@ const Planning = () => {
       notes: `Operação planejada para ${formatDate(plannedDate)}`
     };
 
-    addOperation(newOperation);
+    try { await addOperation(newOperation); }
+    catch (error) { setErrors({ submit: error instanceof Error ? error.message : 'Não foi possível salvar.' }); return; }
     
     setShowForm(false);
     setSelectedArea('');
@@ -110,6 +112,7 @@ const Planning = () => {
           </Card.Header>
           <Card.Content>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {errors.submit && <p role="alert" className="text-danger-600">{errors.submit}</p>}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select
                   label="Área"

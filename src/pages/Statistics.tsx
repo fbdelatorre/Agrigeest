@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 import Card from '../components/ui/Card';
 import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
-import { BarChart3, Map, Calendar, Package, Filter, AlertTriangle } from 'lucide-react';
+import { BarChart3, Map, Calendar, Package, AlertTriangle } from 'lucide-react';
 import { formatDateForDisplay } from '../utils/dateHelpers';
 import { formatQuantity } from '../utils/quantityFormat';
-import { calculateUsageCost } from '../utils/costCalculation';
+import { calculateUsageCost, getEffectiveArea, areaInHectares } from '../utils/costCalculation';
 
 const Statistics = () => {
   const { areas, operations, products, activeSeason } = useAppContext();
@@ -43,7 +43,7 @@ const Statistics = () => {
   
   // Calculate statistics
   const stats = {
-    totalArea: areas.reduce((acc, area) => acc + area.size, 0),
+    totalArea: areas.reduce((acc, area) => acc + areaInHectares(area.size, area.unit), 0),
     operationsByType: {} as Record<string, { count: number; area: number }>,
     productUsage: {} as Record<string, { quantity: number; totalCost: number }>,
     areasWithoutOperations: areas.filter(area => 
@@ -61,7 +61,7 @@ const Statistics = () => {
       stats.operationsByType[operation.type] = { count: 0, area: 0 };
     }
     stats.operationsByType[operation.type].count++;
-    stats.operationsByType[operation.type].area += area.size;
+    stats.operationsByType[operation.type].area += areaInHectares(getEffectiveArea(operation, area), area.unit);
   });
   
   // Calculate product usage

@@ -1,3 +1,4 @@
+import { insertBusinessRecord, type StoredDates } from '../lib/businessWrites';
 import React, { createContext, useContext, ReactNode, useEffect, useCallback } from 'react';
 import { useAppContext } from './AppContext';
 import { supabase } from '../lib/supabase';
@@ -16,6 +17,7 @@ interface MachineryContextType {
   getMachineryById: (id: string) => Machinery | undefined;
 
   maintenanceTypes: MaintenanceType[];
+  refreshMaintenanceTypes: () => Promise<void>;
   addMaintenanceType: (type: Omit<MaintenanceType, 'id' | 'createdAt' | 'userId' | 'institutionId'>) => Promise<MaintenanceType>;
   updateMaintenanceType: (id: string, type: Partial<MaintenanceType>) => Promise<void>;
   deleteMaintenanceType: (id: string) => Promise<void>;
@@ -70,10 +72,11 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const formattedMachinery = data.map(machine => ({
         ...machine,
+        description: machine.description ?? undefined, model: machine.model ?? undefined, year: machine.year ?? undefined,
         userId: machine.user_id,
         institutionId: machine.institution_id,
-        createdAt: new Date(machine.created_at),
-        updatedAt: new Date(machine.updated_at)
+        createdAt: new Date(machine.created_at ?? 0),
+        updatedAt: new Date(machine.updated_at ?? 0)
       }));
 
       setMachinery(formattedMachinery);
@@ -97,9 +100,10 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const formattedTypes = data.map(type => ({
         ...type,
+        description: type.description ?? undefined,
         userId: type.user_id,
         institutionId: type.institution_id,
-        createdAt: new Date(type.created_at)
+        createdAt: new Date(type.created_at ?? 0)
       }));
 
       setMaintenanceTypes(formattedTypes);
@@ -123,16 +127,17 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const formattedMaintenances = data.map(maintenance => ({
         ...maintenance,
+        notes: maintenance.notes ?? undefined,
         machineryId: maintenance.machinery_id,
         maintenanceTypeId: maintenance.maintenance_type_id,
-        description: maintenance.description,
-        materialUsed: maintenance.material_used,
-        machineHours: maintenance.machine_hours,
+        description: maintenance.description ?? undefined,
+        materialUsed: maintenance.material_used ?? undefined,
+        machineHours: maintenance.machine_hours ?? undefined,
         userId: maintenance.user_id,
         institutionId: maintenance.institution_id,
         date: parseDate(maintenance.date)!,
-        createdAt: new Date(maintenance.created_at),
-        updatedAt: new Date(maintenance.updated_at)
+        createdAt: new Date(maintenance.created_at ?? 0),
+        updatedAt: new Date(maintenance.updated_at ?? 0)
       }));
 
       setMaintenances(formattedMaintenances);
@@ -166,31 +171,27 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
         throw new Error('User must belong to an institution to add machinery');
       }
 
-      const { data, error } = await supabase
-        .from('machinery')
-        .insert([{
+      const { data, error } = await insertBusinessRecord<Omit<Machinery, 'createdAt' | 'updatedAt'> & StoredDates>('machinery', {
           name: machineryData.name,
           description: machineryData.description,
           model: machineryData.model,
           year: machineryData.year,
           user_id: user.id,
           institution_id: userProfile.institution_id
-        }])
-        .select()
-        .single();
+        });
 
       if (error) throw error;
 
       const newMachinery: Machinery = {
         ...data,
+        description: data.description ?? undefined, model: data.model ?? undefined, year: data.year ?? undefined,
         userId: data.user_id,
         institutionId: data.institution_id,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
+        createdAt: new Date(data.created_at ?? 0),
+        updatedAt: new Date(data.updated_at ?? 0)
       };
 
-      const updatedMachinery = [newMachinery, ...machinery];
-      setMachinery(updatedMachinery);
+      setMachinery(previous => [newMachinery, ...previous]);
     } catch (error) {
       console.error('Error adding machinery:', error);
       throw error;
@@ -201,15 +202,20 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
+      const original = machinery.find(item => item.id === id);
+      if (!original) throw new Error("Registro indisponível. Atualize a página.");
+      const expected = updatedData.updatedAt ?? original.updatedAt;
       const { data, error } = await supabase
         .from('machinery')
         .update({
           name: updatedData.name,
           description: updatedData.description,
           model: updatedData.model,
-          year: updatedData.year
+          year: 'year' in updatedData ? updatedData.year ?? null : undefined
         })
         .eq('id', id)
+        .gte('updated_at', expected.toISOString())
+        .lt('updated_at', new Date(expected.getTime() + 1).toISOString())
         .select()
         .single();
 
@@ -217,17 +223,16 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const updatedMachine: Machinery = {
         ...data,
+        description: data.description ?? undefined, model: data.model ?? undefined, year: data.year ?? undefined,
         userId: data.user_id,
         institutionId: data.institution_id,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
+        createdAt: new Date(data.created_at ?? 0),
+        updatedAt: new Date(data.updated_at ?? 0)
       };
 
-      const updatedMachinery = machinery.map(machine =>
+      setMachinery(previous => previous.map(machine =>
         machine.id === id ? updatedMachine : machine
-      );
-
-      setMachinery(updatedMachinery);
+      ));
     } catch (error) {
       console.error('Error updating machinery:', error);
       throw error;
@@ -241,12 +246,11 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
       const { error } = await supabase
         .from('machinery')
         .delete()
-        .eq('id', id);
+        .eq('id', id).select('id').single();
 
       if (error) throw error;
 
-      const updatedMachinery = machinery.filter(machine => machine.id !== id);
-      setMachinery(updatedMachinery);
+      setMachinery(previous => previous.filter(machine => machine.id !== id));
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT')) {
@@ -278,28 +282,24 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
         throw new Error('User must belong to an institution to add maintenance type');
       }
 
-      const { data, error } = await supabase
-        .from('maintenance_types')
-        .insert([{
+      const { data, error } = await insertBusinessRecord<Omit<MaintenanceType, 'createdAt'> & StoredDates>('maintenance_types', {
           name: typeData.name,
           description: typeData.description,
           user_id: user.id,
           institution_id: userProfile.institution_id
-        }])
-        .select()
-        .single();
+        });
 
       if (error) throw error;
 
       const newType: MaintenanceType = {
         ...data,
+        description: data.description ?? undefined,
         userId: data.user_id,
         institutionId: data.institution_id,
-        createdAt: new Date(data.created_at)
+        createdAt: new Date(data.created_at ?? 0)
       };
 
-      const updatedTypes = [newType, ...maintenanceTypes];
-      setMaintenanceTypes(updatedTypes);
+      setMaintenanceTypes(previous => [newType, ...previous]);
 
       return newType;
     } catch (error) {
@@ -326,16 +326,15 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const updatedType: MaintenanceType = {
         ...data,
+        description: data.description ?? undefined,
         userId: data.user_id,
         institutionId: data.institution_id,
-        createdAt: new Date(data.created_at)
+        createdAt: new Date(data.created_at ?? 0)
       };
 
-      const updatedTypes = maintenanceTypes.map(type =>
+      setMaintenanceTypes(previous => previous.map(type =>
         type.id === id ? updatedType : type
-      );
-
-      setMaintenanceTypes(updatedTypes);
+      ));
     } catch (error) {
       console.error('Error updating maintenance type:', error);
       throw error;
@@ -349,12 +348,11 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
       const { error } = await supabase
         .from('maintenance_types')
         .delete()
-        .eq('id', id);
+        .eq('id', id).select('id').single();
 
       if (error) throw error;
 
-      const updatedTypes = maintenanceTypes.filter(type => type.id !== id);
-      setMaintenanceTypes(updatedTypes);
+      setMaintenanceTypes(previous => previous.filter(type => type.id !== id));
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT')) {
@@ -382,41 +380,37 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
         throw new Error('User must belong to an institution to add maintenance');
       }
 
-      const { data, error } = await supabase
-        .from('maintenances')
-        .insert([{
+      const { data, error } = await insertBusinessRecord<Omit<Maintenance, 'createdAt' | 'updatedAt' | 'date'> & StoredDates & { date: string; machinery_id: string; maintenance_type_id: string; material_used?: string; machine_hours?: number }>('maintenances', {
           machinery_id: maintenanceData.machineryId,
           maintenance_type_id: maintenanceData.maintenanceTypeId,
           description: maintenanceData.description || null,
           material_used: maintenanceData.materialUsed || null,
           date: dateToDateString(maintenanceData.date),
-          machine_hours: maintenanceData.machineHours || null,
+          machine_hours: maintenanceData.machineHours ?? null,
           cost: maintenanceData.cost || 0,
           notes: maintenanceData.notes || null,
           user_id: user.id,
           institution_id: userProfile.institution_id
-        }])
-        .select()
-        .single();
+        });
 
       if (error) throw error;
 
       const newMaintenance: Maintenance = {
         ...data,
+        notes: data.notes ?? undefined,
         machineryId: data.machinery_id,
         maintenanceTypeId: data.maintenance_type_id,
-        description: data.description,
-        materialUsed: data.material_used,
-        machineHours: data.machine_hours,
+        description: data.description ?? undefined,
+        materialUsed: data.material_used ?? undefined,
+        machineHours: data.machine_hours ?? undefined,
         userId: data.user_id,
         institutionId: data.institution_id,
         date: parseDate(data.date)!,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
+        createdAt: new Date(data.created_at ?? 0),
+        updatedAt: new Date(data.updated_at ?? 0)
       };
 
-      const updatedMaintenances = [newMaintenance, ...maintenances];
-      setMaintenances(updatedMaintenances);
+      setMaintenances(previous => [newMaintenance, ...previous]);
     } catch (error) {
       console.error('Error adding maintenance:', error);
       throw error;
@@ -427,19 +421,24 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
+      const original = maintenances.find(item => item.id === id);
+      if (!original) throw new Error("Registro indisponível. Atualize a página.");
+      const expected = updatedData.updatedAt ?? original.updatedAt;
       const { data, error } = await supabase
         .from('maintenances')
         .update({
           machinery_id: updatedData.machineryId,
           maintenance_type_id: updatedData.maintenanceTypeId,
-          description: updatedData.description || null,
-          material_used: updatedData.materialUsed,
-          date: updatedData.date ? dateToDateString(updatedData.date) : undefined,
-          machine_hours: updatedData.machineHours,
+          description: 'description' in updatedData ? updatedData.description || null : undefined,
+          material_used: 'materialUsed' in updatedData ? updatedData.materialUsed ?? null : undefined,
+          date: updatedData.date ? dateToDateString(updatedData.date)! : undefined,
+          machine_hours: 'machineHours' in updatedData ? updatedData.machineHours ?? null : undefined,
           cost: updatedData.cost,
-          notes: updatedData.notes
+          notes: 'notes' in updatedData ? updatedData.notes ?? null : undefined
         })
         .eq('id', id)
+        .gte('updated_at', expected.toISOString())
+        .lt('updated_at', new Date(expected.getTime() + 1).toISOString())
         .select()
         .single();
 
@@ -447,23 +446,22 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
 
       const updatedMaintenance: Maintenance = {
         ...data,
+        notes: data.notes ?? undefined,
         machineryId: data.machinery_id,
         maintenanceTypeId: data.maintenance_type_id,
-        description: data.description,
-        materialUsed: data.material_used,
-        machineHours: data.machine_hours,
+        description: data.description ?? undefined,
+        materialUsed: data.material_used ?? undefined,
+        machineHours: data.machine_hours ?? undefined,
         userId: data.user_id,
         institutionId: data.institution_id,
         date: parseDate(data.date)!,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
+        createdAt: new Date(data.created_at ?? 0),
+        updatedAt: new Date(data.updated_at ?? 0)
       };
 
-      const updatedMaintenances = maintenances.map(maintenance =>
+      setMaintenances(previous => previous.map(maintenance =>
         maintenance.id === id ? updatedMaintenance : maintenance
-      );
-
-      setMaintenances(updatedMaintenances);
+      ));
     } catch (error) {
       console.error('Error updating maintenance:', error);
       throw error;
@@ -477,12 +475,11 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
       const { error } = await supabase
         .from('maintenances')
         .delete()
-        .eq('id', id);
+        .eq('id', id).select('id').single();
 
       if (error) throw error;
 
-      const updatedMaintenances = maintenances.filter(maintenance => maintenance.id !== id);
-      setMaintenances(updatedMaintenances);
+      setMaintenances(previous => previous.filter(maintenance => maintenance.id !== id));
     } catch (error) {
       console.error('Error deleting maintenance:', error);
       throw error;
@@ -502,6 +499,7 @@ export const MachineryProvider: React.FC<MachineryProviderProps> = ({ children }
     deleteMachinery,
     getMachineryById,
     maintenanceTypes,
+    refreshMaintenanceTypes: loadMaintenanceTypes,
     addMaintenanceType,
     updateMaintenanceType,
     deleteMaintenanceType,

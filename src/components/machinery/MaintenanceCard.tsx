@@ -2,7 +2,7 @@ import React from 'react';
 import { MaintenanceWithDetails } from '../../types/machinery';
 import Card from '../ui/Card';
 import Badge from '../ui/Badge';
-import { Calendar, User, FileText, Pencil, Trash2, Wrench, Clock, DollarSign } from 'lucide-react';
+import { Calendar, FileText, Pencil, Trash2, Wrench, Clock, DollarSign } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '../ui/Button';
 import { useLanguage } from '../../context/LanguageContext';
@@ -88,7 +88,7 @@ const MaintenanceCard: React.FC<MaintenanceCardProps> = ({
             <span>{formatDate(maintenance.date)}</span>
           </div>
 
-          {maintenance.machineHours && (
+          {maintenance.machineHours != null && (
             <div className="flex items-center text-gray-700">
               <Clock size={16} className="mr-2" />
               <span>

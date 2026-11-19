@@ -1,3 +1,4 @@
+import { useSubmitGuard } from '../../hooks/useSubmitGuard';
 import React, { useState } from 'react';
 import { Note } from '../../types/notes';
 import Input from '../ui/Input';
@@ -20,6 +21,8 @@ const NoteForm: React.FC<NoteFormProps> = ({
   isEditing = false,
 }) => {
   const navigate = useNavigate();
+  const { saving, runSubmit } = useSubmitGuard();
+  const initialRevision = React.useRef(initialData.updatedAt);
   const { language } = useLanguage();
   const { isOnline } = useNetworkStatus();
 
@@ -87,18 +90,19 @@ const NoteForm: React.FC<NoteFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validate()) return;
 
-    onSubmit({
+    await runSubmit(() => onSubmit({
+      ...{ updatedAt: initialRevision.current },
       title: formData.title,
       content: formData.content,
       noteDate: inputValueToDate(formData.noteDate),
       isCompleted: formData.isCompleted,
       completedDate: formData.completedDate ? inputValueToDate(formData.completedDate) : null,
-    });
+    }));
   };
 
   return (
@@ -193,8 +197,9 @@ const NoteForm: React.FC<NoteFormProps> = ({
         </Button>
         <Button
           type="submit"
+          isLoading={saving}
           leftIcon={<Save size={18} />}
-          disabled={!isOnline}
+          disabled={saving || !isOnline}
         >
           {isEditing
             ? (language === 'pt' ? 'Atualizar Anotação' : 'Update Note')

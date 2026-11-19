@@ -5,10 +5,11 @@ import { useLanguage } from '../../context/LanguageContext';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Badge from '../ui/Badge';
-import { Plus, Pencil, Trash2, X, Save, AlertTriangle, Package, Archive, PackagePlus, ArrowRightLeft } from 'lucide-react';
+import { Pencil, Trash2, X, Save, AlertTriangle, Package, Archive, PackagePlus, ArrowRightLeft } from 'lucide-react';
 import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { formatQuantity } from '../../utils/quantityFormat';
+import { writeErrorMessage } from '../../lib/businessWrites';
 import StockActions from './StockActions';
 
 interface LotManagerProps {
@@ -47,6 +48,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
   const submittingRef = useRef(false);
   const idempotencyRef = useRef<string>('');
 
@@ -178,6 +180,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
     submittingRef.current = true;
     setIsSubmitting(true);
     setSuccessMsg(null);
+    setActionError('');
 
     try {
       if (formMode === 'receive') {
@@ -260,6 +263,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
         return;
       } else {
         console.error('Error saving lot:', error);
+        setActionError(writeErrorMessage(error));
       }
     } finally {
       submittingRef.current = false;
@@ -273,6 +277,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
         await deleteLot(lotId);
       } catch (error) {
         console.error('Error deleting lot:', error);
+        setActionError(writeErrorMessage(error));
       }
     }
   };
@@ -309,6 +314,7 @@ const LotManager: React.FC<LotManagerProps> = ({ productId }) => {
         )}
       </div>
 
+      {actionError && <p role="alert" className="rounded bg-red-50 p-3 text-sm text-red-800">{actionError}</p>}
       {successMsg && (
         <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-sm text-green-800">
           {successMsg}

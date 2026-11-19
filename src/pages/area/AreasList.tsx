@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { writeErrorMessage } from '../../lib/businessWrites';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -16,11 +17,11 @@ const AreasList = () => {
   // Filter areas based on search term
   const filteredAreas = areas.filter((area) =>
     area.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    area.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (area.currentCrop && area.currentCrop.toLowerCase().includes(searchTerm.toLowerCase()))
+    (area.location ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (area.current_crop ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   );
   
-  const handleDeleteArea = (id: string) => {
+  const handleDeleteArea = async (id: string) => {
     const areaOperations = operations.filter((op) => op.areaId === id);
     if (areaOperations.length > 0) {
       alert(language === 'pt'
@@ -33,7 +34,7 @@ const AreasList = () => {
       ? 'Tem certeza que deseja excluir esta área?'
       : 'Are you sure you want to delete this area?'
     )) {
-      deleteArea(id);
+      try { await deleteArea(id); } catch (error) { alert(writeErrorMessage(error)); }
     }
   };
 

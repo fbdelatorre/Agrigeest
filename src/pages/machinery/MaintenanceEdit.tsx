@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMachineryContext } from '../../context/MachineryContext';
 import MaintenanceForm from '../../components/machinery/MaintenanceForm';
@@ -98,7 +98,7 @@ const MaintenanceEdit = () => {
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-sm">
-        <MaintenanceForm
+        <MaintenanceForm key={id}
           initialData={maintenance}
           onSubmit={handleSubmit}
           isEditing={true}

@@ -1,4 +1,4 @@
-import React from 'react';
+import { writeErrorMessage } from '../../lib/businessWrites';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import AreaForm from '../../components/areas/AreaForm';
@@ -10,9 +10,9 @@ const AreaCreate = () => {
   const navigate = useNavigate();
   const { addArea } = useAppContext();
   
-  const handleSubmit = (areaData: Omit<Area, 'id' | 'createdAt' | 'updatedAt'>) => {
-    addArea(areaData);
-    navigate('/areas');
+  const handleSubmit = async (areaData: Omit<Area, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try { await addArea(areaData); navigate('/areas'); }
+    catch (error) { alert(writeErrorMessage(error)); }
   };
 
   return (

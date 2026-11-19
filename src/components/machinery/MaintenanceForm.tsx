@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useSubmitGuard } from '../../hooks/useSubmitGuard';
+import RecordActions from '../ui/RecordActions';
+import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMachineryContext } from '../../context/MachineryContext';
 import { Maintenance } from '../../types/machinery';
@@ -23,7 +25,9 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
   isEditing = false,
 }) => {
   const navigate = useNavigate();
-  const { machinery, maintenanceTypes, addMaintenanceType } = useMachineryContext();
+  const { saving, runSubmit } = useSubmitGuard();
+  const initialRevision = React.useRef(initialData.updatedAt);
+  const { machinery, maintenanceTypes, addMaintenanceType, refreshMaintenanceTypes } = useMachineryContext();
   const { language } = useLanguage();
   const { isOnline } = useNetworkStatus();
   const [searchParams] = useSearchParams();
@@ -45,6 +49,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
   const [showNewTypeInput, setShowNewTypeInput] = useState(false);
   const [newMaintenanceType, setNewMaintenanceType] = useState('');
   const [newTypeDescription, setNewTypeDescription] = useState('');
+  const [manageTypes, setManageTypes] = useState(false);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -109,12 +114,13 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validate()) return;
 
-    onSubmit({
+    await runSubmit(() => onSubmit({
+      ...{ updatedAt: initialRevision.current },
       machineryId: formData.machineryId,
       maintenanceTypeId: formData.maintenanceTypeId,
       description: formData.description || undefined,
@@ -123,7 +129,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
       machineHours: formData.machineHours ? Number(formData.machineHours) : undefined,
       cost: Number(formData.cost),
       notes: formData.notes || undefined,
-    });
+    }));
   };
 
   const machineryOptions = machinery.map((machine) => ({
@@ -137,6 +143,14 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
   }));
 
   return (
+    <div className="space-y-4">
+    <Button type="button" variant="outline" onClick={() => setManageTypes(!manageTypes)}>Gerenciar tipos de manutenção</Button>
+    {manageTypes && <section className="space-y-3 rounded border p-3">
+      {maintenanceTypes.map(type => <div className="space-y-1 rounded border p-2" key={type.id}>
+        <p>{type.name}</p><RecordActions table="maintenance_types" record={{ id: type.id, name: type.name, description: type.description ?? null }}
+          onSaved={() => void refreshMaintenanceTypes()} />
+      </div>)}
+    </section>}
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Select
@@ -214,6 +228,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
           ) : (
             <Select
               name="maintenanceTypeId"
+              aria-label={language === 'pt' ? 'Tipo de manutenção' : 'Maintenance type'}
               value={formData.maintenanceTypeId}
               onChange={handleChange}
               options={[
@@ -323,8 +338,9 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
         </Button>
         <Button
           type="submit"
+          isLoading={saving}
           leftIcon={<Save size={18} />}
-          disabled={!isOnline}
+          disabled={saving || !isOnline}
         >
           {isEditing 
             ? (language === 'pt' ? 'Atualizar Manutenção' : 'Update Maintenance')
@@ -332,6 +348,7 @@ const MaintenanceForm: React.FC<MaintenanceFormProps> = ({
         </Button>
       </div>
     </form>
+    </div>
   );
 };
 

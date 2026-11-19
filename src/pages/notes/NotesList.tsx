@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { writeErrorMessage } from '../../lib/businessWrites';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useNotesContext } from '../../context/NotesContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -26,12 +27,12 @@ const NotesList = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const handleDeleteNote = (id: string) => {
+  const handleDeleteNote = async (id: string) => {
     if (window.confirm(language === 'pt'
       ? 'Tem certeza que deseja excluir esta anotação?'
       : 'Are you sure you want to delete this note?'
     )) {
-      deleteNote(id);
+      try { await deleteNote(id); } catch (error) { alert(writeErrorMessage(error)); }
     }
   };
 

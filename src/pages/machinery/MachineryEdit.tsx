@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMachineryContext } from '../../context/MachineryContext';
 import MachineryForm from '../../components/machinery/MachineryForm';
@@ -80,7 +80,7 @@ const MachineryEdit = () => {
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-sm">
-        <MachineryForm
+        <MachineryForm key={id}
           initialData={machinery}
           onSubmit={handleSubmit}
           isEditing={true}

@@ -1,4 +1,4 @@
-import React from 'react';
+import { writeErrorMessage } from '../../lib/businessWrites';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import OperationCard from '../../components/operations/OperationCard';
@@ -11,7 +11,7 @@ import { jsPDF } from 'jspdf';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { formatDateForDisplay } from '../../utils/dateHelpers';
-import { calculateOperationCost, getEffectiveArea } from '../../utils/costCalculation';
+import { calculateAreaCost } from '../../utils/costCalculation';
 
 const AreaDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -40,7 +40,7 @@ const AreaDetail = () => {
   
   const allAreaOperations = allOperations.filter((op) => op.areaId === id);
 
-  const handleDeleteArea = () => {
+  const handleDeleteArea = async () => {
     if (allAreaOperations.length > 0) {
       alert(language === 'pt'
         ? `Esta área possui ${allAreaOperations.length} operação(ões) registrada(s) e não pode ser excluída enquanto houver histórico vinculado a ela.`
@@ -52,17 +52,17 @@ const AreaDetail = () => {
       ? 'Tem certeza que deseja excluir esta área?'
       : 'Are you sure you want to delete this area?'
     )) {
-      deleteArea(id);
-      navigate('/areas');
+      try { await deleteArea(id);
+      navigate('/areas'); } catch (error) { alert(writeErrorMessage(error)); }
     }
   };
   
-  const handleDeleteOperation = (operationId: string) => {
+  const handleDeleteOperation = async (operationId: string) => {
     if (window.confirm(language === 'pt'
       ? 'Tem certeza que deseja excluir esta operação?'
       : 'Are you sure you want to delete this operation?'
     )) {
-      deleteOperation(operationId);
+      try { await deleteOperation(operationId); } catch (error) { alert(writeErrorMessage(error)); }
     }
   };
 
@@ -111,24 +111,7 @@ const AreaDetail = () => {
 
   // Calculate total spent and cost per hectare
   const calculateCosts = () => {
-    let totalSpent = 0;
-    let costPerHectareSum = 0;
-    let hasUnknown = false;
-    let hasEstimated = false;
-
-    operations.forEach(operation => {
-      const { knownCost, hasUnknownCost, hasEstimatedCost } = calculateOperationCost(operation, getProductById);
-      totalSpent += knownCost;
-      if (hasUnknownCost) hasUnknown = true;
-      if (hasEstimatedCost) hasEstimated = true;
-
-      const effectiveArea = getEffectiveArea(operation, area);
-      if (effectiveArea > 0) {
-        costPerHectareSum += knownCost / effectiveArea;
-      }
-    });
-
-    return { totalSpent, costPerHectare: costPerHectareSum, hasUnknownCost: hasUnknown, hasEstimatedCost: hasEstimated };
+    return calculateAreaCost(operations, area, getProductById);
   };
 
   const { totalSpent, costPerHectare, hasUnknownCost, hasEstimatedCost } = calculateCosts();
@@ -347,7 +330,7 @@ const AreaDetail = () => {
       );
     }
 
-    const pageCount = doc.internal.getNumberOfPages();
+    const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(10);

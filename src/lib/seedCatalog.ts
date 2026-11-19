@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { auditedStockRpc } from './businessWrites';
 import type { Database, Json } from './database.types';
 import type { Product } from '../types';
 import { supabase } from './supabase';
@@ -54,14 +55,14 @@ export async function readProductCrop(productId: string) {
 
 export function createProductWithCrop(payload: CreateArgs, crop?: string) {
   return crop
-    ? seedClient.rpc('create_product_with_crop', { p_product: payload, p_crop: crop })
-    : seedClient.rpc('create_product_with_lots', payload);
+    ? auditedStockRpc<CreatedProduct>('create_product_with_crop', { p_product: payload, p_crop: crop })
+    : auditedStockRpc<CreatedProduct>('create_product_with_lots', payload);
 }
 
 export function updateProductWithCrop(payload: UpdateArgs, crop: string | null | undefined) {
   return crop !== undefined
-    ? seedClient.rpc('update_product_with_crop', { p_product: payload, p_crop: crop })
-    : seedClient.rpc('update_product_details', payload);
+    ? auditedStockRpc<ProductRow>('update_product_with_crop', { p_product: payload, p_crop: crop })
+    : auditedStockRpc<ProductRow>('update_product_details', payload);
 }
 
 export function toInventoryProduct(row: ProductRow, crop?: string): Product {

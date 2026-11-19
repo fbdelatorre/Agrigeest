@@ -307,7 +307,8 @@ export async function parseShapefile(file: File): Promise<ImportedPolygon[]> {
   const shp = (await import('shpjs')).default;
   const geojson = await shp(arrayBuffer);
 
-  const features: GeoJSON.Feature[] = geojson.type === 'FeatureCollection' ? geojson.features : [geojson];
+  const collections = Array.isArray(geojson) ? geojson : [geojson];
+  const features: GeoJSON.Feature[] = collections.flatMap(collection => collection.features);
   const results: ImportedPolygon[] = [];
 
   features.forEach((feature, i) => {

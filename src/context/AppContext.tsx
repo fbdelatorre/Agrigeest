@@ -1,15 +1,22 @@
+import { insertBusinessRecord, type StoredDates } from '../lib/businessWrites';
 import { createProductWithCrop, loadSeedCatalog, toInventoryProduct, updateProductWithCrop, type ProductRow } from '../lib/seedCatalog';
 import { isSeedCategory, plantingDetails, plantingsForSeason, snapshotPlantingSeeds } from '../utils/seasonPlanting';
 import { FieldSyncProvider } from './FieldSyncContext';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { executeFieldRecommendation } from '../lib/fieldData';
+import { auditedStockRpc, writeOperationRequest } from '../lib/businessWrites';
 import {
   Area,
   Operation,
   Product,
   ProductLot
 } from '../types';
+type StoredOperation = Omit<Operation, 'areaId' | 'startDate' | 'endDate' | 'nextOperationDate' | 'operatedBy' | 'productsUsed' | 'operationSize' | 'yieldPerHectare' | 'seedsPerHectare' | 'createdAt' | 'updatedAt'> & {
+  area_id: string; start_date: string; end_date: string | null; next_operation_date: string | null; operated_by: string;
+  products_used: Operation['productsUsed']; operation_size: number | null; yield_per_hectare: number | null;
+  seeds_per_hectare: number | null; created_at: string; updated_at: string;
+};
 import { AreaMapSummary } from '../types/farmMap';
 import { parseAreaBoundary } from '../utils/farmMap/areaBoundary';
 import { stripZCoordinates } from '../utils/farmMap/farmMapHelpers';
@@ -67,7 +74,8 @@ interface AppContextType {
   deleteLot: (id: string) => Promise<void>;
   getLotsByProductId: (productId: string) => ProductLot[];
   addInventoryStock: (productId: string, quantity: number, idempotencyKey: string, lotId?: string | null, reason?: string | null, notes?: string | null, unitCost?: number | null) => Promise<void>;
-  adjustInventoryStock: (productId: string, targetQuantity: number, reason: string, idempotencyKey: string, lotId?: string | null, notes?: string | null) => Promise<void>;
+  adjustInventoryStock: (productId: string, targetQuantity: number, reason: string, idempotencyKey: string, lotId?: string | null, notes?: string | null, expectedQuantity?: number) => Promise<void>;
+  reloadInventory: () => Promise<void>;
   archiveLot: (lotId: string) => Promise<void>;
   receiveProductLot: (productId: string, quantity: number, idempotencyKey: string, lotNumber?: string | null, expirationDate?: string | null, reason?: string | null, notes?: string | null, unitCost?: number | null) => Promise<void>;
   classifyUntrackedStock: (productId: string, quantity: number, lotNumber: string, expirationDate?: string | null, notes?: string | null) => Promise<void>;
@@ -126,7 +134,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId, emai
         id: data.id,
         firstName: data.first_name,
         lastName: data.last_name,
-        email: data.email || email || '',
+        email: email || '',
         phone: data.phone || '',
         role: data.role || '',
         institution: data.institution || '',
@@ -219,10 +227,11 @@ const InstitutionData: React.FC<{
 
       const formattedAreas = data.map(area => ({
         ...area,
+        description: area.description ?? undefined, geometry: area.geometry ?? undefined,
         current_crop: area.current_crop || undefined,
         cultivar: area.cultivar || undefined,
-        createdAt: new Date(area.created_at),
-        updatedAt: new Date(area.updated_at)
+        createdAt: new Date(area.created_at ?? 0),
+        updatedAt: new Date(area.updated_at ?? 0)
       }));
 
       setAreas(formattedAreas);
@@ -247,6 +256,7 @@ const InstitutionData: React.FC<{
 
       const formattedOperations = data.map(operation => ({
         ...operation,
+        notes: operation.notes ?? undefined, season_id: operation.season_id ?? undefined,
         areaId: operation.area_id,
         startDate: parseDate(operation.start_date)!,
         endDate: parseDate(operation.end_date),
@@ -254,10 +264,10 @@ const InstitutionData: React.FC<{
         operatedBy: operation.operated_by,
         productsUsed: operation.products_used || [],
         operationSize: operation.operation_size ?? 0,
-        yieldPerHectare: operation.yield_per_hectare,
-        seedsPerHectare: operation.seeds_per_hectare,
-        createdAt: new Date(operation.created_at),
-        updatedAt: new Date(operation.updated_at)
+        yieldPerHectare: operation.yield_per_hectare ?? undefined,
+        seedsPerHectare: operation.seeds_per_hectare ?? undefined,
+        createdAt: new Date(operation.created_at ?? 0),
+        updatedAt: new Date(operation.updated_at ?? 0)
       }));
 
       setOperations(formattedOperations);
@@ -315,8 +325,8 @@ const InstitutionData: React.FC<{
         lotNumber: lot.lot_number,
         quantity: Number(lot.quantity),
         expirationDate: lot.expiration_date ? parseDate(lot.expiration_date) : undefined,
-        createdAt: new Date(lot.created_at),
-        updatedAt: new Date(lot.updated_at),
+        createdAt: new Date(lot.created_at ?? 0),
+        updatedAt: new Date(lot.updated_at ?? 0),
         archivedAt: lot.archived_at ? new Date(lot.archived_at) : undefined
       }));
 
@@ -376,25 +386,20 @@ const InstitutionData: React.FC<{
         throw new Error('User must belong to an institution to add an area');
       }
 
-      const { data, error } = await supabase
-        .from('areas')
-        .insert([{
+      const { data, error } = await insertBusinessRecord<Omit<Area, 'createdAt' | 'updatedAt'> & StoredDates>('areas', {
           name: area.name, size: area.size, unit: area.unit, location: area.location,
           description: area.description,
           user_id: user.id, institution_id: userProfile.institution_id
-        }])
-        .select()
-        .single();
+        });
 
       if (error) throw error;
 
       const newArea: Area = {
-        ...data, current_crop: data.current_crop || undefined, cultivar: data.cultivar || undefined,
-        createdAt: new Date(data.created_at), updatedAt: new Date(data.updated_at)
+        ...data, description: data.description ?? undefined, geometry: data.geometry ?? undefined, current_crop: data.current_crop || undefined, cultivar: data.cultivar || undefined,
+        createdAt: new Date(data.created_at ?? 0), updatedAt: new Date(data.updated_at ?? 0)
       };
 
-      const updatedAreas = [newArea, ...areas];
-      setAreas(updatedAreas);
+      setAreas(previous => [newArea, ...previous]);
     } catch (error) {
       console.error('Error adding area:', error);
       throw error;
@@ -405,6 +410,9 @@ const InstitutionData: React.FC<{
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
+      const original = areas.find(item => item.id === id);
+      if (!original) throw new Error("Registro indisponível. Atualize a página.");
+      const expected = updatedData.updatedAt ?? original.updatedAt;
       const { data, error } = await supabase
         .from('areas')
         .update({
@@ -412,18 +420,19 @@ const InstitutionData: React.FC<{
           location: updatedData.location, description: updatedData.description,
         })
         .eq('id', id)
+        .gte('updated_at', expected.toISOString())
+        .lt('updated_at', new Date(expected.getTime() + 1).toISOString())
         .select()
         .single();
 
       if (error) throw error;
 
       const updatedArea: Area = {
-        ...data, current_crop: data.current_crop || undefined, cultivar: data.cultivar || undefined,
-        createdAt: new Date(data.created_at), updatedAt: new Date(data.updated_at)
+        ...data, description: data.description ?? undefined, geometry: data.geometry ?? undefined, current_crop: data.current_crop || undefined, cultivar: data.cultivar || undefined,
+        createdAt: new Date(data.created_at ?? 0), updatedAt: new Date(data.updated_at ?? 0)
       };
 
-      const updatedAreas = areas.map(area => area.id === id ? updatedArea : area);
-      setAreas(updatedAreas);
+      setAreas(previous => previous.map(area => area.id === id ? updatedArea : area));
     } catch (error) {
       console.error('Error updating area:', error);
       throw error;
@@ -434,11 +443,10 @@ const InstitutionData: React.FC<{
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { error } = await supabase.from('areas').delete().eq('id', id);
+      const { error } = await supabase.from('areas').delete().eq('id', id).select('id').single();
       if (error) throw error;
 
-      const updatedAreas = areas.filter(area => area.id !== id);
-      setAreas(updatedAreas);
+      setAreas(previous => previous.filter(area => area.id !== id));
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT')) {
@@ -451,7 +459,7 @@ const InstitutionData: React.FC<{
 
   const getAreaById = (id: string) => seasonalAreas.find((area) => area.id === id);
 
-  const archiveDepletedLots = async (productsUsed: Record<string, unknown>[]) => {
+  const archiveDepletedLots = async (productsUsed: Operation['productsUsed']) => {
     const lotIds = new Set<string>();
     productsUsed.forEach((item) => {
       if (typeof item.lotId === 'string' && item.lotId) lotIds.add(item.lotId);
@@ -471,7 +479,7 @@ const InstitutionData: React.FC<{
     if (error) throw error;
 
     for (const lot of data ?? []) {
-      const { error: archiveError } = await supabase.rpc('archive_product_lot', { p_lot_id: lot.id });
+      const { error: archiveError } = await auditedStockRpc('archive_product_lot', { p_lot_id: lot.id });
       if (archiveError) throw archiveError;
     }
     if ((data ?? []).length > 0) await loadProductLots();
@@ -505,25 +513,24 @@ const InstitutionData: React.FC<{
         return;
       }
 
-      const { data, error } = await supabase.rpc('create_operation_with_stock', {
+      const args = {
         ...payload,
         p_area_id: operation.areaId,
         p_type: operation.type,
         p_season_id: activeSeason.id,
-      });
-      if (error) throw error;
+      };
+      const data = await writeOperationRequest<StoredOperation>('create', Object.fromEntries(Object.entries(args).map(([key, value]) => [key.slice(2), value])));
 
       const newOperation: Operation = {
-        ...data, areaId: data.area_id, startDate: parseDate(data.start_date)!,
+        ...data, notes: data.notes ?? undefined, season_id: data.season_id ?? undefined, areaId: data.area_id, startDate: parseDate(data.start_date)!,
         endDate: parseDate(data.end_date), nextOperationDate: parseDate(data.next_operation_date),
         operatedBy: data.operated_by, productsUsed: data.products_used || [],
-        operationSize: data.operation_size ?? 0, yieldPerHectare: data.yield_per_hectare,
-        seedsPerHectare: data.seeds_per_hectare, createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
+        operationSize: data.operation_size ?? 0, yieldPerHectare: data.yield_per_hectare ?? undefined,
+        seedsPerHectare: data.seeds_per_hectare ?? undefined, createdAt: new Date(data.created_at ?? 0),
+        updatedAt: new Date(data.updated_at ?? 0)
       };
 
-      const updatedOperations = [newOperation, ...operations];
-      setOperations(updatedOperations);
+      setOperations(previous => [newOperation, ...previous]);
 
       await loadProducts();
       await loadProductLots();
@@ -544,14 +551,14 @@ const InstitutionData: React.FC<{
       const used = updatedData.productsUsed ?? originalOperation.productsUsed ?? [];
       const type = updatedData.type ?? originalOperation.type;
       const plantingProducts = type === 'plantio' ? snapshotPlantingSeeds(used, products, originalOperation.productsUsed) : used;
-      const { data, error } = await supabase.rpc('update_operation_with_stock', {
+      const args = {
         p_operation_id: id,
         p_area_id: updatedData.areaId ?? originalOperation.areaId,
         p_type: updatedData.type ?? originalOperation.type,
         p_start_date: dateToDateString(updatedData.startDate ?? originalOperation.startDate),
         p_description: updatedData.description ?? originalOperation.description,
         p_operated_by: updatedData.operatedBy ?? originalOperation.operatedBy,
-        p_season_id: (originalOperation as Record<string, unknown>).season_id as string | null,
+        p_season_id: originalOperation.season_id ?? null,
         p_end_date: dateToDateString('endDate' in updatedData ? updatedData.endDate : originalOperation.endDate),
         p_next_operation_date: dateToDateString('nextOperationDate' in updatedData ? updatedData.nextOperationDate : originalOperation.nextOperationDate),
         p_notes: updatedData.notes !== undefined ? updatedData.notes : (originalOperation.notes || null),
@@ -559,23 +566,24 @@ const InstitutionData: React.FC<{
         p_operation_size: updatedData.operationSize ?? originalOperation.operationSize ?? null,
         p_yield_per_hectare: updatedData.yieldPerHectare !== undefined ? updatedData.yieldPerHectare ?? null : (originalOperation.yieldPerHectare ?? null),
         p_seeds_per_hectare: updatedData.seedsPerHectare !== undefined ? updatedData.seedsPerHectare ?? null : (originalOperation.seedsPerHectare ?? null),
+      };
+      const data = await writeOperationRequest<StoredOperation>('update', {
+        ...Object.fromEntries(Object.entries(args).map(([key, value]) => [key.slice(2), value])), id,
+        expected_updated_at: (updatedData.updatedAt ?? originalOperation.updatedAt).toISOString(),
       });
 
-      if (error) throw error;
-
       const updatedOperation: Operation = {
-        ...data, areaId: data.area_id, startDate: parseDate(data.start_date)!,
+        ...data, notes: data.notes ?? undefined, season_id: data.season_id ?? undefined, areaId: data.area_id, startDate: parseDate(data.start_date)!,
         endDate: parseDate(data.end_date), nextOperationDate: parseDate(data.next_operation_date),
         operatedBy: data.operated_by, productsUsed: data.products_used || [],
-        operationSize: data.operation_size ?? 0, yieldPerHectare: data.yield_per_hectare,
-        seedsPerHectare: data.seeds_per_hectare, createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
+        operationSize: data.operation_size ?? 0, yieldPerHectare: data.yield_per_hectare ?? undefined,
+        seedsPerHectare: data.seeds_per_hectare ?? undefined, createdAt: new Date(data.created_at ?? 0),
+        updatedAt: new Date(data.updated_at ?? 0)
       };
 
-      const updatedOperations = operations.map(operation =>
+      setOperations(previous => previous.map(operation =>
         operation.id === id ? updatedOperation : operation
-      );
-      setOperations(updatedOperations);
+      ));
 
       await loadProducts();
       await loadProductLots();
@@ -590,11 +598,9 @@ const InstitutionData: React.FC<{
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { error } = await supabase.rpc('delete_operation_with_stock', {
-        p_operation_id: id,
-      });
-
-      if (error) throw error;
+      const original = operations.find(operation => operation.id === id);
+      if (!original) throw new Error('Operação indisponível. Atualize a página.');
+      await writeOperationRequest('cancel', { id, expected_updated_at: original.updatedAt.toISOString() });
 
       await loadOperations();
       await loadProducts();
@@ -642,8 +648,7 @@ const InstitutionData: React.FC<{
       if (error) throw error;
       const newProduct = toInventoryProduct(data.product, crop);
 
-      const updatedProducts = [newProduct, ...products];
-      setProducts(updatedProducts);
+      setProducts(previous => [newProduct, ...previous]);
       if (crop) setSeedCrops(previous => [...new Set([...previous, crop])]);
 
       if (data.lots && Array.isArray(data.lots) && data.lots.length > 0) {
@@ -688,8 +693,7 @@ const InstitutionData: React.FC<{
       if (error) throw error;
       const updatedProduct = toInventoryProduct(data, crop);
 
-      const updatedProducts = products.map(product => product.id === id ? updatedProduct : product);
-      setProducts(updatedProducts);
+      setProducts(previous => previous.map(product => product.id === id ? updatedProduct : product));
       if (crop) setSeedCrops(previous => [...new Set([...previous, crop])]);
     } catch (error) {
       console.error('Error updating product:', error);
@@ -701,11 +705,10 @@ const InstitutionData: React.FC<{
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { error } = await supabase.from('products').delete().eq('id', id);
+      const { error } = await supabase.from('products').delete().eq('id', id).select('id').single();
       if (error) throw error;
 
-      const updatedProducts = products.filter(product => product.id !== id);
-      setProducts(updatedProducts);
+      setProducts(previous => previous.filter(product => product.id !== id));
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes('23503') || msg.includes('restrict') || msg.includes('RESTRICT')) {
@@ -722,7 +725,7 @@ const InstitutionData: React.FC<{
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { data, error } = await supabase.rpc('create_product_lot', {
+      const { data, error } = await auditedStockRpc<{ id: string; product_id: string; lot_number: string; quantity: number; expiration_date: string | null; created_at: string; updated_at: string }>('create_product_lot', {
         p_product_id: lot.productId,
         p_lot_number: lot.lotNumber,
         p_quantity: lot.quantity,
@@ -735,7 +738,7 @@ const InstitutionData: React.FC<{
         id: data.id, productId: data.product_id, lotNumber: data.lot_number,
         quantity: Number(data.quantity),
         expirationDate: data.expiration_date ? parseDate(data.expiration_date) : undefined,
-        createdAt: new Date(data.created_at), updatedAt: new Date(data.updated_at)
+        createdAt: new Date(data.created_at ?? 0), updatedAt: new Date(data.updated_at ?? 0)
       };
 
       setProductLots(prev => [newLot, ...prev]);
@@ -749,7 +752,7 @@ const InstitutionData: React.FC<{
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { data, error } = await supabase.rpc('update_product_lot', {
+      const { data, error } = await auditedStockRpc<{ id: string; product_id: string; lot_number: string; quantity: number; expiration_date: string | null; created_at: string; updated_at: string }>('update_product_lot', {
         p_lot_id: id,
         p_lot_number: updatedData.lotNumber ?? null,
         p_quantity: updatedData.quantity ?? null,
@@ -765,7 +768,7 @@ const InstitutionData: React.FC<{
         id: data.id, productId: data.product_id, lotNumber: data.lot_number,
         quantity: Number(data.quantity),
         expirationDate: data.expiration_date ? parseDate(data.expiration_date) : undefined,
-        createdAt: new Date(data.created_at), updatedAt: new Date(data.updated_at)
+        createdAt: new Date(data.created_at ?? 0), updatedAt: new Date(data.updated_at ?? 0)
       };
 
       setProductLots(prev => prev.map(l => l.id === id ? updatedLot : l));
@@ -784,7 +787,7 @@ const InstitutionData: React.FC<{
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { error } = await supabase.rpc('delete_product_lot', {
+      const { error } = await auditedStockRpc('delete_product_lot', {
         p_lot_id: id,
       });
 
@@ -813,7 +816,7 @@ const InstitutionData: React.FC<{
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { error } = await supabase.rpc('add_inventory_stock', {
+      const { error } = await auditedStockRpc('add_inventory_stock', {
         p_product_id: productId,
         p_quantity: quantity,
         p_idempotency_key: idempotencyKey,
@@ -839,14 +842,16 @@ const InstitutionData: React.FC<{
     reason: string,
     idempotencyKey: string,
     lotId?: string | null,
-    notes?: string | null
+    notes?: string | null,
+    expectedQuantity?: number
   ) => {
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { error } = await supabase.rpc('adjust_inventory_stock', {
+      const { error } = await auditedStockRpc('adjust_inventory_stock', {
         p_product_id: productId,
         p_target_quantity: targetQuantity,
+        p_expected_quantity: expectedQuantity ?? null,
         p_reason: reason,
         p_idempotency_key: idempotencyKey,
         p_lot_id: lotId ?? null,
@@ -867,7 +872,7 @@ const InstitutionData: React.FC<{
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { error } = await supabase.rpc('archive_product_lot', {
+      const { error } = await auditedStockRpc('archive_product_lot', {
         p_lot_id: lotId,
       });
 
@@ -893,7 +898,7 @@ const InstitutionData: React.FC<{
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { error } = await supabase.rpc('receive_product_lot', {
+      const { error } = await auditedStockRpc('receive_product_lot', {
         p_product_id: productId,
         p_quantity: quantity,
         p_idempotency_key: idempotencyKey,
@@ -924,7 +929,7 @@ const InstitutionData: React.FC<{
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
-      const { error } = await supabase.rpc('classify_untracked_stock', {
+      const { error } = await auditedStockRpc('classify_untracked_stock', {
         p_product_id: productId,
         p_quantity: quantity,
         p_lot_number: lotNumber,
@@ -974,7 +979,7 @@ const InstitutionData: React.FC<{
       const { error } = await supabase
         .from('areas')
         .update({ geometry: null })
-        .eq('id', areaId);
+        .eq('id', areaId).select('id').single();
 
       if (error) throw error;
 
@@ -1053,6 +1058,7 @@ const InstitutionData: React.FC<{
     products, addProduct, updateProduct, deleteProduct, getProductById,
     productLots, addLot, updateLot, deleteLot, getLotsByProductId,
   addInventoryStock, adjustInventoryStock, archiveLot,
+  reloadInventory: async () => { await Promise.all([loadProducts(), loadProductLots()]); },
   receiveProductLot, classifyUntrackedStock,
     seasons, reloadSeasons: loadSeasons, seedCrops, activeSeason, setActiveSeason,
     isOnline,

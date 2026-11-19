@@ -121,7 +121,7 @@ const FarmMapPreview: React.FC = () => {
 
           // Build features
           const features: GeoJSON.Feature[] = withGeom
-            .map((s: AreaMapSummary) => {
+            .map((s: AreaMapSummary): GeoJSON.Feature | null => {
               if (!s.geojson) return null;
               try {
                 const parsed = JSON.parse(s.geojson);

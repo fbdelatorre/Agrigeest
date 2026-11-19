@@ -15,7 +15,7 @@ export interface Database {
           name: string
           start_date: string
           end_date: string | null
-          status: string
+          status: 'active' | 'completed' | 'planned'
           description: string | null
           created_at: string | null
           updated_at: string | null
@@ -27,7 +27,7 @@ export interface Database {
           name: string
           start_date: string
           end_date?: string | null
-          status?: string
+          status?: 'active' | 'completed' | 'planned'
           description?: string | null
           created_at?: string | null
           updated_at?: string | null
@@ -39,86 +39,62 @@ export interface Database {
           name?: string
           start_date?: string
           end_date?: string | null
-          status?: string
+          status?: 'active' | 'completed' | 'planned'
           description?: string | null
           created_at?: string | null
           updated_at?: string | null
           user_id?: string
           institution_id?: string
         }
-      }
-      seasons: {
-        Row: {
-          id: string
-          name: string
-          start_date: string
-          end_date: string | null
-          status: string
-          description: string | null
-          created_at: string | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          start_date: string
-          end_date?: string | null
-          status?: string
-          description?: string | null
-          created_at?: string | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          start_date?: string
-          end_date?: string | null
-          status?: string
-          description?: string | null
-          created_at?: string | null
-          updated_at?: string | null
-          user_id?: string
-        }
+        Relationships: []
       }
       areas: {
         Row: {
           id: string
           name: string
           size: number
-          unit: string
+          unit: import('../types').AreaUnit
           location: string
           description: string | null
           current_crop: string | null
           created_at: string | null
           updated_at: string | null
           user_id: string
+          institution_id: string
+          geometry: string | null
+          cultivar: string | null
         }
         Insert: {
           id?: string
           name: string
           size: number
-          unit: string
+          unit: import('../types').AreaUnit
           location: string
           description?: string | null
           current_crop?: string | null
           created_at?: string | null
           updated_at?: string | null
           user_id: string
+          institution_id?: string
+          geometry?: string | null
+          cultivar?: string | null
         }
         Update: {
           id?: string
           name?: string
           size?: number
-          unit?: string
+          unit?: import('../types').AreaUnit
           location?: string
           description?: string | null
           current_crop?: string | null
           created_at?: string | null
           updated_at?: string | null
           user_id?: string
+          institution_id?: string
+          geometry?: string | null
+          cultivar?: string | null
         }
+        Relationships: []
       }
       operations: {
         Row: {
@@ -135,6 +111,14 @@ export interface Database {
           created_at: string | null
           updated_at: string | null
           user_id: string
+          institution_id: string
+          products_used: import('../types').ProductUsage[]
+          operation_size: number | null
+          yield_per_hectare: number | null
+          seeds_per_hectare: number | null
+          status: string
+          cancelled_at: string | null
+          cancelled_by: string | null
         }
         Insert: {
           id?: string
@@ -150,6 +134,14 @@ export interface Database {
           created_at?: string | null
           updated_at?: string | null
           user_id: string
+          institution_id?: string
+          products_used?: import('../types').ProductUsage[]
+          operation_size?: number | null
+          yield_per_hectare?: number | null
+          seeds_per_hectare?: number | null
+          status?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
         }
         Update: {
           id?: string
@@ -165,7 +157,16 @@ export interface Database {
           created_at?: string | null
           updated_at?: string | null
           user_id?: string
+          institution_id?: string
+          products_used?: import('../types').ProductUsage[]
+          operation_size?: number | null
+          yield_per_hectare?: number | null
+          seeds_per_hectare?: number | null
+          status?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
         }
+        Relationships: []
       }
       operation_products: {
         Row: {
@@ -192,6 +193,7 @@ export interface Database {
           dose?: number | null
           created_at?: string | null
         }
+        Relationships: []
       }
       products: {
         Row: {
@@ -206,6 +208,8 @@ export interface Database {
           description: string | null
           created_at: string | null
           updated_at: string | null
+          institution_id: string
+          user_id: string | null
         }
         Insert: {
           id?: string
@@ -219,6 +223,8 @@ export interface Database {
           description?: string | null
           created_at?: string | null
           updated_at?: string | null
+          institution_id?: string
+          user_id?: string | null
         }
         Update: {
           id?: string
@@ -232,7 +238,10 @@ export interface Database {
           description?: string | null
           created_at?: string | null
           updated_at?: string | null
+          institution_id?: string
+          user_id?: string | null
         }
+        Relationships: []
       }
       product_lots: {
         Row: {
@@ -243,6 +252,8 @@ export interface Database {
           expiration_date: string | null
           created_at: string | null
           updated_at: string | null
+          archived_at: string | null
+          archived_by: string | null
         }
         Insert: {
           id?: string
@@ -252,6 +263,8 @@ export interface Database {
           expiration_date?: string | null
           created_at?: string | null
           updated_at?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
         }
         Update: {
           id?: string
@@ -261,7 +274,10 @@ export interface Database {
           expiration_date?: string | null
           created_at?: string | null
           updated_at?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
         }
+        Relationships: []
       }
       machinery: {
         Row: {
@@ -297,6 +313,7 @@ export interface Database {
           user_id?: string
           institution_id?: string
         }
+        Relationships: []
       }
       maintenance_types: {
         Row: {
@@ -323,6 +340,7 @@ export interface Database {
           user_id?: string
           institution_id?: string
         }
+        Relationships: []
       }
       maintenances: {
         Row: {
@@ -370,6 +388,13 @@ export interface Database {
           user_id?: string
           institution_id?: string
         }
+        Relationships: []
+      }
+      notes: {
+        Row: { id: string; title: string; content: string; note_date: string; is_completed: boolean; completed_date: string | null; user_id: string | null; institution_id: string; created_at: string | null; updated_at: string | null }
+        Insert: { id?: string; title: string; content: string; note_date: string; is_completed?: boolean; completed_date?: string | null; user_id: string; institution_id: string }
+        Update: { title?: string; content?: string; note_date?: string; is_completed?: boolean; completed_date?: string | null }
+        Relationships: []
       }
       user_profiles: {
         Row: {
@@ -379,6 +404,10 @@ export interface Database {
           institution: string
           created_at: string | null
           updated_at: string | null
+          first_name: string
+          last_name: string
+          institution_id: string
+          is_admin: boolean
         }
         Insert: {
           id: string
@@ -387,6 +416,10 @@ export interface Database {
           institution: string
           created_at?: string | null
           updated_at?: string | null
+          first_name?: string
+          last_name?: string
+          institution_id?: string
+          is_admin?: boolean
         }
         Update: {
           id?: string
@@ -395,20 +428,32 @@ export interface Database {
           institution?: string
           created_at?: string | null
           updated_at?: string | null
+          first_name?: string
+          last_name?: string
+          institution_id?: string
+          is_admin?: boolean
         }
+        Relationships: []
       }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      copy_areas_to_new_season: {
-        Args: {
-          old_season_id: string
-          new_season_id: string
-        }
-        Returns: undefined
-      }
+      copy_areas_to_new_season: { Args: { old_season_id: string; new_season_id: string }; Returns: undefined }
+      check_institution_exists: { Args: { institution_name: string }; Returns: boolean }
+      validate_invitation: { Args: { invitation_code: string }; Returns: { valid: boolean; institution_id: string; institution_name: string; message?: string } }
+      join_institution: { Args: { user_id: string; invitation_code: string }; Returns: { success: boolean; message?: string } }
+      join_institution_with_invitation: { Args: { p_code: string }; Returns: { success: boolean; institution_name?: string; error_code?: string; message?: string } }
+      handle_user_registration: { Args: { user_id: string; institution_name: string }; Returns: undefined }
+      list_institution_users: { Args: { institution_id_param: string }; Returns: { id: string; email: string; first_name: string; last_name: string; role: string; is_admin: boolean }[] }
+      list_active_invitations: { Args: { institution_id_param: string }; Returns: { code: string; created_at: string; expires_at: string; created_by_name: string; used_at: string | null; used_by_name: string | null }[] }
+      toggle_user_admin_status: { Args: { user_id_param: string; new_status: boolean }; Returns: undefined }
+      create_invitation: { Args: { p_institution_id?: string }; Returns: Json }
+      delete_invitation: { Args: { invitation_code: string }; Returns: boolean }
+      update_season_status: { Args: { season_id_param: string; new_status: string }; Returns: undefined }
+      save_area_geometry: { Args: { area_id_param: string; geojson_text: string }; Returns: undefined }
+      get_area_map_summary: { Args: { season_id_param: string | null }; Returns: Record<string, Json>[] }
     }
     Enums: {
       [_ in never]: never

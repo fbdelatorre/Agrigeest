@@ -1,7 +1,8 @@
 import { useFieldSync } from '../context/FieldSyncContext';
 import { useFieldPage } from '../hooks/useFieldPage';
 import FieldSyncStatus from '../components/ui/FieldSyncStatus';
-import { useState, type FormEvent } from 'react';
+import RecordActions from '../components/ui/RecordActions';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -30,6 +31,7 @@ function SeasonRainfall({ season, institutionId }: { season: { id: string; name:
   const [page, setPage] = useState(0);
   const [revision, setRevision] = useState(0);
   const [saving, setSaving] = useState(false);
+  const writing = useRef(false);
   const [message, setMessage] = useState<{ failed: boolean; text: string } | null>(null);
   const today = dateToInputValue(new Date());
   const options = areas.map(area => ({ value: area.id, label: area.name }));
@@ -50,7 +52,7 @@ function SeasonRainfall({ season, institutionId }: { season: { id: string; name:
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (saving || !areaId) return;
+    if (writing.current || saving || !areaId) return;
     const form = event.currentTarget;
     const fields = new FormData(form);
     const millimeters = Number(String(fields.get('millimeters') ?? '').replace(',', '.'));
@@ -58,6 +60,7 @@ function SeasonRainfall({ season, institutionId }: { season: { id: string; name:
       setMessage({ failed: true, text: t('Informe um valor de 0 a 3.000 mm.', 'Enter a value from 0 to 3,000 mm.') });
       return;
     }
+    writing.current = true;
     setSaving(true);
     setMessage(null);
     try {
@@ -76,6 +79,7 @@ function SeasonRainfall({ season, institutionId }: { season: { id: string; name:
     } catch {
       setMessage({ failed: true, text: t('Não foi possível salvar no dispositivo. Tente novamente.', 'Could not save on this device. Try again.') });
     } finally {
+      writing.current = false;
       setSaving(false);
     }
   };
@@ -112,6 +116,7 @@ function SeasonRainfall({ season, institutionId }: { season: { id: string; name:
             <div>{areas.find(area => area.id === reading.area_id)?.name ?? t('Talhão indisponível', 'Field unavailable')}
               <span className="block text-sm text-gray-500">{formatDateForDisplay(reading.observed_on, language)}</span>
               <FieldSyncStatus entry={byId.get(reading.id)} />
+              <RecordActions table="field_rainfall" record={reading} queued={byId.get(reading.id)} onSaved={() => setRevision(previous => previous + 1)} />
             </div>
             <strong>{number.format(reading.millimeters)} mm</strong>
           </li>)}

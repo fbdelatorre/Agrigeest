@@ -26,6 +26,7 @@ const Topbar: React.FC = () => {
     if (pathname.startsWith('/reports')) return { title: language === 'pt' ? 'Relatórios e Análises' : 'Reports & Analysis', subtitle: language === 'pt' ? 'Análise de desempenho' : 'Performance analysis' };
     if (pathname.startsWith('/statistics')) return { title: language === 'pt' ? 'Estatísticas' : 'Statistics', subtitle: language === 'pt' ? 'Indicadores agrícolas' : 'Agricultural indicators' };
     if (pathname.startsWith('/settings')) return { title: language === 'pt' ? 'Configurações' : 'Settings', subtitle: language === 'pt' ? 'Preferências do sistema' : 'System preferences' };
+    if (pathname.startsWith('/audit')) return { title: language === 'pt' ? 'Auditoria de lançamentos' : 'Record audit', subtitle: '' };
     return { title: 'AgriGest', subtitle: '' };
   };
 

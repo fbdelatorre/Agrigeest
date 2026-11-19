@@ -104,7 +104,7 @@ const OperationCreate = () => {
           : 'Invalid product data. Check quantities and try again.');
       } else {
         alert(isPt
-          ? 'Erro ao criar operação. Tente novamente.'
+          ? msg || 'Erro ao criar operação. Tente novamente.'
           : 'Error creating operation. Please try again.');
       }
     } finally {

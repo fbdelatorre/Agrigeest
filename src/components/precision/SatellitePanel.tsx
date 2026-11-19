@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { dateToInputValue } from '../../utils/dateHelpers';
 import { useOfflineStorage } from '../../hooks/useOfflineStorage';
@@ -33,12 +33,14 @@ async function requestSentinel<T>(body: object) {
 
 export default function SatellitePanel(props: {
   area: string; fields: MapField[]; points: MapSample[]; zones: MapZone[]; online: boolean; basemap: boolean; showBoundaries: boolean; onSample: (id: string) => void;
+  historyOnly?: boolean;
 }) {
   return <SatelliteQuery key={props.area} {...props} />;
 }
 
-function SatelliteQuery({ area, fields, points, zones, online, basemap, showBoundaries, onSample }: {
+function SatelliteQuery({ area, fields, points, zones, online, basemap, showBoundaries, onSample, historyOnly = false }: {
   area: string; fields: MapField[]; points: MapSample[]; zones: MapZone[]; online: boolean; basemap: boolean; showBoundaries: boolean; onSample: (id: string) => void;
+  historyOnly?: boolean;
 }) {
   const [[from, to], setRange] = useState(initialRange);
   const [clouds, setClouds] = useState(20);
@@ -50,6 +52,8 @@ function SatelliteQuery({ area, fields, points, zones, online, basemap, showBoun
   const [visible, setVisible] = useState(true);
   const [message, setMessage] = useState('');
   const [inspection, setInspection] = useState<Inspection[]>([]);
+  const mapPanel = useRef<HTMLDivElement>(null);
+  const writing = useRef(false);
   const [history, setHistory] = useOfflineStorage<Inspection[]>('precision-sentinel:' + area, []);
   const available = fields.some(field => field.properties.id === area);
   const activeCatalog = catalog?.clouds === clouds ? catalog : undefined;
@@ -70,7 +74,8 @@ function SatelliteQuery({ area, fields, points, zones, online, basemap, showBoun
   }
 
   async function load() {
-    if (!first || first === second) return;
+    if (!first || first === second || writing.current) return;
+    writing.current = true;
     setBusy(true); setMessage('');
     try {
       const results = await Promise.all([first, second].filter(Boolean).map(time =>
@@ -80,13 +85,30 @@ function SatelliteQuery({ area, fields, points, zones, online, basemap, showBoun
         .map(result => [result.index + result.scene.time, result])).values()]
         .sort((a, b) => a.scene.time.localeCompare(b.scene.time)).slice(-100));
     } catch (error) { setMessage((error as Error).message); }
-    finally { setBusy(false); }
+    finally { writing.current = false; setBusy(false); }
+  }
+
+  async function openHistory(saved: Inspection) {
+    if (writing.current || !available) return;
+    const cached = inspection.find(result => result.index === saved.index && result.scene.time === saved.scene.time && result.imagery);
+    if (!cached && !online) {
+      setMessage('Conecte-se à internet para abrir a imagem deste índice. As estatísticas continuam disponíveis no histórico.');
+      return;
+    }
+    writing.current = true; setBusy(true); setMessage('');
+    try {
+      const result = cached ?? await requestSentinel<Inspection>({ action: 'inspect', area,
+        time: saved.scene.time, index: saved.index, clouds: 100 });
+      setIndex(saved.index); setInspection([result]); setVisible(true);
+      requestAnimationFrame(() => mapPanel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    } catch (error) { setMessage((error as Error).message); }
+    finally { writing.current = false; setBusy(false); }
   }
 
   return <section className="space-y-3">
     <div className="space-y-3 rounded-lg border bg-white p-3">
       {!available && <p className="text-sm">{area ? 'Cadastre o limite do talhão para consultar o Sentinel‑2.' : 'Selecione um talhão para consultar o Sentinel‑2.'}</p>}
-      {available && <>
+      {available && !historyOnly && <>
         <div className="grid gap-3 sm:grid-cols-3">
           <Input label="Imagens desde" type="date" value={from} disabled={busy} onChange={event => { setRange([event.target.value, to]); setCatalog(undefined); }} />
           <Input label="Imagens até" type="date" value={to} disabled={busy} onChange={event => { setRange([from, event.target.value]); setCatalog(undefined); }} />
@@ -106,9 +128,13 @@ function SatelliteQuery({ area, fields, points, zones, online, basemap, showBoun
           <Button onClick={() => void load()} disabled={!online || busy || !first || first === second}>Exibir índice</Button>
         </>}
       </>}
+      {historyOnly && <Select label="Índice do histórico" value={index} disabled={busy}
+        options={['NDVI', 'GNDVI'].map(value => ({ value, label: value }))}
+        onChange={event => setIndex(event.target.value as VegetationIndex)} />}
       {busy && <p role="status" className="text-sm">Consultando Sentinel‑2…</p>}
       {message && <p role="status" className="text-sm">{message}</p>}
     </div>
+    <div ref={mapPanel} className="space-y-3">
     {inspection.length > 0 && <div className="flex flex-wrap items-center gap-3 text-sm">
       <label><input type="checkbox" className="mr-1" checked={visible} onChange={event => setVisible(event.target.checked)} /> Camada {inspection[0].index}</label>
       <span>−1</span>
@@ -133,15 +159,21 @@ function SatelliteQuery({ area, fields, points, zones, online, basemap, showBoun
     {inspection.length === 2 && inspection[0].statistics && inspection[1].statistics && <p className="text-sm">
       Diferença entre médias (segunda menos primeira) {format(inspection[1].statistics.mean - inspection[0].statistics.mean)}
     </p>}
-    {history.length > 0 && <details className="rounded border bg-white p-3 text-sm">
+    </div>
+    {historyOnly && !history.length && <p className="text-sm">Nenhum índice consultado neste dispositivo para o talhão selecionado.</p>}
+    {history.length > 0 && <details open={historyOnly || undefined} className="rounded border bg-white p-3 text-sm">
       <summary>Histórico de índices neste dispositivo</summary>
       <ul className="mt-2 space-y-2">{history.filter(result => result.index === index).map(result =>
-        <li key={result.scene.time + result.index} className="grid grid-cols-[6rem,1fr,4rem] items-center gap-2">
-          <span>{result.scene.date}</span>
+        <li key={result.scene.time + result.index}>
+          <button type="button" disabled={busy || !available} onClick={() => void openHistory(result)}
+            aria-label={`Abrir ${result.index} de ${result.scene.date} no mapa`}
+            className="grid w-full grid-cols-[9rem,1fr,4rem] items-center gap-2 rounded p-2 text-left hover:bg-brand-50 disabled:opacity-50">
+          <span className="text-brand-700 underline">{result.index} · {result.scene.date}</span>
           {result.statistics
             ? <meter className="w-full" min={-1} max={1} value={result.statistics.mean} aria-label={`Média de ${index} em ${result.scene.date}`} />
             : <span>Sem pixels válidos</span>}
           <span className="text-right">{result.statistics ? format(result.statistics.mean) : '—'}</span>
+          </button>
         </li>)}</ul>
     </details>}
   </section>;

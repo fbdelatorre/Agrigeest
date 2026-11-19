@@ -6,6 +6,7 @@ import PrecisionMap, { type MapField, type MapZone } from '../farmMap/PrecisionM
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
+import RecordActions from '../ui/RecordActions';
 
 export const zoneFeatures = (zones: SamplingZone[]): MapZone[] => zones.map(zone => ({
   type: 'Feature', geometry: zone.geometry, properties: { id: zone.id, name: zone.name },
@@ -19,6 +20,7 @@ export default function ZoneEditor({ institutionId, area, season, fields, zones,
   const [vertices, setVertices] = useState<SamplePoint[]>([]);
   const [busy, setBusy] = useState(false);
   const writing = useRef(false);
+  const editingVersion = useRef<string>();
   const [name, setName] = useState('');
   const [campaign, setCampaign] = useState('');
   const [message, setMessage] = useState('');
@@ -30,6 +32,7 @@ export default function ZoneEditor({ institutionId, area, season, fields, zones,
     setSelected(id);
     setMessage('');
     const zone = visible.find(item => item.id === id);
+    editingVersion.current = zone?.updated_at;
     setName(zone?.name ?? '');
     setCampaign(zone?.campaign ?? '');
     setVertices(zone ? zone.geometry.coordinates[0].slice(0, -1).map(([x, y]) => [x, y]) : []);
@@ -57,12 +60,13 @@ export default function ZoneEditor({ institutionId, area, season, fields, zones,
     setBusy(true); setMessage('');
     try {
       const query = current
-        ? precisionClient.from('precision_zones').update(fieldsToSave).eq('id', current.id).eq('updated_at', current.updated_at)
+        ? precisionClient.from('precision_zones').update(fieldsToSave).eq('id', current.id).eq('updated_at', editingVersion.current ?? current.updated_at)
         : precisionClient.from('precision_zones').insert({ ...fieldsToSave, institution_id: institutionId, area_id: area, season_id: season || null });
-      const { data, error } = await query.select('id').maybeSingle();
+      const { data, error } = await query.select('id,updated_at').maybeSingle();
       if (error) throw error;
       if (!data) { setMessage('Outra pessoa alterou esta zona. Recarregue para conferir a versão atual.'); onSaved(); return; }
       setSelected(data.id);
+      editingVersion.current = data.updated_at;
       setMessage('Zona salva e vinculada ao talhão.');
       onSaved();
     } catch (error) {
@@ -92,6 +96,7 @@ export default function ZoneEditor({ institutionId, area, season, fields, zones,
         <datalist id="precision-campaigns">{[...new Set(zones.map(zone => zone.campaign).filter(Boolean))].map(name => <option key={name} value={name} />)}</datalist>
         <Button type="submit" disabled={vertices.length < 3 || !online || busy || (!!selected && !current)}>Salvar zona</Button>
       </form>
+      {current && <RecordActions table="precision_zones" record={current} fields={[]} onSaved={() => { edit(''); onSaved(); }} />}
     </>}
     {message && <p role="status" className="text-sm">{message}</p>}
   </section>;

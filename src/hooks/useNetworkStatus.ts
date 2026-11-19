@@ -30,7 +30,7 @@ export function useNetworkStatus() {
 
     // Verifica o tipo de conexão, se disponível
     if ('connection' in navigator) {
-      const connection = (navigator as any).connection;
+      const connection = (navigator as Navigator & { connection?: EventTarget & { effectiveType: string; downlink?: number } }).connection;
       
       if (connection) {
         // Define o tipo de conexão inicial

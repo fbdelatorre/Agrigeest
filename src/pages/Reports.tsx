@@ -1,15 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Card from '../components/ui/Card';
 import Select from '../components/ui/Select';
 import Badge from '../components/ui/Badge';
 import { FileText, Calendar, Filter } from 'lucide-react';
-import { useLanguage } from '../context/LanguageContext';
 import { formatDateForDisplay } from '../utils/dateHelpers';
 
 const Reports = () => {
   const { areas, operations } = useAppContext();
-  const { language } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('');
   
@@ -37,7 +35,7 @@ const Reports = () => {
   const filteredOperations = areaOperations.filter(({ area, lastOperation }) => {
     const matchesSearch = 
       area.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (area.currentCrop && area.currentCrop.toLowerCase().includes(searchTerm.toLowerCase()));
+      (area.current_crop && area.current_crop.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesType = !selectedType || (lastOperation && lastOperation.type === selectedType);
     

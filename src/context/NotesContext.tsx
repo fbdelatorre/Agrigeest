@@ -1,3 +1,4 @@
+import { insertBusinessRecord, type StoredDates } from '../lib/businessWrites';
 import React, { createContext, useContext, ReactNode, useEffect, useCallback } from 'react';
 import { useAppContext } from './AppContext';
 import { supabase } from '../lib/supabase';
@@ -60,8 +61,8 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         noteDate: parseDate(note.note_date)!,
         isCompleted: note.is_completed,
         completedDate: parseDate(note.completed_date) ?? null,
-        createdAt: new Date(note.created_at),
-        updatedAt: new Date(note.updated_at)
+        createdAt: new Date(note.created_at ?? 0),
+        updatedAt: new Date(note.updated_at ?? 0)
       }));
 
       setNotes(formattedNotes);
@@ -107,15 +108,7 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         institution_id: userProfile.institution_id
       };
 
-      const { data, error } = await supabase
-        .from('notes')
-        .insert([insertData])
-        .select()
-        .single();
-
-      if (error) {
-        throw new Error(`Failed to add note: ${error.message || JSON.stringify(error)}`);
-      }
+      const { data } = await insertBusinessRecord<Omit<Note, 'createdAt' | 'updatedAt'> & StoredDates & { note_date: string; is_completed: boolean; completed_date: string | null }>('notes', insertData);
 
       const newNote: Note = {
         ...data,
@@ -124,12 +117,11 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         noteDate: parseDate(data.note_date)!,
         isCompleted: data.is_completed,
         completedDate: parseDate(data.completed_date) ?? null,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
+        createdAt: new Date(data.created_at ?? 0),
+        updatedAt: new Date(data.updated_at ?? 0)
       };
 
-      const updatedNotes = [newNote, ...notes];
-      setNotes(updatedNotes);
+      setNotes(previous => [newNote, ...previous]);
     } catch (error) {
       console.error('Error adding note:', error);
       throw error;
@@ -140,6 +132,9 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
     if (!isOnline) throw new Error(READ_ONLY_MSG);
 
     try {
+      const original = notes.find(item => item.id === id);
+      if (!original) throw new Error("Registro indisponível. Atualize a página.");
+      const expected = updatedData.updatedAt ?? original.updatedAt;
       const updatePayload: Record<string, unknown> = {};
 
       if (updatedData.title !== undefined) updatePayload.title = updatedData.title;
@@ -156,6 +151,8 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         .from('notes')
         .update(updatePayload)
         .eq('id', id)
+        .gte('updated_at', expected.toISOString())
+        .lt('updated_at', new Date(expected.getTime() + 1).toISOString())
         .select()
         .single();
 
@@ -168,15 +165,13 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
         noteDate: parseDate(data.note_date)!,
         isCompleted: data.is_completed,
         completedDate: parseDate(data.completed_date) ?? null,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
+        createdAt: new Date(data.created_at ?? 0),
+        updatedAt: new Date(data.updated_at ?? 0)
       };
 
-      const updatedNotes = notes.map(note =>
+      setNotes(previous => previous.map(note =>
         note.id === id ? updatedNote : note
-      );
-
-      setNotes(updatedNotes);
+      ));
     } catch (error) {
       console.error('Error updating note:', error);
       throw error;
@@ -190,12 +185,11 @@ export const NotesProvider: React.FC<NotesProviderProps> = ({ children }) => {
       const { error } = await supabase
         .from('notes')
         .delete()
-        .eq('id', id);
+        .eq('id', id).select('id').single();
 
       if (error) throw error;
 
-      const updatedNotes = notes.filter(note => note.id !== id);
-      setNotes(updatedNotes);
+      setNotes(previous => previous.filter(note => note.id !== id));
     } catch (error) {
       console.error('Error deleting note:', error);
       throw error;

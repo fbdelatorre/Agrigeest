@@ -1,3 +1,4 @@
+import { useSubmitGuard } from '../../hooks/useSubmitGuard';
 import React, { useState } from 'react';
 import { Machinery } from '../../types/machinery';
 import Input from '../ui/Input';
@@ -19,6 +20,8 @@ const MachineryForm: React.FC<MachineryFormProps> = ({
   isEditing = false,
 }) => {
   const navigate = useNavigate();
+  const { saving, runSubmit } = useSubmitGuard();
+  const initialRevision = React.useRef(initialData.updatedAt);
   const { language } = useLanguage();
   const { isOnline } = useNetworkStatus();
   const [formData, setFormData] = useState({
@@ -61,15 +64,16 @@ const MachineryForm: React.FC<MachineryFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validate()) return;
     
-    onSubmit({
+    await runSubmit(() => onSubmit({
+      ...{ updatedAt: initialRevision.current },
       ...formData,
       year: formData.year ? Number(formData.year) : undefined,
-    });
+    }));
   };
 
   return (
@@ -133,8 +137,9 @@ const MachineryForm: React.FC<MachineryFormProps> = ({
         </Button>
         <Button
           type="submit"
+          isLoading={saving}
           leftIcon={<Save size={18} />}
-          disabled={!isOnline}
+          disabled={saving || !isOnline}
         >
           {isEditing 
             ? (language === 'pt' ? 'Atualizar Máquina' : 'Update Machinery')

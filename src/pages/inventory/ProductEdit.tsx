@@ -1,5 +1,5 @@
 import { readProductCrop, toInventoryProduct } from '../../lib/seedCatalog';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import ProductForm from '../../components/products/ProductForm';
@@ -53,11 +53,11 @@ const ProductEdit = () => {
     setSubmitError(null);
 
     try {
-      await updateProduct(id, productData, currentProduct.updatedAt);
+      await updateProduct(id, productData, (productData as Partial<Product>).updatedAt ?? currentProduct.updatedAt);
       navigate('/inventory');
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      if (msg.includes('PRODUCT_STALE')) {
+      if (msg.includes('PRODUCT_STALE') || msg.includes('Outra pessoa alterou')) {
         const refreshed = await refreshProduct();
         if (refreshed) {
           setSubmitError(
@@ -107,8 +107,7 @@ const ProductEdit = () => {
             {submitError}
           </div>
         )}
-        <ProductForm
-          key={refreshKey}
+        <ProductForm key={id + ':' + refreshKey}
           initialData={currentProduct}
           onSubmit={handleSubmit}
           isEditing={true}

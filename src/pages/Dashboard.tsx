@@ -12,6 +12,7 @@ import { useLanguage } from '../context/LanguageContext';
 import PWAInstallPrompt from '../components/ui/PWAInstallPrompt';
 import { formatDateForDisplay } from '../utils/dateHelpers';
 import { formatQuantity } from '../utils/quantityFormat';
+import { areaInHectares } from '../utils/costCalculation';
 import StatCard from '../components/ui/StatCard';
 import FarmMapPreview from '../components/dashboard/FarmMapPreview';
 
@@ -22,7 +23,7 @@ const Dashboard = () => {
   const isPt = language === 'pt';
 
   // Calculations
-  const totalArea = useMemo(() => areas.reduce((acc, a) => acc + a.size, 0), [areas]);
+  const totalArea = useMemo(() => areas.reduce((acc, a) => acc + areaInHectares(a.size, a.unit), 0), [areas]);
   const lowStockProducts = useMemo(
     () => products.filter((p) => p.quantityInStock <= p.minStockLevel),
     [products]
@@ -317,7 +318,7 @@ const Dashboard = () => {
                       <div className="text-right flex-shrink-0">
                         <p className="text-xs font-medium text-gray-600">{formatDate(op.startDate)}</p>
                         {op.operationSize > 0 && (
-                          <p className="text-xs text-gray-400 mt-0.5">{op.operationSize} ha</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{areaInHectares(op.operationSize, areas.find(area => area.id === op.areaId)?.unit ?? 'hectare').toLocaleString('pt-BR')} ha</p>
                         )}
                       </div>
                     </Link>

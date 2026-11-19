@@ -1,6 +1,6 @@
 import Select from '../ui/Select';
 import React, { useState, useRef, useEffect } from 'react';
-import { Product, ProductLot } from '../../types';
+import { Product } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
@@ -24,6 +24,7 @@ const StockActions: React.FC<StockActionsProps> = ({ product, mode, onClose, unt
   const lots = getLotsByProductId(product.id);
   const trackedStock = lots.reduce((sum, lot) => sum + lot.quantity, 0);
   const untrackedStock = product.quantityInStock - trackedStock;
+  const originalBalances = useRef(new Map([['', untrackedStock], ...lots.map(lot => [lot.id, lot.quantity] as [string, number])]));
 
   const [quantity, setQuantity] = useState('');
   const [selectedLotId, setSelectedLotId] = useState('');
@@ -40,7 +41,6 @@ const StockActions: React.FC<StockActionsProps> = ({ product, mode, onClose, unt
   }, []);
 
   const isAdjust = mode === 'adjust';
-  const isAdmin = isAdjust;
 
   const handleSubmit = async () => {
     if (submittingRef.current) return;
@@ -49,9 +49,12 @@ const StockActions: React.FC<StockActionsProps> = ({ product, mode, onClose, unt
     setError(null);
 
     const qty = Number(quantity);
-    if (!quantity.trim() || isNaN(qty)) {
+    if (!quantity.trim() || !Number.isFinite(qty)) {
       setError(language === 'pt' ? 'Quantidade é obrigatória' : 'Quantity is required');
       return;
+    }
+    if (unitCost.trim() && (!Number.isFinite(Number(unitCost)) || Number(unitCost) < 0)) {
+      setError('Informe um custo unitário válido e não negativo.'); return;
     }
 
     if (isAdjust) {
@@ -83,7 +86,8 @@ const StockActions: React.FC<StockActionsProps> = ({ product, mode, onClose, unt
           reason.trim(),
           idempotencyRef.current,
           lotId,
-          notes.trim() || null
+          notes.trim() || null,
+          originalBalances.current.get(selectedLotId)
         );
       } else {
         await addInventoryStock(

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { writeErrorMessage } from '../../lib/businessWrites';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMachineryContext } from '../../context/MachineryContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -39,12 +40,12 @@ const MaintenanceList = () => {
     return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
   });
   
-  const handleDeleteMaintenance = (id: string) => {
+  const handleDeleteMaintenance = async (id: string) => {
     if (window.confirm(language === 'pt'
       ? 'Tem certeza que deseja excluir esta manutenção?'
       : 'Are you sure you want to delete this maintenance?'
     )) {
-      deleteMaintenance(id);
+      try { await deleteMaintenance(id); } catch (error) { alert(writeErrorMessage(error)); }
     }
   };
   

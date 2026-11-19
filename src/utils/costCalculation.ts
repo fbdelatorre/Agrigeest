@@ -1,4 +1,4 @@
-import { ProductUsage, Product, Operation, Area } from '../types';
+import type { ProductUsage, Product, Operation, Area } from '../types';
 
 export type CostSource = 'snapshot' | 'fallback' | 'unknown';
 
@@ -25,7 +25,7 @@ export function calculateUsageCost(
   if (
     usage.unitPriceSnapshot !== undefined &&
     usage.unitPriceSnapshot !== null &&
-    !isNaN(usage.unitPriceSnapshot)
+    Number.isFinite(usage.unitPriceSnapshot) && usage.unitPriceSnapshot >= 0 && Number.isFinite(usage.quantity) && usage.quantity >= 0
   ) {
     return {
       cost: usage.quantity * usage.unitPriceSnapshot,
@@ -35,7 +35,7 @@ export function calculateUsageCost(
     };
   }
 
-  if (product) {
+  if (product && Number.isFinite(product.price) && product.price >= 0 && Number.isFinite(usage.quantity) && usage.quantity >= 0) {
     return {
       cost: usage.quantity * product.price,
       source: 'fallback',
@@ -83,6 +83,21 @@ export function calculateOperationCost(
 export function getEffectiveArea(operation: Operation, area?: Area): number {
   if (operation.operationSize > 0) return operation.operationSize;
   return area?.size || 0;
+}
+
+export function areaInHectares(size: number, unit: Area['unit']): number {
+  return size * (unit === 'acre' ? 0.40468564224 : unit === 'squareMeter' ? 0.0001 : 1);
+}
+
+export function calculateAreaCost(operations: Operation[], area: Area, getProductById: (id: string) => Product | undefined) {
+  let totalSpent = 0, hasUnknownCost = false, hasEstimatedCost = false;
+  for (const operation of operations) {
+    const cost = calculateOperationCost(operation, getProductById);
+    totalSpent += cost.knownCost;
+    hasUnknownCost ||= cost.hasUnknownCost;
+    hasEstimatedCost ||= cost.hasEstimatedCost;
+  }
+  return { totalSpent, costPerHectare: area.size > 0 ? totalSpent / area.size : 0, hasUnknownCost, hasEstimatedCost };
 }
 
 export function calculateCostPerHectare(

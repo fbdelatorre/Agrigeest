@@ -1,7 +1,8 @@
 import { useFieldSync } from '../context/FieldSyncContext';
 import { useFieldPage } from '../hooks/useFieldPage';
 import FieldSyncStatus from '../components/ui/FieldSyncStatus';
-import { useState, type FormEvent } from 'react';
+import RecordActions from '../components/ui/RecordActions';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ClipboardList, Plus, X } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
@@ -45,6 +46,7 @@ function SeasonMonitoring({ season, institutionId }: {
   const [target, setTarget] = useState<MonitoringReport | null>(null);
   const [items, setItems] = useState<ReturnType<typeof newProduct>[]>([]);
   const [saving, setSaving] = useState(false);
+  const writing = useRef(false);
   const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
   const today = dateToInputValue(new Date());
   const doseFormat = new Intl.NumberFormat(language === 'pt' ? 'pt-BR' : 'en-US', { maximumFractionDigits: 8 });
@@ -64,7 +66,7 @@ function SeasonMonitoring({ season, institutionId }: {
         !reports.some(report => report.id === record.id)) {
       reports.push({ ...record.record, ...metadata });
     }
-    if (record.kind === 'recommendation' && reports.some(report => report.id === record.record.report_id) &&
+    if (record.kind === 'recommendation' && (!isOnline || record.state !== 'sent' || !remote) && reports.some(report => report.id === record.record.report_id) &&
         !recommendations.some(recommendation => recommendation.id === record.id)) {
       recommendations.push({ ...record.record, ...metadata, operation_id: null, executed_at: null, executed_by: null });
     }
@@ -83,10 +85,11 @@ function SeasonMonitoring({ season, institutionId }: {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (saving) return;
+    if (writing.current || saving) return;
     const form = new FormData(event.currentTarget);
     const value = (name: string) => String(form.get(name) ?? '').trim();
     const scope = { institution_id: institutionId, season_id: season.id, area_id: target?.area_id ?? value('area') };
+    writing.current = true;
     setSaving(true);
     setMessage(null);
     try {
@@ -117,6 +120,7 @@ function SeasonMonitoring({ season, institutionId }: {
       console.error('Error saving field data:', error);
       setMessage({ error: true, text: t('Não foi possível salvar no dispositivo. Tente novamente.', 'Could not save on this device. Try again.') });
     } finally {
+      writing.current = false;
       setSaving(false);
     }
   };
@@ -218,6 +222,7 @@ function SeasonMonitoring({ season, institutionId }: {
           </header>
           <p className="whitespace-pre-wrap break-words text-sm">{report.report}</p>
           <FieldSyncStatus entry={byId.get(report.id)} />
+          <RecordActions table="field_monitoring_reports" record={report} queued={byId.get(report.id)} onSaved={() => setReload(value => value + 1)} />
           {recommendations.filter(recommendation => recommendation.report_id === report.id).map(recommendation => (
             <section className="space-y-2 rounded-lg bg-brand-50 p-3 text-sm" key={recommendation.id}>
               <h3 className="font-semibold capitalize">{t('Recomendação', 'Recommendation')} · {recommendation.operation_type}</h3>
@@ -230,6 +235,7 @@ function SeasonMonitoring({ season, institutionId }: {
               </ul>
               {recommendation.instructions && <p className="whitespace-pre-wrap break-words">{recommendation.instructions}</p>}
               <FieldSyncStatus entry={byId.get(recommendation.id)} />
+              <RecordActions table="field_recommendations" record={recommendation} queued={byId.get(recommendation.id)} locked={!!recommendation.executed_at} onSaved={() => setReload(value => value + 1)} />
               {recommendation.executed_at ? (
                 <p className="font-medium text-brand-800">{t('Operação registrada em', 'Operation recorded on')} {formatDateForDisplay(new Date(recommendation.executed_at), language)}</p>
               ) : isOnline && (!byId.has(recommendation.id) || byId.get(recommendation.id)?.state === 'sent') && (

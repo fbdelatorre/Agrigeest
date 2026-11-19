@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
@@ -58,7 +58,7 @@ const Notifications = () => {
         op.areaId === operation.areaId &&
         op.type === operation.type &&
         new Date(op.startDate) > new Date(operation.startDate) &&
-        new Date(op.startDate) <= new Date(operation.nextOperationDate)
+        new Date(op.startDate) <= new Date(operation.nextOperationDate!)
       );
 
       const nextDate = new Date(operation.nextOperationDate);

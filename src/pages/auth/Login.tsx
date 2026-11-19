@@ -31,7 +31,7 @@ const Login = () => {
   const [checkingInstitution, setCheckingInstitution] = useState(false);
   const [validatingInvitation, setValidatingInvitation] = useState(false);
   const [invitationValid, setInvitationValid] = useState(false);
-  const [invitationDetails, setInvitationDetails] = useState<any>(null);
+  const [invitationDetails, setInvitationDetails] = useState<{ institution_id: string; institution_name: string } | null>(null);
 
   useEffect(() => {
     if (session) {
@@ -300,11 +300,9 @@ const Login = () => {
       if (signUpError) throw signUpError;
       if (!authData.user?.id) throw new Error('Registration failed');
 
-      console.log('User registered successfully:', authData.user.id);
 
       if (isJoining) {
         // Join existing institution with invitation code
-        console.log('Joining institution with code:', invitationCode.trim());
         
         const { data: joinResult, error: joinError } = await supabase
           .rpc('join_institution', {
@@ -312,7 +310,6 @@ const Login = () => {
             invitation_code: invitationCode.trim()
           });
 
-        console.log('Join result:', joinResult);
         
         if (joinError) {
           console.error('Join error:', joinError);
@@ -325,7 +322,6 @@ const Login = () => {
         }
       } else {
         // Create new institution
-        console.log('Creating new institution:', institution.trim());
         
         const { error: institutionError } = await supabase
           .rpc('handle_user_registration', {
@@ -360,9 +356,9 @@ const Login = () => {
       setInstitution('');
       setInvitationCode('');
       setIsJoining(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Registration error:', err);
-      setError(err.message || 'Registration error');
+      setError(err instanceof Error ? err.message : 'Registration error');
       setInstitutionExists(true); // Set this if we got a duplicate error
     } finally {
       setLoading(false);

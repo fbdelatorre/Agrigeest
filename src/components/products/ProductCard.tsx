@@ -209,6 +209,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onDelete }) => {
         </div>
       </Card.Content>
       <Card.Footer>
+        <Link to={'/inventory/history?product=' + product.id} className="mb-2 block text-sm text-brand-700 underline">Histórico e correções de estoque</Link>
         <div className="flex gap-2 w-full">
           <Button
             variant="secondary"

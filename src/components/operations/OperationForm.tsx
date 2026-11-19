@@ -11,6 +11,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { dateToInputValue, inputValueToDate, formatDateForDisplay } from '../../utils/dateHelpers';
 import { FLOAT_NOISE_THRESHOLD, formatQuantity } from '../../utils/quantityFormat';
+import { groupOperationUsage } from '../../utils/operationStock';
 
 interface OperationFormProps {
   initialData?: Partial<Operation>;
@@ -48,6 +49,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
   const { isOnline } = useNetworkStatus();
 
   const initialArea = areas.find(area => area.id === initialData.areaId);
+  const initialRevision = React.useRef(initialData.updatedAt);
 
   const [formData, setFormData] = useState({
     areaId: initialData.areaId || '',
@@ -63,7 +65,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
       : '',
     description: initialData.description || '',
     operatedBy: initialData.operatedBy || '',
-    productsUsed: (initialData.productsUsed || []).map<FormProductUsage>(usage => {
+    productsUsed: groupOperationUsage(initialData.productsUsed || [], initialData.operationSize ?? initialArea?.size ?? 0).map<FormProductUsage>(usage => {
       const isLegacy = !usage.lotAllocations;
       if (isLegacy) {
         return {
@@ -195,7 +197,8 @@ const OperationForm: React.FC<OperationFormProps> = ({
     } else if (field === 'quantity') {
       updatedProducts[index] = {
         ...updatedProducts[index],
-        quantity: formatNumber(value)
+        quantity: formatNumber(value),
+        dose: operationSize > 0 ? (parseNumber(formatNumber(value)) / operationSize).toString().replace('.', ',') : '0',
       };
     } else if (field === 'lotId') {
       updatedProducts[index] = {
@@ -315,15 +318,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
     return { label: formatDateForDisplay(date, language === 'pt' ? 'pt-BR' : 'en-US'), className: 'text-gray-600' };
   };
 
-  const isExpired = (date?: Date): boolean => {
-    const days = getDaysUntilExpiration(date);
-    return days !== null && days < 0;
-  };
 
-  const isExpiringSoon = (date?: Date): boolean => {
-    const days = getDaysUntilExpiration(date);
-    return days !== null && days >= 0 && days <= 30;
-  };
 
   const sortLotsForDisplay = (lots: ProductLot[]): ProductLot[] => {
     return [...lots].sort((a, b) => {
@@ -609,7 +604,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
           ? `Tamanho não pode ser maior que ${selectedArea.size} ${selectedArea.unit}`
           : `Size cannot be larger than ${selectedArea.size} ${selectedArea.unit}`;
       }
-      if (size <= 0) {
+      if (!Number.isFinite(size) || size <= 0) {
         newErrors.operationSize = language === 'pt'
           ? 'Tamanho deve ser maior que 0'
           : 'Size must be greater than 0';
@@ -704,6 +699,7 @@ const OperationForm: React.FC<OperationFormProps> = ({
     setSubmitFailed(false);
 
     const submissionData = {
+      updatedAt: initialRevision.current,
       ...formData,
       startDate: inputValueToDate(formData.startDate),
       endDate: formData.endDate ? inputValueToDate(formData.endDate) : undefined,
@@ -712,14 +708,19 @@ const OperationForm: React.FC<OperationFormProps> = ({
         if (usage.original && isUnchangedUsage(usage)) return [usage.original];
         const quantity = parseNumber(usage.quantity);
         const dose = parseNumber(usage.dose);
+        const snapshot = usage.original?.productId === usage.productId ? {
+          productNameSnapshot: usage.original.productNameSnapshot, unitSnapshot: usage.original.unitSnapshot,
+          unitPriceSnapshot: usage.original.unitPriceSnapshot,
+        } : {};
         if (usage.isLegacy) {
-          return [{ productId: usage.productId, quantity, dose, lotId: usage.lotId }];
+          return [{ ...snapshot, productId: usage.productId, quantity, dose, lotId: usage.lotId }];
         }
         const sources = (usage.lotAllocations || []).filter(alloc => parseNumber(alloc.quantity) > 0);
         if (sources.length === 0) {
-          return [{ productId: usage.productId, quantity, dose }];
+          return [{ ...snapshot, productId: usage.productId, quantity, dose }];
         }
         return sources.map(alloc => ({
+          ...snapshot,
           productId: usage.productId,
           quantity: parseNumber(alloc.quantity),
           dose,

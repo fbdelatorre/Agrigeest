@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useSubmitGuard } from '../../hooks/useSubmitGuard';
+import React, { useState } from 'react';
 import { Area, AreaUnit } from '../../types';
 import Input from '../ui/Input';
 import Select from '../ui/Select';
@@ -20,6 +21,8 @@ const AreaForm: React.FC<AreaFormProps> = ({
   isEditing = false,
 }) => {
   const navigate = useNavigate();
+  const { saving, runSubmit } = useSubmitGuard();
+  const initialRevision = React.useRef(initialData.updatedAt);
   const { language } = useLanguage();
   const { isOnline } = useNetworkStatus();
   const [formData, setFormData] = useState({
@@ -65,15 +68,16 @@ const AreaForm: React.FC<AreaFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validate()) return;
     
-    onSubmit({
+    await runSubmit(() => onSubmit({
+      ...{ updatedAt: initialRevision.current },
       ...formData,
       size: Number(formData.size),
-    });
+    }));
   };
 
   const unitOptions = [
@@ -154,7 +158,8 @@ const AreaForm: React.FC<AreaFormProps> = ({
         </Button>
         <Button
           type="submit"
-          disabled={!isOnline}
+          isLoading={saving}
+          disabled={saving || !isOnline}
           leftIcon={<Save size={18} />}
         >
           {isEditing 

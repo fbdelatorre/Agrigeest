@@ -35,7 +35,7 @@ const OperationCard: React.FC<OperationCardProps> = ({
   
   const getOperationTypeLabel = (type: OperationType): string => {
     if (language === 'pt') {
-      const labels = {
+      const labels: Record<string, string> = {
         plowing: 'Aração',
         spraying: 'Pulverização',
         planting: 'Plantio',
@@ -51,7 +51,7 @@ const OperationCard: React.FC<OperationCardProps> = ({
       return labels[type] || type;
     }
 
-    const labels = {
+    const labels: Record<string, string> = {
       plowing: 'Plowing',
       spraying: 'Spraying',
       planting: 'Planting',
@@ -61,7 +61,7 @@ const OperationCard: React.FC<OperationCardProps> = ({
   };
   
   const getOperationTypeBadgeVariant = (type: OperationType) => {
-    const variants = {
+    const variants: Record<string, 'secondary' | 'warning' | 'primary' | 'success'> = {
       plowing: 'secondary',
       spraying: 'warning',
       planting: 'primary',

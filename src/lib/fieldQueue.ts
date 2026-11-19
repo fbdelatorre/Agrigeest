@@ -16,6 +16,7 @@ export type QueueEntry = (
   userId: string;
   state: 'pending' | 'sent' | 'blocked';
   reason?: 'duplicate-rainfall' | 'duplicate-sample' | 'rejected';
+  hidden?: boolean;
 };
 
 const storeName = 'field-records';

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { useLanguage } from '../../context/LanguageContext';
 import OperationCard from '../../components/operations/OperationCard';
@@ -47,10 +47,10 @@ const OperationsList = () => {
     )) {
       try {
         await deleteOperation(id);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error deleting operation:', error);
 
-        const msg = error?.message || '';
+        const msg = error instanceof Error ? error.message : '';
         const isPt = language === 'pt';
 
         const errorMessages: Record<string, { pt: string; en: string }> = {
@@ -68,7 +68,7 @@ const OperationsList = () => {
           alert(isPt ? errorMessages[matched].pt : errorMessages[matched].en);
         } else {
           alert(isPt
-            ? 'Erro ao excluir operação. Tente novamente.'
+            ? msg || 'Erro ao excluir operação. Tente novamente.'
             : 'Error deleting operation. Please try again.');
         }
       }

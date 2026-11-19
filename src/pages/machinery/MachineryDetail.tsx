@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useMachineryContext } from '../../context/MachineryContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -15,7 +15,7 @@ const MachineryDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { language } = useLanguage();
-  const { getMachineryById, getMaintenancesByMachineryId, deleteMachinery, maintenances: allMaintenances } = useMachineryContext();
+  const { getMachineryById, getMaintenancesByMachineryId, deleteMachinery, deleteMaintenance, maintenances: allMaintenances } = useMachineryContext();
   const { isOnline } = useNetworkStatus();
   const [machinery, setMachinery] = useState<Machinery | null>(null);
   const [maintenances, setMaintenances] = useState<Maintenance[]>([]);
@@ -249,7 +249,11 @@ const MachineryDetail = () => {
               <MaintenanceCard
                 key={maintenance.id}
                 maintenance={maintenance}
-                showMachinery={false}
+                onDelete={async (maintenanceId) => {
+                  if (!window.confirm('Excluir esta manutenção?')) return;
+                  try { await deleteMaintenance(maintenanceId); }
+                  catch (error) { alert(error instanceof Error ? error.message : 'Não foi possível excluir a manutenção.'); }
+                }}
               />
             ))}
           </div>

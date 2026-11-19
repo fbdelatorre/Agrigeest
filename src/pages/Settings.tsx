@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
+import RecordActions from '../components/ui/RecordActions';
+import { insertBusinessRecord, type StoredDates } from '../lib/businessWrites';
 import { useLanguage } from '../context/LanguageContext';
 import { supabase } from '../lib/supabase';
 import Card from '../components/ui/Card';
@@ -15,7 +18,6 @@ import {
   Building2,
   Calendar,
   Plus,
-  Check,
   X,
   Users,
   Link,
@@ -29,6 +31,7 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { formatDateForDisplay } from '../utils/dateHelpers';
 
 interface Profile {
+  email: string;
   id: string;
   firstName: string;
   lastName: string;
@@ -164,7 +167,8 @@ export default function Settings() {
         id: profileData.id,
         firstName: profileData.first_name,
         lastName: profileData.last_name,
-        phone: profileData.phone,
+        phone: profileData.phone ?? '',
+        email: user.email ?? '',
         role: profileData.role,
         institution: profileData.institution,
         institutionId: profileData.institution_id,
@@ -175,7 +179,8 @@ export default function Settings() {
         id: profileData.id,
         firstName: profileData.first_name,
         lastName: profileData.last_name,
-        phone: profileData.phone,
+        phone: profileData.phone ?? '',
+        email: user.email ?? '',
         role: profileData.role,
         institution: profileData.institution,
         institutionId: profileData.institution_id,
@@ -286,7 +291,7 @@ export default function Settings() {
     try {
       setCreatingInvitation(true);
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .rpc('create_invitation', {
           p_institution_id: profile?.institutionId,
         });
@@ -428,9 +433,7 @@ export default function Settings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
       
-      const { data, error } = await supabase
-        .from('seasons')
-        .insert([{
+      const { error } = await insertBusinessRecord<Season & StoredDates>('seasons', {
           name: seasonFormData.name,
           start_date: seasonFormData.start_date,
           end_date: seasonFormData.end_date || null,
@@ -438,9 +441,7 @@ export default function Settings() {
           description: seasonFormData.description || null,
           user_id: user.id,
           institution_id: profile?.institutionId
-        }])
-        .select()
-        .single();
+        });
       
       if (error) throw error;
       
@@ -628,6 +629,7 @@ export default function Settings() {
       <h1 className="text-2xl font-bold text-gray-900">
         {language === 'pt' ? 'Configurações' : 'Settings'}
       </h1>
+      {profile?.isAdmin && <RouterLink className="inline-block text-brand-700 underline" to="/audit">Auditoria de lançamentos e conferência de estoque</RouterLink>}
 
       {/* Language Settings */}
       <Card>
@@ -1090,6 +1092,7 @@ export default function Settings() {
                               {language === 'pt' ? 'Excluir' : 'Delete'}
                             </Button>
                           </div>
+                          <RecordActions table="seasons" record={season} hideDelete onSaved={() => { void Promise.all([loadSeasons(), reloadSeasons()]); }} />
                         </td>
                       </tr>
                     ))}
