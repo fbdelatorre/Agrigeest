@@ -65,11 +65,17 @@ import Settings from './pages/Settings';
 import Notifications from './pages/Notifications';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
-  const { session, loading } = useAuth();
+  const { session, loading, error, retry } = useAuth();
   
   if (loading) {
-    return <div>Loading...</div>;
+    return <div role="status" className="p-6">Abrindo o AgriGest…</div>;
   }
+
+  if (!session && error) return <div className="p-6 space-y-3" role="alert">
+    <p>Não foi possível verificar sua sessão. Conecte-se à internet para abrir sua conta neste dispositivo.</p>
+    <button className="underline" onClick={retry}>Tentar novamente</button>
+    <a className="block underline" href={import.meta.env.MODE === 'native' ? '#/login' : '/login'}>Ir para o login</a>
+  </div>;
   
   if (!session) return <Navigate to="/login" replace />;
 

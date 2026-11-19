@@ -87,6 +87,11 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Offline field records
 
 Sign in and load the selected season, fields and products before going offline.
+On later openings, the cached session and matching profile let the app open local
+data even when token renewal cannot reach Supabase or the device incorrectly reports
+an online connection. Token renewal continues separately; remote writes still require
+server authentication. Without a saved session/profile, the initial verification is
+bounded and offers recovery instead of an indefinite loading screen.
 Rainfall, monitoring reports and recommendations are stored in SQLite on Android and Windows
 and IndexedDB in the PWA. The queue is scoped to the account and institution. It retries
 after reconnecting while the app is open, using the same ID to prevent duplicate writes.

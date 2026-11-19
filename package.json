@@ -10,6 +10,7 @@
     "test:precision": "node --test tests/precision.test.mjs",
     "test:writes": "node --test tests/writes.test.mjs",
     "test:writes:ui": "node tests/audit-ui.browser.cjs",
+    "test:offline": "node tests/offline-startup.browser.cjs",
     "preview": "vite preview",
     "build:native": "vite build --mode native --outDir dist-native",
     "desktop:dev": "tauri dev",

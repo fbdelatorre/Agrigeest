@@ -113,7 +113,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId, emai
   const profileKey = 'agrigest:v2:profile:' + userId;
   const { isOnline } = useNetworkStatus();
   const [profile, setProfile] = useState<UserProfile | null>(() =>
-    navigator.onLine ? null : readOfflineValue(profileKey, null)
+    readOfflineValue(profileKey, null)
   );
   const [profileFailed, setProfileFailed] = useState(false);
 
