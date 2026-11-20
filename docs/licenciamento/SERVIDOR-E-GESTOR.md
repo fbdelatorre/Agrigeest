@@ -120,3 +120,21 @@ Referências primárias conferidas:
    mutações legadas/RPCs, fila offline e transição entre versões, preservando dados.
 7. Só depois promover a integração validada à main e publicar de forma controlada,
    sem suspender inesperadamente as contas existentes.
+
+## Entrega de preparação
+
+- Actions concluído: https://github.com/fbdelatorre/Agrigeest/actions/runs/44833613805.
+- Commit compilado: `d73c702f8767273f3c8e9f2a34d9515d2d7f6323`.
+- Instalador: `AgriGest_Gestor_Licencas_0.1.0_PREPARACAO_x64-setup.exe`, 2.014.981 bytes.
+- SHA-256: `F04456FD6091D2B55619757AAA817DA7982BB45B63EB4E7D963C27901606766A`.
+- Cópia em `checks.local/entregas/gestor-licencas-0.1.0-preparacao`, com metadados,
+  instruções e checksums. Download/CRC, identidade, versão, commit e hash conferidos.
+  O manifesto declara servidor não publicado e automação financeira incompleta.
+- Marco do código anterior: `agrigest-antes-servidor-licencas-2026-11-20`, commit
+  `bce0d1bc81be1c02ac3dcbd3813b76c6996ca93e`; bundle verificado em
+  `checks.local/restauracao-servidor-licencas-2026-11-20`.
+  SHA-256 `E0F79F5FDFECBFA719DC8864144504DAEA03D6C9655CDFC062FE4A9B3A029D31`.
+  É cópia de código/histórico Git, não um backup do Supabase.
+- Inventário estático inicial salvo em `checks.local/license-integration-inventory.json`:
+  21 nomes literais de RPC e 21 de tabelas usados no cliente. Não inclui chamadas
+  dinâmicas e não substitui inventário do schema/funções/RLS realmente publicados.
