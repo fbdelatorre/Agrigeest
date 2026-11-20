@@ -8,6 +8,7 @@ on:
       - licensing-sandbox/**
       - scripts/*licensing*.mjs
       - tests/licensing-sandbox.test.mjs
+      - tests/licensing-lifecycle.test.mjs
       - package.json
       - package-lock.json
   workflow_dispatch:

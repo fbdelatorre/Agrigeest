@@ -5,6 +5,8 @@ O objetivo inicial foi definir regras, preservar o estado atual e preparar uma
 validação isolada. A etapa 2 agora possui um protótipo local em `licensing-sandbox`,
 com os resultados em [ETAPA-2.md](ETAPA-2.md). Ele não ativa licenças, cobrança,
 novos perfis, migrações ou alterações de permissões no aplicativo em uso.
+O laboratório evoluiu para a etapa 3, com convites de cadastro, ciclo das licenças
+e cortesias simulados. Escopo e limites em [ETAPA-3.md](ETAPA-3.md).
 
 ## Regras comerciais confirmadas
 
@@ -34,8 +36,8 @@ uma decisão separada, ainda indicada como proposta na tabela.
 Os adicionais contratados, e não o número de funcionários cadastrados no momento,
 determinam os limites. No desligamento que liberar uma vaga adicional paga, o
 proprietário escolhe manter ou cancelar o adicional. Manter permite reutilizar
-a vaga; cancelar deve atualizar automaticamente a cobrança e retirar uma vaga
-e dois dispositivos na data de efeito informada. As novas regras de cadastro,
+a vaga; cancelar deve reduzir imediatamente a cobrança e retirar uma vaga
+e dois dispositivos, conforme confirmado pelo usuário em 20/11/2026. As novas regras de cadastro,
 convites, desligamento, consulta após cancelamento e reativação estão em
 [CONTAS-CONVITES-E-ASSINATURAS.md](CONTAS-CONVITES-E-ASSINATURAS.md).
 

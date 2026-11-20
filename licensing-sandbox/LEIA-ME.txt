@@ -1,41 +1,45 @@
-AGRIGEST TESTE DE LICENCAS - ETAPA 2 - PROTOTIPO 0.1.0
+AGRIGEST LICENCAS TESTE - ETAPA 3 - 0.2.0
 
-Este pacote e um teste local pelo navegador, nao um instalador nativo Windows.
-Usa somente fazendas, pessoas e registros ficticios. Nao acessa o Supabase real,
-nao altera o AgriGest instalado e nao faz pagamentos ou envia emails.
+PROTOTIPO INDEPENDENTE, SOMENTE DADOS FICTICIOS.
+Nao conecta ao Supabase real, nao modifica o AgriGest usado diariamente,
+nao envia emails e nao cobra dinheiro. Contas e verificacao sao simuladas.
 
-COMO ABRIR
-1. Extraia todo o ZIP em uma pasta nova.
-2. Com Node.js instalado, execute Iniciar-teste.cmd.
-3. Abra http://127.0.0.1:4174 no navegador deste computador.
-4. Deixe a janela do servidor aberta durante o teste. Ctrl+C encerra o servidor.
-O servidor escuta somente o proprio computador. Nao e publicado na internet.
+WINDOWS
+Instale AgriGest_Licencas_Teste_0.2.0_x64-setup.exe e abra
+AgriGest Licencas Teste. Confira SHA256SUMS.txt e BUILD-INFO.json.
+Nao e atualizacao do AgriGest principal. Ainda nao possui assinatura comercial.
+
+ALTERNATIVA PELO NAVEGADOR
+O ZIP _web.zip requer Node.js. Extraia em uma pasta nova, execute
+Iniciar-teste.cmd e abra http://127.0.0.1:4174 em Chrome ou Edge.
+O servidor escuta somente este computador. Ctrl+C encerra o servidor.
 
 ROTEIRO
-1. Ana e proprietaria da Aurora. Veja os registros e abra Equipe e convites.
-2. Convide Fabio como consultor. Nao e enviado email: o convite e ficticio.
-3. Simule Gabriel: ele nao pode ver nem aceitar o convite de Fabio.
-4. Simule Fabio, aceite o convite e selecione a Aurora. Ele pode consultar estoque
-   e aplicacoes, registrar monitoramentos, chuvas e recomendacoes. Nao pode aplicar.
-5. Fabio e proprietario da Cedro, mas isso nao o torna administrador na Aurora.
-6. Simule Eva. Ela pode lancar monitoramentos e chuvas e corrigir os seus registros.
-   Nao pode acessar estoque ou recomendacoes. Os registros de outros nao aparecem.
-7. Volte para Ana e revogue o acesso de Fabio. Os registros ficticios dele continuam
-   na fazenda. Fabio deixa de acessar a Aurora e continua com sua propria Cedro.
-8. Bruno acessa somente a Boa Vista. Trocar de conta nao move dados entre fazendas.
-9. Feche e reabra o navegador no mesmo endereco: os testes ficam salvos localmente.
+1. Ana: Plano e licencas > Adicionar vaga + 2 aparelhos. A Aurora comeca
+   com quatro vagas base ocupadas. O adicional permite 5 usuarios e 8 aparelhos.
+2. Fazenda > Equipe e convites: convide joana@example.test como monitora.
+   Abra o email simulado: o cadastro mostra fazenda e funcao preenchidas.
+   Informe nome, simule verificacao de email e aceite. Nao use dados reais.
+3. Simule Ana e desligue Joana. Escolha manter ou cancelar o adicional.
+   Cancelar reduz imediatamente valor, uma vaga e dois aparelhos.
+4. Plano e licencas: cancele a licenca e confira o historico somente para consulta.
+   Reative: os dados continuam salvos e funcionarios desligados nao retornam.
+5. Simule Helena > Gestao do aplicativo. Conceda cortesia com motivo e prazo
+   opcional. Ana passa a ver valor zero. Helena nao ganha acesso a fazenda.
+   Revogar cortesia preserva dados para consulta e nao inicia cobranca automatica.
+6. Cadastrar outra conta ficticia permite cadastro sem empresa ou funcao.
+   Minha conta e empresa permite criar propriedade ou consultoria com pagamento
+   simulado. Os precos mostrados sao apenas exemplos de laboratorio.
+7. Consultores precisam de conta e empresa antes do convite. Fabio e Gabriel
+   ja possuem empresas ficticias. Convite nao permite aplicar ou alterar estoque.
+8. Aparelhos sao registros ficticios para testar cotas. Ao reduzir cotas,
+   escolha aparelhos a revogar se o novo limite nao couber.
 
-LIMITES DESTA ETAPA
-O seletor de contas simula identidade; nao e login ou autenticacao de producao.
-As regras sao exercitadas em um PostgreSQL local, com RLS e funcoes restritas.
-Isso nao valida ainda a integracao com Supabase Auth, versoes antigas ou dados reais.
-Licencas, cobranca, cotas de usuarios/aparelhos e autorizacao offline ainda nao
-estao ativos. O controle dessas cotas sera uma etapa posterior.
-As quantidades planejadas continuam: fazenda 6 aparelhos, consultoria 5 aparelhos;
-cada usuario adicional comprado acrescenta 2 aparelhos nos dois planos.
-
-INSTALADOR WINDOWS
-A configuracao do aplicativo nativo separado esta no codigo. A compilacao neste
-computador foi bloqueada pelo Controle de Aplicativos do Windows. Nenhuma
-protecao foi desativada. O instalador precisara de um ambiente de compilacao
-autorizado. O AgriGest usado diariamente permanece como estava.
+LIMITES
+Nao ha autenticacao, email, pagamento, reembolso ou bloqueio de aparelhos reais.
+Nao usar este modelo de identidade simulada em producao.
+Consultoria usa provisoriamente um usuario base, ainda sujeito a confirmacao.
+Base da fazenda: 4 usuarios e 6 aparelhos. Consultoria: 5 aparelhos.
+Cada adicional acrescenta uma vaga e 2 aparelhos nos dois planos.
+Gestao de funcionarios da consultoria e integracao com o aplicativo principal
+serao etapas posteriores. Registros ficticios da versao 0.1 sao preservados.

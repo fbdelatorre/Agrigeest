@@ -4,11 +4,12 @@ import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 const schema=await readFile('licensing-sandbox/schema.sql','utf8');
 const seed=await readFile('licensing-sandbox/seed.sql','utf8');
+const lifecycle=await readFile('licensing-sandbox/lifecycle.sql','utf8');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 
 test('licensing prototype refuses initialization without the local sandbox marker',async()=>{
   const db=new PGlite();
-  try {await assert.rejects(db.exec(schema),/SANDBOX_MARKER_REQUIRED/);}
+  try {await assert.rejects(db.exec(schema),/SANDBOX_MARKER_REQUIRED/);await assert.rejects(db.exec(lifecycle),/SANDBOX_MARKER_REQUIRED/);}
   finally {await db.close();}
 });
 
@@ -22,14 +23,14 @@ test('local database enforces farm membership, role capabilities, invitation ide
   const stock=async n=>Number((await db.query('SELECT quantity FROM license_lab.products WHERE id=$1',[id(n)])).rows[0].quantity);
   try {
     await db.exec("SELECT set_config('agrigest.licensing_sandbox','synthetic-only-v1',false)");
-    await db.exec(schema);await db.exec(seed);
+    await db.exec(schema);await db.exec(seed);await db.exec(lifecycle);
     assert.equal((await as(1,'SELECT * FROM license_lab.farms')).length,1);
     assert.equal((await as(1,'SELECT * FROM license_lab.products WHERE farm_id=$1',[id(102)])).length,0);
     assert.equal((await as(2,'SELECT * FROM license_lab.reports WHERE farm_id=$1',[id(101)])).length,0);
     assert.equal((await as(null,'SELECT * FROM license_lab.farms')).length,0);
     const parallel=await Promise.all(Array.from({length:12},(_,index)=>as(index%2?1:2,'SELECT farm_id FROM license_lab.products')));
     parallel.forEach((rows,index)=>assert.deepEqual(rows.map(row=>row.farm_id),[id(index%2?101:102)]));
-    await assert.rejects(as(2,"INSERT INTO license_lab.reports(farm_id,area_id,author_id,observed_on,stage,description) VALUES($1,$2,$3,CURRENT_DATE,'V1','Invasão')",[id(101),id(201),id(2)]),/row-level security/);
+    await assert.rejects(as(2,"INSERT INTO license_lab.reports(farm_id,area_id,author_id,observed_on,stage,description) VALUES($1,$2,$3,CURRENT_DATE,'V1','Invasão')",[id(101),id(201),id(2)]),/row-level security|READ_ONLY_LICENSE/);
     // Every full operational role can apply; monitor and consultant cannot.
     for(const user of [1,3,4]) await as(user,'SELECT license_lab.apply_operation($1,$2,$3,1)',[id(101),id(201),id(301)]);
     assert.equal(await stock(301),97);
@@ -41,12 +42,12 @@ test('local database enforces farm membership, role capabilities, invitation ide
     assert.equal((await as(5,"UPDATE license_lab.reports SET stage='V9' WHERE id=$1 RETURNING id",[id(401)])).length,0);
     assert.equal((await as(5,'DELETE FROM license_lab.reports WHERE id=$1 RETURNING id',[id(401)])).length,0);
     await assert.rejects(as(5,"UPDATE license_lab.reports SET author_id=$1 WHERE id=$2",[id(1),report]),/IMMUTABLE_SCOPE/);
-    await assert.rejects(as(5,"INSERT INTO license_lab.reports(farm_id,area_id,author_id,observed_on,stage,description) VALUES($1,$2,$3,CURRENT_DATE,'V4','Autor falso')",[id(101),id(201),id(1)]),/row-level security/);
+    await assert.rejects(as(5,"INSERT INTO license_lab.reports(farm_id,area_id,author_id,observed_on,stage,description) VALUES($1,$2,$3,CURRENT_DATE,'V4','Autor falso')",[id(101),id(201),id(1)]),/row-level security|READ_ONLY_LICENSE/);
     await assert.rejects(as(5,"INSERT INTO license_lab.rainfall(farm_id,area_id,author_id,observed_on,millimeters) VALUES($1,$2,$3,CURRENT_DATE,10)",[id(101),id(202),id(5)]),/foreign key/);
     await as(5,'INSERT INTO license_lab.rainfall(farm_id,area_id,author_id,observed_on,millimeters) VALUES($1,$2,$3,CURRENT_DATE,25)',[id(101),id(201),id(5)]);
     await assert.rejects(as(5,'SELECT license_lab.apply_operation($1,$2,$3,1)',[id(101),id(201),id(301)]),/APPLICATION_FORBIDDEN/);
     await assert.rejects(as(5,'UPDATE license_lab.products SET quantity=999'),/permission denied/);
-    await assert.rejects(as(5,"INSERT INTO license_lab.recommendations(farm_id,area_id,report_id,author_id,product_id,dose,description) VALUES($1,$2,$3,$4,$5,1,'Sem permissão')",[id(101),id(201),report,id(5),id(301)]),/row-level security/);
+    await assert.rejects(as(5,"INSERT INTO license_lab.recommendations(farm_id,area_id,report_id,author_id,product_id,dose,description) VALUES($1,$2,$3,$4,$5,1,'Sem permissão')",[id(101),id(201),report,id(5),id(301)]),/row-level security|READ_ONLY_LICENSE/);
     await assert.rejects(as(5,"INSERT INTO license_lab.audit(farm_id,action,record_id) VALUES($1,'FORGED','test')",[id(101)]),/permission denied/);
     await assert.rejects(as(5,"UPDATE license_lab.memberships SET role='owner'"),/permission denied/);
     await assert.rejects(as(3,"SELECT license_lab.invite($1,'fabio@example.test','consultant')",[id(101)]),/OWNER_REQUIRED/);
