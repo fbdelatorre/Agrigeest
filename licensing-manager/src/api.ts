@@ -18,7 +18,19 @@ export type Payment={id:string;license_id:string;amount_minor:number;status:stri
 export type Event={id:string;license_id:string;action:string;created_at:string;details:Record<string,unknown>};
 export type Account={id:string;email:string};
 export async function rpc<T=unknown>(name:string,args:Record<string,unknown>={}):Promise<T>{
- if(!db)throw Error('Serviço não configurado.');const {data,error}=await db.rpc(name,args);if(error)throw error;return data as T;
+ if(!db||!client)throw Error('Serviço não configurado.');
+ let pendingKey:string|undefined;const payload={...args};
+ if(typeof args.p_request==='string'){
+  const {data:{session}}=await client.auth.getSession();if(!session)throw Error('Entre novamente para realizar esta ação.');
+  const canonical=JSON.stringify(Object.fromEntries(Object.entries(args).filter(([key])=>key!=='p_request').sort(([a],[b])=>a.localeCompare(b))));
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonical));
+  const hash=Array.from(new Uint8Array(digest),n=>n.toString(16).padStart(2,'0')).join('');
+  pendingKey='agrigest-license-manager-pending:'+new URL(url).host+':'+session.user.id+':'+name+':'+hash;
+  const saved=localStorage.getItem(pendingKey);payload.p_request=saved??args.p_request;
+  if(!saved)localStorage.setItem(pendingKey,String(payload.p_request));
+ }
+ const {data,error}=await db.rpc(name,payload);if(error)throw error;
+ if(pendingKey)localStorage.removeItem(pendingKey);return data as T;
 }
 export async function snapshot(){
  if(!db)throw Error('Serviço não configurado.');

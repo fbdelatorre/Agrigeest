@@ -28,7 +28,7 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
    if(url.pathname==='/auth/v1/logout')return fulfill({});
    if(url.pathname.endsWith('/manager_access'))return fulfill({authorized:signedEmail==='manager@example.test',can_manage:signedEmail==='manager@example.test'});
    if(url.pathname.endsWith('/admin_accounts'))return fulfill([{id:owner,email:'owner@example.test'}]);
-   if(url.pathname.endsWith('/admin_set_license')){commands.push(JSON.parse(req.postData()));free=true;return fulfill(null);}
+   if(url.pathname.endsWith('/admin_set_license')){commands.push(JSON.parse(req.postData()));free=true;if(commands.length===1)return route.abort('failed');return fulfill(null);}
    if(url.pathname.endsWith('/licenses'))return fulfill([{id:license,label:'Empresa para validação',owner_id:owner,kind:'farm',period:'monthly',status:'pending',extras:0,amount_minor:0,complimentary:free,valid_until:null}]);
    if(url.pathname.endsWith('/payments')||url.pathname.endsWith('/events'))return fulfill([]);
    throw Error('Unexpected mock API request: '+url.pathname);
@@ -45,8 +45,10 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
   await page.getByRole('button').filter({hasText:'Empresa para validação'}).click();
   const grant=page.locator('form').filter({has:page.getByRole('heading',{name:'Conceder ou renovar licença gratuita',exact:true})});
   await grant.getByLabel('Motivo',{exact:true}).fill('Cortesia validada na interface');await grant.getByRole('button',{name:'Conceder cortesia',exact:true}).click();
+  await page.getByRole('alert').waitFor();
+  await grant.getByRole('button',{name:'Conceder cortesia',exact:true}).click();
   await page.getByText('Licença atualizada no servidor.',{exact:true}).waitFor();
-  assert.equal(commands.length,1);assert.equal(commands[0].p_action,'grant_free');assert.equal(commands[0].p_id,license);
+  assert.equal(commands.length,2);assert.equal(commands[0].p_action,'grant_free');assert.equal(commands[0].p_id,license);assert.equal(commands[1].p_request,commands[0].p_request,'Retry after a lost response must reuse the request identity');
   await page.screenshot({path:'checks.local/license-manager-preview.png',fullPage:true});
   await page.getByRole('button',{name:'Sair',exact:true}).click();await login.waitFor();
   await login.getByLabel('Email',{exact:true}).fill('employee@example.test');await login.getByLabel('Senha',{exact:true}).fill('Fictitious-password-only');await login.getByRole('button',{name:'Entrar',exact:true}).click();

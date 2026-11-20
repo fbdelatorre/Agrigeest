@@ -94,6 +94,9 @@ Referências primárias conferidas:
 - Interface no Edge sob CSP nativa, com respostas HTTP locais simuladas: recusa
   de chave privada, login/autorização, cortesia, logout e isolamento entre contas.
   Nenhuma chamada externa foi feita no teste. TOTP real ainda não foi exercitado.
+  Foi simulada uma resposta perdida após gravação: repetir a ação reutiliza o
+  mesmo identificador, com hash do conteúdo separado por usuário/servidor, sem
+  persistir os detalhes financeiros do formulário no armazenamento local.
 - TypeScript, ESLint dos arquivos novos e compilação web do gestor aprovados.
 - Testes reais de Supabase/Auth/email/Docker, Asaas Sandbox, restauração do banco,
   migração dos perfis e instalação nativa ainda não foram executados.
