@@ -32,8 +32,12 @@ A quantidade de usuários incluídos na licença base de consultor continua send
 uma decisão separada, ainda indicada como proposta na tabela.
 
 Os adicionais contratados, e não o número de funcionários cadastrados no momento,
-determinam os limites. Desativar um funcionário não cancela automaticamente um
-adicional pago. A vaga pode ser reutilizada mediante as regras da assinatura.
+determinam os limites. No desligamento que liberar uma vaga adicional paga, o
+proprietário escolhe manter ou cancelar o adicional. Manter permite reutilizar
+a vaga; cancelar deve atualizar automaticamente a cobrança e retirar uma vaga
+e dois dispositivos na data de efeito informada. As novas regras de cadastro,
+convites, desligamento, consulta após cancelamento e reativação estão em
+[CONTAS-CONVITES-E-ASSINATURAS.md](CONTAS-CONVITES-E-ASSINATURAS.md).
 
 ## Permissões solicitadas
 
@@ -65,6 +69,9 @@ O convite de consultor deve ser emitido pelo proprietário e vinculado à fazend
 à função e ao destinatário. A aceitação exige a conta destinatária autenticada e
 o convite válido. O vínculo não se estende a outros usuários da mesma consultoria.
 Cada consultor adicional precisará da autorização das fazendas que poderá atender.
+Consultores devem ter conta e empresa cadastradas antes do convite. Funcionários
+podem receber convite por email antes de ter conta, com link direto ao cadastro
+e fazenda/função preenchidas e validadas pelo servidor.
 
 Proposta: o consultor externo usa uma vaga da licença de consultoria e não ocupa
 uma das vagas de funcionários da fazenda. Seus aparelhos consomem o limite dessa
@@ -158,7 +165,9 @@ se tivessem sido criados por outro usuário ou em outra fazenda.
 
 - Confirmação de um usuário base na licença de consultor.
 - Quem será o proprietário legítimo de cada fazenda já existente.
-- Validade da autorização offline e tratamento de leituras quando a licença vence.
+- Validade da autorização offline e política de inadimplência/vencimento. No
+  cancelamento efetivo, foi confirmada a consulta do histórico sem mutações,
+  preservando conta e empresa e permitindo reativação.
 - Contagem por instalação ou pareamento de instalações do mesmo aparelho.
 - Preços, política de atraso, redução de plano e forma de cobrança/distribuição.
 - Política para funcionário ligado a mais de uma fazenda; a estrutura deve comportar

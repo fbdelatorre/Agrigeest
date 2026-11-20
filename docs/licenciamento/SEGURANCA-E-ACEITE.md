@@ -4,6 +4,10 @@ Este roteiro define o que precisará ser comprovado em ambiente isolado antes de
 qualquer ativação. Parte dos cenários já foi exercitada no banco fictício da etapa 2,
 conforme [ETAPA-2.md](ETAPA-2.md). Autenticação real, licenças, dispositivos e
 compatibilidade com dados/versões existentes ainda precisam de validação própria.
+Os novos cenários de cadastro por convite, desligamento, cancelamento de
+adicionais, consulta após cancelamento e reativação estão detalhados em
+[CONTAS-CONVITES-E-ASSINATURAS.md](CONTAS-CONVITES-E-ASSINATURAS.md) e também
+precisam passar antes de sua integração.
 
 ## Regras de autorização
 
