@@ -10,7 +10,7 @@ async function lab(run,withCompany=true){
  const call=async(u,fn,args)=>as(u,`SELECT license_lab.${fn}(${args.map((_,i)=>'$'+(i+1)).join(',')}) AS value`,args);
  try{
   await db.exec("SELECT set_config('agrigest.licensing_sandbox','synthetic-only-v1',false)");
-  for(const file of ['schema.sql','seed.sql','lifecycle.sql',...(withCompany?['consultancy.sql']:[])])await db.exec(await readFile('licensing-sandbox/'+file,'utf8'));
+  for(const file of ['schema.sql','seed.sql','lifecycle.sql',...(withCompany?['consultancy.sql','role-changes.sql']:[])])await db.exec(await readFile('licensing-sandbox/'+file,'utf8'));
   await run({db,as,call});
  }finally{await db.close();}
 }
@@ -230,4 +230,64 @@ test('company invitations with no farms, revoked or expired tokens never widen a
  assert.ok(newFarm);assert.equal((await as(7,'SELECT * FROM license_lab.farms')).length,0);
  await call(6,'company_farms',[id(6),id(7),[newFarm],randomUUID()]);
  assert.deepEqual((await as(7,'SELECT id FROM license_lab.farms')).map(f=>f.id),[newFarm]);
+}));
+
+test('farm owner changes employee roles with authorization, history and no data or quota changes',()=>lab(async({db,as,call})=>{
+ const change=(actor,target,user,role,expected,key=randomUUID())=>call(actor,'change_staff_role',['farm',id(target),id(user),role,key,expected]);
+ await as(5,"INSERT INTO license_lab.reports(farm_id,area_id,author_id,observed_on,stage,description) VALUES($1,$2,$3,CURRENT_DATE,'V5','Preservar autoria da Eva')",[id(101),id(201),id(5)]);
+ const before=(await db.query('SELECT id,author_id,description FROM license_lab.reports ORDER BY id')).rows;
+ const stocks=(await db.query('SELECT * FROM license_lab.products ORDER BY id')).rows;
+ const plans=(await db.query('SELECT * FROM license_lab.subscriptions ORDER BY id')).rows;
+ for(const actor of [2,3,4,5,8])await assert.rejects(change(actor,101,5,'admin','monitor'),/OWNER_REQUIRED/);
+ await assert.rejects(change(1,102,5,'admin','monitor'),/OWNER_REQUIRED/);
+ await assert.rejects(change(1,101,1,'admin','owner'),/OWNER_IMMUTABLE/);
+ for(const role of ['owner','consultant','unexpected',null])await assert.rejects(change(1,101,5,role,'monitor'),/COMPANY_STAFF_ROLES_ONLY/);
+ const invite=(await call(1,'invite',[id(101),'fabio@example.test','consultant']))[0].value;await call(6,'accept_invitation',[invite]);
+ await assert.rejects(change(1,101,6,'admin','consultant'),/STAFF_ROLE_REQUIRED/);
+ const key=randomUUID();await change(1,101,5,'admin','monitor',key);await change(1,101,5,'admin','monitor',key);
+ assert.equal((await as(5,'SELECT * FROM license_lab.products')).length,1);
+ assert.equal((await as(5,'SELECT license_lab.role_at($1) AS role',[id(101)]))[0].role,'admin');
+ assert.equal((await as(1,"SELECT * FROM license_lab.license_events WHERE action='staff_role_changed'")).length,1);
+ await assert.rejects(change(1,101,5,'operator','monitor'),/ROLE_CHANGED_RELOAD/);
+ await assert.rejects(change(1,101,5,'operator','admin',key),/REQUEST_CONFLICT/);
+ const competing=await Promise.allSettled([change(1,101,5,'operator','admin'),change(1,101,5,'monitor','admin')]);
+ assert.equal(competing.filter(x=>x.status==='fulfilled').length,1);
+ const current=(await as(5,'SELECT license_lab.role_at($1) AS role',[id(101)]))[0].role;
+ if(current!=='monitor')await change(1,101,5,'monitor',current);
+ assert.equal((await as(5,'SELECT * FROM license_lab.products')).length,0);
+ await assert.rejects(call(5,'apply_operation',[id(101),id(201),id(301),1]),/APPLICATION_FORBIDDEN/);
+ assert.equal((await as(5,'SELECT * FROM license_lab.reports')).length,1);
+ assert.deepEqual((await db.query('SELECT id,author_id,description FROM license_lab.reports ORDER BY id')).rows,before);
+ assert.deepEqual((await db.query('SELECT * FROM license_lab.products ORDER BY id')).rows,stocks);
+ assert.deepEqual((await db.query('SELECT * FROM license_lab.subscriptions ORDER BY id')).rows,plans);
+ await call(1,'plan_change',[id(101),'cancel',[],randomUUID()]);
+ await assert.rejects(change(1,101,5,'admin','monitor'),/READ_ONLY_LICENSE/);
+ await call(1,'plan_change',[id(101),'reactivate',[],randomUUID()]);
+ await call(1,'revoke_member',[id(101),id(5)]);
+ await assert.rejects(change(1,101,5,'admin','monitor'),/MEMBER_NOT_FOUND/);
+}));
+
+test('consultancy role change preserves selected farms and cannot create stock-operation privileges',()=>lab(async({db,as,call})=>{
+ const invited=(await call(1,'invite',[id(101),'fabio@example.test','consultant']))[0].value;await call(6,'accept_invitation',[invited]);
+ const staff=(await call(6,'invite_company',[id(6),'gabriel@example.test','monitor',[id(101)]]))[0].value;await call(7,'accept_company',[staff]);
+ const before=(await as(6,'SELECT * FROM license_lab.company_access WHERE user_id=$1',[id(7)]));
+ const change=(actor,role,expected,key=randomUUID())=>call(actor,'change_staff_role',['company',id(6),id(7),role,key,expected]);
+ await assert.rejects(change(7,'admin','monitor'),/COMPANY_OWNER_REQUIRED/);
+ await assert.rejects(change(1,'admin','monitor'),/COMPANY_OWNER_REQUIRED/);
+ await assert.rejects(change(8,'admin','monitor'),/COMPANY_OWNER_REQUIRED/);
+ const key=randomUUID();await change(6,'admin','monitor',key);await change(6,'admin','monitor',key);
+ assert.deepEqual((await as(7,'SELECT id FROM license_lab.farms')).map(f=>f.id),[id(101)]);
+ assert.equal((await as(7,'SELECT * FROM license_lab.products')).length,1);
+ await change(6,'operator','admin');
+ await assert.rejects(call(7,'apply_operation',[id(101),id(201),id(301),1]),/APPLICATION_FORBIDDEN/);
+ await change(6,'monitor','operator');
+ assert.equal((await as(7,'SELECT * FROM license_lab.products')).length,0);
+ assert.deepEqual(await as(6,'SELECT * FROM license_lab.company_access WHERE user_id=$1',[id(7)]),before);
+ const events=await as(6,"SELECT details FROM license_lab.license_events WHERE action='staff_role_changed' ORDER BY created_at");
+ assert.equal(events.length,3);assert.equal(events[0].details.previous_role,'monitor');assert.equal(events[0].details.new_role,'admin');
+ const plan=(await as(6,'SELECT id FROM license_lab.subscriptions WHERE consultant_id=$1',[id(6)]))[0].id;
+ await call(6,'plan_change',[plan,'cancel',[],randomUUID()]);await assert.rejects(change(6,'admin','monitor'),/READ_ONLY_LICENSE/);
+ await call(6,'plan_change',[plan,'reactivate',[],randomUUID()]);
+ await call(6,'dismiss_company',[id(6),id(7),false,[],randomUUID()]);await assert.rejects(change(6,'admin','monitor'),/MEMBER_NOT_FOUND/);
+ await assert.rejects(as(7,"UPDATE license_lab.company_members SET role='admin'"),/permission denied/);
 }));

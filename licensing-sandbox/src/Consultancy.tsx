@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { command, roles, type Snapshot } from './database';
+import { RoleEditor } from './RoleEditor';
 type Action=(task:()=>Promise<unknown>,success:string)=>Promise<void>;
 const fields=(e:FormEvent<HTMLFormElement>)=>new FormData(e.currentTarget);
 
@@ -27,6 +28,7 @@ export function ConsultancyPage({data,user,action,busy}:{data:Snapshot;user:stri
   <div className="columns"><section className="panel"><h2>Funcionários e fazendas autorizadas</h2>{members.map(m=><article className="panel" key={m.user_id} aria-label={'Funcionário: '+name(m.user_id)}>
    <h3>{name(m.user_id)}</h3><p>{roles[m.role]} · {m.active?'Ativo':'Desligado'}</p>
    {m.active&&m.role!=='owner'&&<>
+    <RoleEditor key={m.user_id+m.role} user={user} scope="company" target={company.user_id} member={m.user_id} name={name(m.user_id)} current={m.role} busy={busy} writable={!!plan?.entitled} action={action}/>
     <form key={data.companyAccess.filter(a=>a.user_id===m.user_id&&a.active&&a.valid).map(a=>a.farm_id).sort().join(',')} aria-label={'Fazendas de '+name(m.user_id)} onSubmit={e=>{e.preventDefault();const v=fields(e);void action(()=>command(user,'company_farms',[company.user_id,m.user_id,v.getAll('farms'),crypto.randomUUID()]),'Fazendas autorizadas atualizadas. Nenhuma outra fazenda foi liberada.');}}>
      {farmFields(m.user_id)}<button disabled={busy||!plan?.entitled}>Salvar fazendas autorizadas</button>
     </form>

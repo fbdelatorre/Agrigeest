@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { command, explain, previewInvite, registerDemo, roles, type Account, type Snapshot, type Plan } from './database';
+import { command, explain, previewInvite, registerDemo, roles, type Account, type Snapshot, type Plan, type LicenseEvent } from './database';
 
 type Action=(task:()=>Promise<unknown>,success:string)=>Promise<void>;
 const values=(e:FormEvent<HTMLFormElement>)=>Object.fromEntries(new FormData(e.currentTarget)) as Record<string,string>;
@@ -60,10 +60,15 @@ export function PlansPage({data,user,action,busy}:{data:Snapshot;user:string;act
     <label>Nome do aparelho<input name="name" required maxLength={100} placeholder="Ex.: Celular de campo"/></label><label>Usuário<select name="user_id">{data.directory.filter(a=>!plan.farm_id?data.companyMembers.some(m=>m.company_owner===user&&m.user_id===a.id&&m.active):plan.farm_id===data.farm?.id?data.members.some(m=>m.user_id===a.id&&m.active&&m.role!=='consultant'):a.id===user).map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><button disabled={busy||!plan.entitled}>Autorizar aparelho fictício</button>
    </form>
   </section>;})}
-  <section className="panel"><h2>Histórico das licenças</h2>{data.events.map(e=><p key={e.id}>{new Date(e.created_at).toLocaleString('pt-BR')} · {eventLabel(e.action)}</p>)}</section>
+  <section className="panel"><h2>Histórico das licenças</h2>{data.events.map(e=><p key={e.id}>{new Date(e.created_at).toLocaleString('pt-BR')} · {eventDescription(e,data.directory)}</p>)}</section>
  </>;
 }
 const eventLabel=(action:string)=>({buy_extra:'Adicional contratado',cancel_extra:'Adicional cancelado imediatamente',cancel:'Licença cancelada',reactivate:'Licença reativada',device_added:'Aparelho autorizado',device_revoked:'Aparelho revogado',simulated_payment:'Pagamento simulado aprovado',free_granted:'Cortesia concedida',free_revoked:'Cortesia revogada'}[action]??action);
+const eventDescription=(event:LicenseEvent,directory:Account[])=>{
+ const {previous_role:previous,new_role:next,user}=event.details;
+ if(event.action==='staff_role_changed'&&typeof previous==='string'&&typeof next==='string')return `Função alterada: ${directory.find(a=>a.id===user)?.name??'Funcionário'} · ${roles[previous]} → ${roles[next]}`;
+ return eventLabel(event.action);
+};
 
 export function PlatformPage({data,user,action,busy}:{data:Snapshot;user:string;action:Action;busy:boolean}) {
  return <><section className="panel"><h2>Gestão do aplicativo</h2><p>Acesso exclusivo do gestor do AgriGest. Conceder licença não concede acesso aos dados operacionais da fazenda. Emails abaixo são fictícios.</p></section>
@@ -71,6 +76,6 @@ export function PlatformPage({data,user,action,busy}:{data:Snapshot;user:string;
    <form onSubmit={e=>{e.preventDefault();const v=values(e);void action(()=>command(user,'grant_free',[plan.id,true,v.until?new Date(v.until+'T23:59:59').toISOString():null,v.reason,request()]),'Licença gratuita concedida no simulador. Nenhum acesso operacional foi concedido ao gestor.');}}><div className="two"><label>Validade opcional<input type="date" name="until" min={new Date().toLocaleDateString('en-CA')}/></label><label>Motivo<input name="reason" required minLength={3} maxLength={500} placeholder="Ex.: Cortesia para demonstração"/></label></div><button disabled={busy} className="primary">Conceder ou renovar licença gratuita</button></form>
    {plan.complimentary&&<button className="danger" disabled={busy} onClick={()=>{if(window.confirm('Revogar cortesia? O plano fica somente para consulta, sem iniciar cobrança automática.'))void action(()=>command(user,'grant_free',[plan.id,false,null,'Revogação pelo gestor do aplicativo',request()]),'Cortesia revogada. Histórico preservado, sem cobrança automática.');}}>Revogar cortesia</button>}
   </section>)}
-  <section className="panel"><h2>Histórico administrativo</h2>{data.events.map(e=><p key={e.id}>{new Date(e.created_at).toLocaleString('pt-BR')} · {eventLabel(e.action)}{typeof e.details.reason==='string'?' · '+e.details.reason:''}</p>)}</section>
+  <section className="panel"><h2>Histórico administrativo</h2>{data.events.map(e=><p key={e.id}>{new Date(e.created_at).toLocaleString('pt-BR')} · {eventDescription(e,data.directory)}{typeof e.details.reason==='string'?' · '+e.details.reason:''}</p>)}</section>
  </>;
 }

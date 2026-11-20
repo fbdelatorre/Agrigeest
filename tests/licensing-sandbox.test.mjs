@@ -9,7 +9,10 @@ const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 
 test('licensing prototype refuses initialization without the local sandbox marker',async()=>{
   const db=new PGlite();
-  try {await assert.rejects(db.exec(schema),/SANDBOX_MARKER_REQUIRED/);await assert.rejects(db.exec(lifecycle),/SANDBOX_MARKER_REQUIRED/);}
+  try {
+    await assert.rejects(db.exec(schema),/SANDBOX_MARKER_REQUIRED/);await assert.rejects(db.exec(lifecycle),/SANDBOX_MARKER_REQUIRED/);
+    for(const file of ['consultancy.sql','role-changes.sql'])await assert.rejects(db.exec(await readFile('licensing-sandbox/'+file,'utf8')),/SANDBOX_MARKER_REQUIRED/);
+  }
   finally {await db.close();}
 });
 

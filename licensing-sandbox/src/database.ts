@@ -3,6 +3,7 @@ import schema from '../schema.sql?raw';
 import seed from '../seed.sql?raw';
 import lifecycle from '../lifecycle.sql?raw';
 import consultancy from '../consultancy.sql?raw';
+import roleChanges from '../role-changes.sql?raw';
 import wasmUrl from '@electric-sql/pglite/pglite.wasm?url';
 import initdbUrl from '@electric-sql/pglite/initdb.wasm?url';
 import bundleUrl from '@electric-sql/pglite/pglite.data?url';
@@ -43,6 +44,10 @@ function database() {
     if (!(await db.query<{name:string|null}>("SELECT to_regclass('license_lab.company_members') AS name")).rows[0]?.name) {
       await db.exec("SELECT set_config('agrigest.licensing_sandbox','synthetic-only-v1',false)");
       await db.transaction(tx=>tx.exec(consultancy));
+    }
+    if (!(await db.query<{name:string|null}>("SELECT to_regprocedure('license_lab.change_staff_role(text,uuid,uuid,text,uuid,text)') AS name")).rows[0]?.name) {
+      await db.exec("SELECT set_config('agrigest.licensing_sandbox','synthetic-only-v1',false)");
+      await db.transaction(tx=>tx.exec(roleChanges));
     }
     return db;
   })();
@@ -163,7 +168,7 @@ export async function remove(user:string,farm:string,kind:RecordKind,id:string) 
       throw new Error('Registro indisponível ou sem permissão para excluir.');
   });
 }
-const sizes={invite:3,accept_invitation:1,revoke_invitation:1,revoke_member:2,apply_operation:4,claim_demo:1,plan_change:4,dismiss:5,device_change:5,create_company:5,grant_free:5,invite_company:4,accept_company:1,company_farms:4,dismiss_company:5,revoke_company_invite:1};
+const sizes={invite:3,accept_invitation:1,revoke_invitation:1,revoke_member:2,apply_operation:4,claim_demo:1,plan_change:4,dismiss:5,device_change:5,create_company:5,grant_free:5,invite_company:4,accept_company:1,company_farms:4,dismiss_company:5,revoke_company_invite:1,change_staff_role:6};
 export async function command(user:string,name:keyof typeof sizes,args:unknown[]) {
   if (!(name in sizes) || sizes[name]!==args.length) throw new Error('Ação inválida.');
   return asUser(user,tx=>tx.query(`SELECT license_lab.${name}(${args.map((_,index)=>'$'+(index+1)).join(',')})`,args));
@@ -183,7 +188,8 @@ export function explain(error:unknown):string {
     PLATFORM_ADMIN_REQUIRED:'Somente o gestor do aplicativo pode conceder cortesias.',FREE_EXPIRED:'A cortesia venceu. Solicite renovação ao gestor do aplicativo.',
     EXTRA_LIMIT:'Não há adicional para cancelar ou o limite de teste foi atingido.',INVALID_GRANT:'Informe um motivo e uma validade futura, ou deixe a validade em branco.',
     COMPANY_OWNER_REQUIRED:'Somente o proprietário da consultoria pode gerenciar sua equipe.',COMPANY_STAFF_ROLES_ONLY:'Consultores só podem convidar administradores, monitores de campo e responsáveis por aplicação.',
-    FARM_DELEGATION_FORBIDDEN:'Uma fazenda selecionada não está mais autorizada para esta consultoria. Confira os acessos e emita um novo convite.'};
+    FARM_DELEGATION_FORBIDDEN:'Uma fazenda selecionada não está mais autorizada para esta consultoria. Confira os acessos e emita um novo convite.',
+    STAFF_ROLE_REQUIRED:'Esta alteração é apenas para funcionários. O vínculo de consultor permanece separado.',ROLE_CHANGED_RELOAD:'A função já foi alterada em outra ação. Atualize a tela e confira antes de salvar novamente.'};
   for(const [key,value] of Object.entries(translations)) if(message.includes(key)) return value;
   if(message.includes('foreign key')) return 'Há um vínculo com outro registro. A alteração foi bloqueada para preservar os dados.';
   if(message.includes('row-level security')||message.includes('permission denied')) return 'O banco local bloqueou uma ação não permitida para esse perfil.';

@@ -55,6 +55,9 @@ Propõe-se permitir ao monitor e ao consultor corrigir ou excluir seus próprios
 lançamentos quando não houver vínculos que impeçam a exclusão. Recomendações já
 executadas e lançamentos dependentes conservam as proteções do histórico. A matriz
 detalhada e os casos de abuso estão em [SEGURANCA-E-ACEITE.md](SEGURANCA-E-ACEITE.md).
+O proprietário pode alterar o cargo dos funcionários ativos de sua equipe entre
+administrador, monitor e responsável, sem novo cadastro/convite e com preservação
+dos lançamentos. Implementação isolada em [FUNCOES-0.3.1.md](FUNCOES-0.3.1.md).
 
 O consultor não executa aplicações nem movimenta o estoque da fazenda cliente.
 Consultar o estoque não inclui alterar quantidades, ajustar inventário ou editar
