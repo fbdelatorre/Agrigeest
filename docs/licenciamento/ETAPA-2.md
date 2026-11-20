@@ -97,13 +97,26 @@ real nem a testes da futura integração de identidade e cobrança.
 
 ## Situação do instalador Windows
 
-A configuração e o comando `npm run desktop:licenses` estão prontos. A compilação
-foi bloqueada pelo Controle de Aplicativos do Windows ao executar um script do
-compilador Rust para a dependência `serde` (erro 4551). O instalador `.exe` desta
-etapa **não foi gerado**. Nenhuma proteção foi desativada e o aplicativo real não
-foi substituído.
+A tentativa local repetiu o bloqueio do Controle de Aplicativos do Windows na
+dependência Rust `serde` (erro 4551). Com autorização do usuário, a compilação
+foi realizada no GitHub Actions, exclusivamente na branch de teste.
 
-A compilação pelo GitHub Actions foi autorizada após a repetição do bloqueio local. O fluxo usa apenas a branch de teste, não recebe credenciais do Supabase e entrega um instalador independente. A publicação na main permanece desabilitada.
+- Execução concluída com sucesso: https://github.com/fbdelatorre/Agrigeest/actions/runs/44756180451
+- Código compilado: `000ee9a7042a848023ad0f3fa3cbe84934f8a4bb`.
+- Instalador: `AgriGest_Licencas_Teste_0.1.0_x64-setup.exe`, 6.351.349 bytes.
+- SHA-256: `353E7B5273AEB111B75269BC9E24E8CDDB3E8401B2CEA1D4F5BC1CC7F6BF3199`.
+- Cópia local em `checks.local/entregas/licenciamento-etapa2-0.1.0`.
+- Download, CRC do ZIP, SHA-256 do instalador, identidade e commit conferidos.
+
+O pacote contém o aplicativo independente, instruções, metadados e checksum.
+Instalar e abrir **AgriGest Licencas Teste**; usar o roteiro de contas fictícias
+acima. A compilação e os testes foram aprovados; a instalação e a execução nativa
+neste computador ainda precisam ser validadas pelo usuário. O pacote não tem
+assinatura comercial. Nenhuma proteção do Windows foi desativada.
+
+O aplicativo de uso diário, seus dados, a branch main e o Supabase permanecem
+sem alterações. O artefato do Actions tem retenção de sete dias; a cópia local
+foi preservada para os testes.
 
 ## O que ainda não está ativo
 
@@ -115,4 +128,3 @@ por fazenda e 5 por consultoria, mais 2 por usuário adicional nos dois planos.
 A próxima etapa é a validação de compatibilidade e a definição do mapeamento dos
 usuários existentes em ambiente separado. A produção continua condicionada ao
 backup completo do Supabase restaurado e validado fora da produção.
-
