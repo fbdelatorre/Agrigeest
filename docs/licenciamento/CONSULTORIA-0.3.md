@@ -83,3 +83,19 @@ Contas, emails, pagamentos e aparelhos seguem simulados; o diretório fictício
 e o seletor de identidade não podem ser usados como autenticação de produção.
 Não foi feita uma auditoria dos dados privados da instalação de teste do usuário.
 Instalação e execução nativa do novo pacote permanecem para validação pelo usuário.
+
+## Instalador e restauração do código
+
+- Compilação Actions aprovada: https://github.com/fbdelatorre/Agrigeest/actions/runs/44780239340.
+- Commit compilado: `7640561a5574591bdfff850eab87f1874a3f31d8`.
+- Instalador: `AgriGest_Licencas_Teste_0.3.0_x64-setup.exe`, 6.364.988 bytes.
+- SHA-256: `618B4E4FFD5D626989887A36F528F21CF06C9500AA043610E76B9B8388AE813B`.
+- Cópia local: `checks.local/entregas/licenciamento-etapa3-0.3.0`, com roteiro,
+  alternativa pelo navegador e metadados. Download, CRC do ZIP, hash, identidade
+  e versão conferidos. Instalador ainda sem assinatura digital comercial.
+- Marco anterior: tag local `agrigest-antes-consultoria-0.3-2026-11-20`, commit
+  `c1126d3f6a8e5f6122b447dfebbe2a7281b94f2e`.
+- Bundle verificado em `checks.local/restauracao-consultoria-0.3-2026-11-20`;
+  SHA-256 `B4D8A6E4BE873485FA68248BF8B50FE45727E9EE8F2D8BD6172FD05C4673B881`.
+  Preserva código Git; não é backup do Supabase nem dos dados fictícios de cada
+  instalação. Os backups e instaladores anteriores continuam preservados.
