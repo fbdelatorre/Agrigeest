@@ -12,7 +12,7 @@ novos perfis, migrações ou alterações de permissões no aplicativo em uso.
 | Responsável pela contratação | Proprietário | Titular da consultoria |
 | Usuários base | 4: proprietário e 3 funcionários | 1 titular, proposta a confirmar antes da implementação |
 | Dispositivos base | 6 compartilhados entre os usuários da licença | 5 compartilhados entre os usuários da licença |
-| Usuário adicional | Cobrança adicional e mais 2 dispositivos | Cobrança adicional; acréscimo de dispositivos ainda depende de confirmação |
+| Usuário adicional | Cobrança adicional e mais 2 dispositivos | Cobrança adicional e mais 2 dispositivos |
 | Periodicidade | Mensal ou anual | Mensal ou anual |
 | Acesso a outra fazenda | Não é concedido pela compra da licença | Exige convite e vínculo ativo naquela fazenda |
 
@@ -23,6 +23,12 @@ Para a fazenda, considerando `a` usuários adicionais contratados:
 - Sem adicional: 4 usuários e 6 dispositivos.
 - Um adicional: 5 usuários e 8 dispositivos.
 - Dois adicionais: 6 usuários e 10 dispositivos.
+
+Para a consultoria, o limite de dispositivos é `5 + 2 × a`: 5 sem adicionais,
+7 com um usuário adicional e 9 com dois usuários adicionais. O acréscimo de dois
+dispositivos por usuário adicional foi confirmado pelo usuário em 20/11/2026.
+A quantidade de usuários incluídos na licença base de consultor continua sendo
+uma decisão separada, ainda indicada como proposta na tabela.
 
 Os adicionais contratados, e não o número de funcionários cadastrados no momento,
 determinam os limites. Desativar um funcionário não cancela automaticamente um
@@ -148,7 +154,6 @@ se tivessem sido criados por outro usuário ou em outra fazenda.
 
 ## Decisões ainda abertas
 
-- Dispositivos adicionais para usuários extras da consultoria: consulta enviada ao usuário.
 - Confirmação de um usuário base na licença de consultor.
 - Quem será o proprietário legítimo de cada fazenda já existente.
 - Validade da autorização offline e tratamento de leituras quando a licença vence.

@@ -63,6 +63,7 @@ atribuir proprietário, administrador ou quantidade de vagas/dispositivos.
 | Dois aparelhos disputam a última autorização | Contagem atômica, sem ultrapassar o limite |
 | Cliente altera identificador ou cota no pedido | Não obtém autorização nem amplia o limite |
 | Fazenda compra um adicional de usuário | Passa de 4/6 para 5/8 em usuários/dispositivos, sem criar conta automaticamente |
+| Consultoria compra um adicional de usuário | Ganha uma vaga de usuário e passa de 5 para 7 dispositivos; dois adicionais permitem 9 dispositivos, sem conceder acesso automático às fazendas |
 | Funcionário ou consultor é removido | Autorização online revogada sem apagar seus lançamentos |
 | Licença vence ou plano é reduzido abaixo do uso atual | Preservação dos dados; nenhuma exclusão automática de usuários ou aparelhos |
 | Offline A, troca para B e reconecta | Fila, cache e submissões continuam associados às fazendas e autores corretos |
