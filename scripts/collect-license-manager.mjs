@@ -1,0 +1,17 @@
+import {mkdir,readFile,readdir,copyFile,writeFile} from 'node:fs/promises';
+import {join,resolve} from 'node:path';
+import {createHash} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+process.chdir(fileURLToPath(new URL('..',import.meta.url)));
+const config=JSON.parse(await readFile('licensing-manager/src-tauri/tauri.conf.json','utf8'));
+if(config.identifier!=='com.agrigest.licenses.manager'||config.productName!=='AgriGest Gestor de Licencas')throw Error('Unexpected app identity');
+const nsis=join(resolve(process.env.CARGO_TARGET_DIR??'licensing-manager/src-tauri/target'),'release','bundle','nsis');
+const names=(await readdir(nsis)).filter(n=>n.startsWith(config.productName+'_'+config.version+'_')&&n.endsWith('-setup.exe'));
+if(names.length!==1)throw Error('Expected one manager installer');
+const destination='licensing-manager/release.local';await mkdir(destination,{recursive:true});
+const name='AgriGest_Gestor_Licencas_'+config.version+'_PREPARACAO_x64-setup.exe';await copyFile(join(nsis,names[0]),join(destination,name));
+const hash=createHash('sha256').update(await readFile(join(destination,name))).digest('hex').toUpperCase();
+await writeFile(join(destination,'SHA256SUMS.txt'),hash+'  '+name+'\n');
+await writeFile(join(destination,'BUILD-INFO.json'),JSON.stringify({name:config.productName,identifier:config.identifier,version:config.version,commit:process.env.GITHUB_SHA??null,sha256:hash,state:'preparation',serverDeployed:false,paymentAutomationComplete:false},null,2));
+await writeFile(join(destination,'LEIA-ME.txt'),'AGRIGEST GESTOR DE LICENCAS - PREPARACAO\n\nPrograma administrativo separado. Nao e atualizacao do AgriGest principal. Servidor, integracao Asaas e migracao de permissoes ainda dependem de validacao. Nao ha cobranca automatica ativa.\n\nA conexao aceita somente chave publica, nunca service_role, sb_secret ou chave Asaas. As chaves privadas ficam no servidor. O Supabase local requer Docker/WSL2 funcionando. Apenas conta autorizada no banco e com segunda etapa pode gerenciar licencas.\n\nAntes de publicar: autenticar CLI, restaurar e conferir backup completo, confirmar titularidade das fazendas, testar migracao/autorizacao e executar testes reais no Asaas Sandbox.\n');
+console.log(JSON.stringify({name,sha256:hash,state:'preparation'}));

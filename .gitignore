@@ -30,6 +30,7 @@ dist-ssr
 
 # Supabase
 .supabase
+/supabase/.temp/
 
 # PWA assets
 # public/workbox-*.js
@@ -40,3 +41,5 @@ dist-ssr
 /src-tauri/gen/schemas/
 /licensing-sandbox/src-tauri/target/
 /licensing-sandbox/src-tauri/gen/
+/licensing-manager/src-tauri/target/
+/licensing-manager/src-tauri/gen/

@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createAsaasClient,createAsaasWebhookHandler,normalizeAsaasEvent,validateWebhookToken} from '../licensing-server-local/supabase/functions/_shared/asaas.mjs';
+const secret='fictitious-webhook-secret-only-tests-1234567890';
+test('Asaas recurring checkout uses hosted credit-card collection and never treats callback as payment confirmation',async()=>{
+ const requests=[];const api=createAsaasClient({apiKey:'fictitious-api-key',fetchImpl:async(url,options)=>{requests.push({url,options});return Response.json({id:'131ca662-56c8-4479-b5b3-fd61a413fce7'});}});
+ const result=await api.createRecurringCheckout({licenseId:'license-1',requestId:'request-1',label:'Plano consultoria',period:'annual',amountMinor:120000,nextDueDate:'2026-12-01'});
+ assert.equal(requests[0].url,'https://api-sandbox.asaas.com/v3/checkouts');
+ const body=JSON.parse(requests[0].options.body);
+ assert.deepEqual(body.billingTypes,['CREDIT_CARD']);assert.deepEqual(body.chargeTypes,['RECURRENT']);assert.equal(body.subscription.cycle,'YEARLY');assert.equal(body.items[0].value,1200);assert.equal(body.externalReference,'license-1:request-1');
+ assert.equal(requests[0].options.headers.access_token,'fictitious-api-key');assert.equal(requests[0].options.redirect,'error');assert.equal(result.confirmed,false);
+ assert.equal(new URL(result.url).origin,'https://sandbox.asaas.com');assert.ok(body.callback.successUrl.includes('payment=processing'));
+ assert.throws(()=>api.getPayment('../customers'),/INVALID_PROVIDER_ID/);
+ await assert.rejects(api.createRecurringCheckout({licenseId:'x',requestId:'y',label:'Plano',period:'monthly',amountMinor:0,nextDueDate:'2026-12-01'}),/INVALID_AMOUNT/);
+ assert.throws(()=>createAsaasClient({environment:'production',apiKey:'fictitious'}),/ASAAS_PRODUCTION_NOT_ENABLED/);
+ const failed=createAsaasClient({apiKey:'private-do-not-print',fetchImpl:async()=>new Response('private-do-not-print',{status:401})});
+ await assert.rejects(failed.getPayment('pay_123'),error=>error.message==='ASAAS_REQUEST_FAILED_HTTP_401');
+});
+test('Asaas webhook authenticates before reading, persists before HTTP 200 and excludes card/personal details',async()=>{
+ assert.equal(await validateWebhookToken(secret,secret),true);assert.equal(await validateWebhookToken('wrong',secret),false);assert.equal(await validateWebhookToken('', ''),false);
+ const event={id:'evt_unit_1',event:'PAYMENT_RECEIVED',payment:{id:'pay_unit_1',subscription:'sub_unit_1',value:100,status:'RECEIVED',customer:'cus_unit_1',creditCard:{number:'DO-NOT-STORE'},cpfCnpj:'DO-NOT-STORE'}};
+ const cleaned=normalizeAsaasEvent(event);assert.ok(!JSON.stringify(cleaned).includes('DO-NOT-STORE'));
+ const saved=new Map();let calls=0;
+ const handler=createAsaasWebhookHandler({secret,enqueue:async e=>{calls++;saved.set(e.id,e);}});
+ const request=(token=secret,body=JSON.stringify(event))=>new Request('http://localhost/webhook',{method:'POST',headers:{'asaas-access-token':token},body});
+ assert.equal((await handler(request('wrong'))).status,401);assert.equal(calls,0);
+ assert.equal((await handler(request())).status,200);assert.equal((await handler(request())).status,200);assert.equal(saved.size,1);
+ assert.equal((await handler(request(secret,'not-json'))).status,400);
+ assert.equal((await handler(request(secret,'x'.repeat(262145)))).status,413);
+ assert.equal((await handler(new Request('http://localhost/webhook'))).status,405);
+ const unavailable=createAsaasWebhookHandler({secret,enqueue:async()=>{throw Error('Database unavailable');}});
+ assert.equal((await unavailable(request())).status,503,'Never acknowledge an event before durable storage');
+ const unconfigured=createAsaasWebhookHandler({secret:'',enqueue:async()=>{throw Error('not called');}});
+ assert.equal((await unconfigured(request())).status,503);
+});

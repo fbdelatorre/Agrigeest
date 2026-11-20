@@ -23,6 +23,11 @@
     "desktop:licenses": "node scripts/build-licensing-windows.mjs",
     "test:licenses": "node --test tests/licensing-sandbox.test.mjs tests/licensing-lifecycle.test.mjs",
     "test:licenses:ui": "node tests/licensing-sandbox.browser.cjs",
+    "licenses:local": "node scripts/licensing-local.mjs",
+    "build:license-manager": "node scripts/build-license-manager.mjs",
+    "dev:license-manager": "vite --config licensing-manager/vite.config.ts",
+    "desktop:license-manager": "node scripts/build-license-manager-windows.mjs",
+    "test:license-control": "node --test tests/licensing-control.test.mjs",
     "mobile:sync:android": "npm run build:native && cap sync android",
     "mobile:sync:ios": "npm run build:native && cap sync ios"
   },
