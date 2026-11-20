@@ -17,6 +17,12 @@
     "build:native": "vite build --mode native --outDir dist-native",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build --bundles nsis",
+    "build:licenses": "node scripts/build-licensing-sandbox.mjs",
+    "package:licenses": "node scripts/package-licensing-sandbox.mjs",
+    "licenses:preview": "node scripts/serve-licensing-sandbox.mjs",
+    "desktop:licenses": "node scripts/build-licensing-windows.mjs",
+    "test:licenses": "node --test tests/licensing-sandbox.test.mjs",
+    "test:licenses:ui": "node tests/licensing-sandbox.browser.cjs",
     "mobile:sync:android": "npm run build:native && cap sync android",
     "mobile:sync:ios": "npm run build:native && cap sync ios"
   },

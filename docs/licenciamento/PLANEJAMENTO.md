@@ -1,8 +1,9 @@
 # Planejamento do licenciamento por fazenda e consultoria
 
 Etapa 1, iniciada em 20/11/2026, na branch local `codex/licenciamento-planejamento`.
-O objetivo desta etapa é definir regras, preservar o estado atual e preparar uma
-validação isolada. Esta entrega contém documentação; não ativa licenças, cobrança,
+O objetivo inicial foi definir regras, preservar o estado atual e preparar uma
+validação isolada. A etapa 2 agora possui um protótipo local em `licensing-sandbox`,
+com os resultados em [ETAPA-2.md](ETAPA-2.md). Ele não ativa licenças, cobrança,
 novos perfis, migrações ou alterações de permissões no aplicativo em uso.
 
 ## Regras comerciais confirmadas
@@ -76,8 +77,9 @@ introduzido neste planejamento.
 
 ## Modelo de dados proposto
 
-Os nomes abaixo são conceituais. Não existem novos arquivos SQL executáveis nesta
-etapa e nenhuma destas tabelas foi criada no Supabase.
+Os nomes abaixo são conceituais para o sistema final. O SQL do protótipo da etapa 2
+fica fora de `supabase/migrations`, exige uma marca de ambiente de teste e roda
+somente no banco local de dados fictícios. Nenhuma destas tabelas foi criada no Supabase.
 
 | Estrutura proposta | Finalidade |
 | --- | --- |

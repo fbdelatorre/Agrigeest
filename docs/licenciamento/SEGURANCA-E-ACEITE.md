@@ -1,8 +1,9 @@
 # Segurança e critérios de aceite do licenciamento
 
 Este roteiro define o que precisará ser comprovado em ambiente isolado antes de
-qualquer ativação. A etapa atual não executou estes novos testes de autorização e
-não implementou o modelo proposto.
+qualquer ativação. Parte dos cenários já foi exercitada no banco fictício da etapa 2,
+conforme [ETAPA-2.md](ETAPA-2.md). Autenticação real, licenças, dispositivos e
+compatibilidade com dados/versões existentes ainda precisam de validação própria.
 
 ## Regras de autorização
 

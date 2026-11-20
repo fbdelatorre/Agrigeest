@@ -1,0 +1,41 @@
+AGRIGEST TESTE DE LICENCAS - ETAPA 2 - PROTOTIPO 0.1.0
+
+Este pacote e um teste local pelo navegador, nao um instalador nativo Windows.
+Usa somente fazendas, pessoas e registros ficticios. Nao acessa o Supabase real,
+nao altera o AgriGest instalado e nao faz pagamentos ou envia emails.
+
+COMO ABRIR
+1. Extraia todo o ZIP em uma pasta nova.
+2. Com Node.js instalado, execute Iniciar-teste.cmd.
+3. Abra http://127.0.0.1:4174 no navegador deste computador.
+4. Deixe a janela do servidor aberta durante o teste. Ctrl+C encerra o servidor.
+O servidor escuta somente o proprio computador. Nao e publicado na internet.
+
+ROTEIRO
+1. Ana e proprietaria da Aurora. Veja os registros e abra Equipe e convites.
+2. Convide Fabio como consultor. Nao e enviado email: o convite e ficticio.
+3. Simule Gabriel: ele nao pode ver nem aceitar o convite de Fabio.
+4. Simule Fabio, aceite o convite e selecione a Aurora. Ele pode consultar estoque
+   e aplicacoes, registrar monitoramentos, chuvas e recomendacoes. Nao pode aplicar.
+5. Fabio e proprietario da Cedro, mas isso nao o torna administrador na Aurora.
+6. Simule Eva. Ela pode lancar monitoramentos e chuvas e corrigir os seus registros.
+   Nao pode acessar estoque ou recomendacoes. Os registros de outros nao aparecem.
+7. Volte para Ana e revogue o acesso de Fabio. Os registros ficticios dele continuam
+   na fazenda. Fabio deixa de acessar a Aurora e continua com sua propria Cedro.
+8. Bruno acessa somente a Boa Vista. Trocar de conta nao move dados entre fazendas.
+9. Feche e reabra o navegador no mesmo endereco: os testes ficam salvos localmente.
+
+LIMITES DESTA ETAPA
+O seletor de contas simula identidade; nao e login ou autenticacao de producao.
+As regras sao exercitadas em um PostgreSQL local, com RLS e funcoes restritas.
+Isso nao valida ainda a integracao com Supabase Auth, versoes antigas ou dados reais.
+Licencas, cobranca, cotas de usuarios/aparelhos e autorizacao offline ainda nao
+estao ativos. O controle dessas cotas sera uma etapa posterior.
+As quantidades planejadas continuam: fazenda 6 aparelhos, consultoria 5 aparelhos;
+cada usuario adicional comprado acrescenta 2 aparelhos nos dois planos.
+
+INSTALADOR WINDOWS
+A configuracao do aplicativo nativo separado esta no codigo. A compilacao neste
+computador foi bloqueada pelo Controle de Aplicativos do Windows. Nenhuma
+protecao foi desativada. O instalador precisara de um ambiente de compilacao
+autorizado. O AgriGest usado diariamente permanece como estava.

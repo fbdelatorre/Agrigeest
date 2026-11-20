@@ -38,3 +38,5 @@ dist-ssr
 /dist-native/
 /src-tauri/target/
 /src-tauri/gen/schemas/
+/licensing-sandbox/src-tauri/target/
+/licensing-sandbox/src-tauri/gen/
