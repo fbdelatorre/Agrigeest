@@ -25,11 +25,11 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
     signedEmail=JSON.parse(req.postData()).email;
     return fulfill({access_token:jwt({sub:owner,role:'authenticated',aal:'aal2',exp:Math.floor(Date.now()/1000)+3600}),refresh_token:'fictitious-refresh-token',token_type:'bearer',expires_in:3600,user:{id:owner,email:signedEmail,aud:'authenticated',role:'authenticated',app_metadata:{},user_metadata:{},created_at:new Date().toISOString()}});
    }
-   if(url.pathname==='/auth/v1/logout')return fulfill({});
+   if(url.pathname==='/auth/v1/logout'){assert.equal(url.searchParams.get('scope'),'local','Manager signout must not revoke sessions in the principal app');return fulfill({});}
    if(url.pathname.endsWith('/manager_access'))return fulfill({authorized:signedEmail==='manager@example.test',can_manage:signedEmail==='manager@example.test'});
    if(url.pathname.endsWith('/admin_accounts'))return fulfill([{id:owner,email:'owner@example.test'}]);
    if(url.pathname.endsWith('/admin_set_license')){commands.push(JSON.parse(req.postData()));free=true;if(commands.length===1)return route.abort('failed');return fulfill(null);}
-   if(url.pathname.endsWith('/licenses'))return fulfill([{id:license,label:'Empresa para validação',owner_id:owner,kind:'farm',period:'monthly',status:'pending',extras:0,amount_minor:0,complimentary:free,valid_until:null}]);
+   if(url.pathname.endsWith('/licenses'))return fulfill([{id:license,label:'Empresa para validação',owner_id:owner,kind:'farm',period:'monthly',status:free?'active':'pending',extras:0,amount_minor:0,complimentary:free,valid_until:null}]);
    if(url.pathname.endsWith('/payments')||url.pathname.endsWith('/events'))return fulfill([]);
    throw Error('Unexpected mock API request: '+url.pathname);
   });
