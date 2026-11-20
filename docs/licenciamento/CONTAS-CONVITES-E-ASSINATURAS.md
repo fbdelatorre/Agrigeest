@@ -56,6 +56,12 @@ A empresa não concede acesso às fazendas dos clientes: cada vínculo exige o
 convite do proprietário, aceite e validação das condições da licença aplicável.
 A situação paga/ativa da licença de consultoria também será validada no acesso;
 o cadastro da empresa sozinho não comprova pagamento.
+O proprietário da consultoria convida apenas funcionários (administrador, monitor
+ou responsável), sem convidar outro consultor. Cada funcionário recebe somente
+as fazendas marcadas pelo titular; nenhuma fazenda atual ou futura é herdada
+automaticamente. A licença inclui proprietário + 3 funcionários e 5 aparelhos,
+com mais uma vaga e dois aparelhos por adicional. Regras/testes da versão 0.3.0
+em [CONSULTORIA-0.3.md](CONSULTORIA-0.3.md).
 
 ## Desligamento e adicionais
 

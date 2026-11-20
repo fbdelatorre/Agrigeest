@@ -1,11 +1,11 @@
-AGRIGEST LICENCAS TESTE - ETAPA 3 - 0.2.0
+AGRIGEST LICENCAS TESTE - ETAPA 3 - 0.3.0
 
 PROTOTIPO INDEPENDENTE, SOMENTE DADOS FICTICIOS.
 Nao conecta ao Supabase real, nao modifica o AgriGest usado diariamente,
 nao envia emails e nao cobra dinheiro. Contas e verificacao sao simuladas.
 
 WINDOWS
-Instale AgriGest_Licencas_Teste_0.2.0_x64-setup.exe e abra
+Instale AgriGest_Licencas_Teste_0.3.0_x64-setup.exe e abra
 AgriGest Licencas Teste. Confira SHA256SUMS.txt e BUILD-INFO.json.
 Nao e atualizacao do AgriGest principal. Ainda nao possui assinatura comercial.
 
@@ -38,8 +38,17 @@ ROTEIRO
 LIMITES
 Nao ha autenticacao, email, pagamento, reembolso ou bloqueio de aparelhos reais.
 Nao usar este modelo de identidade simulada em producao.
-Consultoria usa provisoriamente um usuario base, ainda sujeito a confirmacao.
+Consultoria inclui proprietario e mais 3 funcionarios, compartilhando 5 aparelhos.
 Base da fazenda: 4 usuarios e 6 aparelhos. Consultoria: 5 aparelhos.
 Cada adicional acrescenta uma vaga e 2 aparelhos nos dois planos.
-Gestao de funcionarios da consultoria e integracao com o aplicativo principal
+Integracao com o aplicativo principal
 serao etapas posteriores. Registros ficticios da versao 0.1 sao preservados.
+
+NOVO NA 0.3.0 - EQUIPE DA CONSULTORIA
+Fabio > Equipe da consultoria: convidar Gabriel como administrador, monitor ou
+responsavel. Marque somente Cedro para liberar somente Cedro. Aceite com Gabriel.
+Fabio pode trocar a selecao depois. Nenhuma fazenda e compartilhada automaticamente.
+Funcionarios nao podem repassar dados a outros convidados ou operar estoque de clientes.
+Convites diretos antigos de fazendas continuam independentes: para remove-los,
+o proprietario da fazenda deve revoga-los em Fazenda > Equipe e convites.
+A conta simulada selecionada agora permanece selecionada ao reabrir o teste.

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { accounts, command, demoId, explain, load, remove, roles, save, type RecordKind, type Snapshot } from './database';
 import './styles.css';
 import { AccountPage, PlansPage, PlatformPage, Signup } from './Lifecycle';
+import { ConsultancyPage } from './Consultancy';
 
 type Editing={kind:RecordKind;id:string;values:Record<string,string>};
 const today=()=>new Date().toLocaleDateString('en-CA');
@@ -10,7 +11,7 @@ const date=(value:string)=>value.slice(0,10).split('-').reverse().join('/');
 const fields=(event:FormEvent<HTMLFormElement>)=>Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string,string>;
 
 export default function App() {
-  const [user,setUser]=useState(demoId(1));
+  const [user,setUser]=useState(()=>{const saved=localStorage.getItem('agrigest-lab-simulated-user');return saved&&/^[0-9a-f-]{36}$/.test(saved)?saved:demoId(1);});
   const [farm,setFarm]=useState('');
   const [data,setData]=useState<Snapshot>();
   const [tab,setTab]=useState('field');
@@ -37,7 +38,7 @@ export default function App() {
     catch(error){setMessage(explain(error));setFailed(true);}
     finally{working.current=false;setBusy(false);}
   },[]);
-  const selectUser=(id:string)=>{setUser(id);setFarm('');setData(undefined);setTab('field');setSection('workspace');setEditing(undefined);setDismissal(undefined);setMessage('');};
+  const selectUser=(id:string)=>{localStorage.setItem('agrigest-lab-simulated-user',id);setUser(id);setFarm('');setData(undefined);setTab('field');setSection('workspace');setEditing(undefined);setDismissal(undefined);setMessage('');};
   const selected=data?.farm;
   const full=!!selected && ['owner','admin','operator'].includes(selected.role);
   const consultant=selected?.role==='consultant';
@@ -76,7 +77,7 @@ export default function App() {
   if(route.startsWith('#/cadastro'))return <div className="app"><div className="test-banner"><strong>CADASTRO FICTÍCIO</strong><span>Sem envio de emails ou cobrança real</span></div><Signup token={new URLSearchParams(route.split('?')[1]??'').get('convite')??undefined} accounts={directory.map(a=>({...a,label:'Conta fictícia'}))} onBack={()=>{window.location.hash='';}} onDone={id=>{selectUser(id);window.location.hash='';setSection('account');setMessage('Conta fictícia cadastrada ou convite aceito.');}}/></div>;
   return <div className="app">
     <div className="test-banner"><strong>AMBIENTE DE TESTE</strong><span>Dados fictícios · sem conexão com o Supabase real · nenhum pagamento</span></div>
-    <header><div><p className="eyebrow">AGRIGEST · ETAPA 3</p><h1>Contas, licenças e permissões</h1><p>Teste convites, planos e cortesias sem usar seus dados ou dinheiro.</p></div><span className="version">Protótipo 0.2.0</span></header>
+    <header><div><p className="eyebrow">AGRIGEST · ETAPA 3</p><h1>Contas, licenças e permissões</h1><p>Teste convites, planos e cortesias sem usar seus dados ou dinheiro.</p></div><span className="version">Protótipo 0.3.0</span></header>
     <section className="selectors panel" aria-label="Simulação de acesso">
       <label>Simular usuário<select aria-label="Simular usuário" value={user} disabled={busy} onChange={event=>selectUser(event.target.value)}>{directory.map(account=><option value={account.id} key={account.id}>{account.name}</option>)}</select></label>
       <label>Fazenda autorizada<select aria-label="Fazenda autorizada" value={selected?.id ?? ''} disabled={busy||!data?.farms.length} onChange={event=>{setFarm(event.target.value);setTab('field');setEditing(undefined);setMessage('');}}>
@@ -89,17 +90,19 @@ export default function App() {
     {!data && !failed && <p role="status" className="panel">Iniciando o banco de demonstração…</p>}
     {!data && failed && <button onClick={()=>window.location.reload()}>Tentar abrir novamente</button>}
     {data && <>
-      <nav aria-label="Conta e licenças"><button aria-current={section==='workspace'?'page':undefined} onClick={()=>setSection('workspace')}>Fazenda</button><button aria-current={section==='account'?'page':undefined} onClick={()=>setSection('account')}>Minha conta e empresa</button><button aria-current={section==='plans'?'page':undefined} onClick={()=>setSection('plans')}>Plano e licenças</button>{data.platform&&<button aria-current={section==='platform'?'page':undefined} onClick={()=>setSection('platform')}>Gestão do aplicativo</button>}<a className="button-link" href="#/cadastro">Cadastrar outra conta fictícia</a></nav>
+      <nav aria-label="Conta e licenças">{data.companies.length>0&&<button aria-current={section==='company'?'page':undefined} onClick={()=>setSection('company')}>Equipe da consultoria</button>}<button aria-current={section==='workspace'?'page':undefined} onClick={()=>setSection('workspace')}>Fazenda</button><button aria-current={section==='account'?'page':undefined} onClick={()=>setSection('account')}>Minha conta e empresa</button><button aria-current={section==='plans'?'page':undefined} onClick={()=>setSection('plans')}>Plano e licenças</button>{data.platform&&<button aria-current={section==='platform'?'page':undefined} onClick={()=>setSection('platform')}>Gestão do aplicativo</button>}<a className="button-link" href="#/cadastro">Cadastrar outra conta fictícia</a></nav>
       {section==='account'&&<AccountPage user={user} action={action} busy={busy}/>}
+      {section==='company'&&<ConsultancyPage data={data} user={user} action={action} busy={busy}/>}
       {section==='plans'&&<PlansPage data={data} user={user} action={action} busy={busy}/>}
       {section==='platform'&&data.platform&&<PlatformPage data={data} user={user} action={action} busy={busy}/>}
       {section==='workspace'&&<>
       {!!data.inbox.length && <section className="panel"><h2>Convites recebidos</h2>{data.inbox.map(invitation=><article className="invitation" key={invitation.id}>
-        <div><strong>{invitation.farm_name}</strong><p>{roles[invitation.role]} · {invitation.status==='pending'?'Pendente':invitation.status==='accepted'?'Aceito':'Revogado'}</p></div>
-        {invitation.status==='pending' && <button className="primary" disabled={busy} onClick={()=>void action(()=>command(user,'accept_invitation',[invitation.id]),'Convite aceito. Selecione a fazenda autorizada.')}>Aceitar convite</button>}
+        <div><strong>{invitation.farm_name}</strong><p>{roles[invitation.role]} · {invitation.status==='pending'?'Pendente':invitation.status==='accepted'?'Aceito':'Revogado'}</p>{invitation.kind==='company'&&<p>Equipe da consultoria · Fazendas selecionadas: {invitation.farm_names?.join(', ')||'Nenhuma'}</p>}</div>
+        {invitation.status==='pending' && <button className="primary" disabled={busy} onClick={()=>void action(()=>command(user,invitation.kind==='company'?'accept_company':'accept_invitation',[invitation.id]),'Convite aceito. Selecione a fazenda autorizada.')}>Aceitar convite</button>}
       </article>)}</section>}
       {!selected ? <section className="panel empty"><h2>Nenhuma fazenda autorizada</h2><p>Esta conta só verá dados de uma fazenda depois de receber e aceitar o convite do proprietário.</p></section> : <>
         <div className="farm-title"><div><p className="eyebrow">CONTEXTO ATUAL</p><h2>{selected.name}</h2></div><span className="badge">{roles[selected.role]}</span></div>
+        <p className="privacy-note">{selected.access_source}. Usuário simulado: {person(user)}. Convites e acessos de cada fazenda são independentes.</p>
         {!writable&&<p className="notice">Somente consulta: licença cancelada ou cortesia vencida. O histórico permanece salvo; novos lançamentos e alterações estão bloqueados.</p>}
         <nav aria-label="Seções do laboratório">
           <button aria-current={tab==='field'?'page':undefined} onClick={()=>setTab('field')}>Monitoramento e chuvas</button>
@@ -142,7 +145,7 @@ export default function App() {
           </form>}<div className="records">{data.applications.map(row=><article key={row.id}><strong>{areaName(row.area_id)} · {row.quantity} unidades</strong><p>{productName(row.product_id)} · {person(row.author_id)}</p></article>)}</div></section></div>}
         {tab==='team' && owner && <div className="columns"><section className="panel"><h2>Convidar para a fazenda</h2><p className="muted">Email simulado. Funcionários podem ainda não ter conta; consultores precisam de conta e empresa.</p>{writable&&<form onSubmit={event=>{event.preventDefault();const values=fields(event);void action(()=>command(user,'invite',[selected.id,values.email,values.role]),'Convite fictício criado. Abra o email simulado abaixo ou selecione a conta destinatária.');}}>
           <label>Email do convidado<input name="email" aria-label="Email do convidado" type="email" list="demo-emails" placeholder="nome@example.test" required/><datalist id="demo-emails">{directory.filter(account=>!data.members.some(member=>member.user_id===account.id&&member.active)).map(account=><option key={account.id} value={account.email}>{account.name}</option>)}</datalist></label>
-          <label>Função do convite<select name="role" aria-label="Função do convite" defaultValue="consultant"><option value="consultant">Consultor</option><option value="monitor">Monitor de campo</option><option value="admin">Administrador</option><option value="operator">Responsável por aplicação</option></select></label><button className="primary" disabled={busy}>Criar convite</button></form>}
+          <label>Função do convite<select name="role" aria-label="Função do convite" defaultValue={data.companies.some(c=>c.user_id===user)?'monitor':'consultant'}>{!data.companies.some(c=>c.user_id===user)&&<option value="consultant">Consultor</option>}<option value="monitor">Monitor de campo</option><option value="admin">Administrador</option><option value="operator">Responsável por aplicação</option></select></label><button className="primary" disabled={busy}>Criar convite</button></form>}
           <div className="records">{data.outgoing.map(invitation=><article key={invitation.id}><strong>{invitation.email} · {roles[invitation.role]}</strong><p>{invitation.status==='pending'?'Pendente':invitation.status==='accepted'?'Aceito':'Revogado'}</p>{invitation.status==='pending' && <><button disabled={busy} onClick={()=>void action(()=>command(user,'revoke_invitation',[invitation.id]),'Convite revogado.')}>Revogar convite</button>{data.mail.filter(m=>m.id===invitation.id).map(mail=><p key={mail.id}><a href={'#/cadastro?convite='+encodeURIComponent(mail.token)}>Abrir email simulado para {mail.recipient_email}</a></p>)}</>}</article>)}</div>
         </section><section className="panel"><h2>Vínculos desta fazenda</h2><div className="records">{data.members.map(member=><article key={member.user_id}><strong>{person(member.user_id)}</strong><p>{roles[member.role]} · {member.active?'Ativo':'Revogado'}</p>{member.active&&member.role!=='owner'&&<button className="danger" disabled={busy} onClick={()=>setDismissal(member.user_id)}>Revogar acesso</button>}</article>)}</div>
           {dismissal&&<form className="editor panel" aria-label="Desligar funcionário" onSubmit={event=>{event.preventDefault();const v=fields(event);const ids=new FormData(event.currentTarget).getAll('devices');void action(async()=>{await command(user,'dismiss',[selected.id,dismissal,v.extra==='cancel',ids,crypto.randomUUID()]);setDismissal(undefined);},'Vínculo revogado. Conta e lançamentos preservados; adicional atualizado conforme sua escolha.');}}>

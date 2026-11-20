@@ -4,13 +4,13 @@ import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
-async function lab(run){
+async function lab(run,withCompany=true){
  const db=new PGlite();
  const as=(u,sql,args=[])=>db.transaction(async tx=>{await tx.exec('SET LOCAL ROLE license_lab_client');await tx.query("SELECT set_config('license_lab.actor',$1,true)",[typeof u==='number'?id(u):u??'']);return (await tx.query(sql,args)).rows;});
  const call=async(u,fn,args)=>as(u,`SELECT license_lab.${fn}(${args.map((_,i)=>'$'+(i+1)).join(',')}) AS value`,args);
  try{
   await db.exec("SELECT set_config('agrigest.licensing_sandbox','synthetic-only-v1',false)");
-  for(const file of ['schema.sql','seed.sql','lifecycle.sql'])await db.exec(await readFile('licensing-sandbox/'+file,'utf8'));
+  for(const file of ['schema.sql','seed.sql','lifecycle.sql',...(withCompany?['consultancy.sql']:[])])await db.exec(await readFile('licensing-sandbox/'+file,'utf8'));
   await run({db,as,call});
  }finally{await db.close();}
 }
@@ -130,4 +130,104 @@ test('application owner can grant and revoke courtesy without accessing farm dat
  assert.equal((await as(1,'SELECT * FROM license_lab.reports')).length,1);
  await call(1,'plan_change',[id(101),'reactivate',[],randomUUID()]);
  assert.equal((await as(1,'SELECT license_lab.writable($1) AS yes',[id(101)]))[0].yes,true);
+}));
+
+test('0.2 Fabio to Gabriel direct invitation is limited to Cedro, and 0.3 preserves legitimate direct links',()=>lab(async({db,as,call})=>{
+ const first=(await call(1,'invite',[id(101),'fabio@example.test','consultant']))[0].value;
+ await call(6,'accept_invitation',[first]);
+ const second=(await call(6,'invite',[id(103),'gabriel@example.test','consultant']))[0].value;
+ await call(7,'accept_invitation',[second]);
+ assert.deepEqual((await as(7,'SELECT id FROM license_lab.farms')).map(f=>f.id),[id(103)]);
+ await db.exec(await readFile('licensing-sandbox/consultancy.sql','utf8'));
+ assert.deepEqual((await as(7,'SELECT id FROM license_lab.farms')).map(f=>f.id),[id(103)]);
+ await assert.rejects(call(6,'invite',[id(103),'gabriel@example.test','consultant']),/COMPANY_STAFF_ROLES_ONLY/);
+ await assert.rejects(call(6,'invite_farm_core',[id(103),'gabriel@example.test','consultant']),/permission denied/);
+ await assert.rejects(call(6,'accept_farm_core',[second]),/permission denied/);
+},false));
+
+test('consultancy staff see only selected farms, cannot redelegate, and revocations never restore implicitly',()=>lab(async({db,as,call})=>{
+ const invited=(await call(1,'invite',[id(101),'fabio@example.test','consultant']))[0].value;await call(6,'accept_invitation',[invited]);
+ await assert.rejects(call(6,'invite_company',[id(6),'gabriel@example.test','consultant',[id(103)]]),/COMPANY_STAFF_ROLES_ONLY/);
+ await assert.rejects(call(6,'invite_company',[id(6),'gabriel@example.test','admin',[id(102)]]),/FARM_DELEGATION_FORBIDDEN/);
+ const invitation=(await call(6,'invite_company',[id(6),'gabriel@example.test','admin',[id(103)]]))[0].value;
+ await assert.rejects(call(2,'accept_company',[invitation]),/INVITATION_FORBIDDEN/);
+ await call(7,'accept_company',[invitation]);
+ assert.deepEqual((await as(7,'SELECT id FROM license_lab.farms')).map(f=>f.id),[id(103)]);
+ assert.equal((await as(7,'SELECT * FROM license_lab.products WHERE farm_id=$1',[id(101)])).length,0);
+ assert.equal((await as(7,'SELECT * FROM license_lab.products WHERE farm_id=$1',[id(103)])).length,1);
+ await assert.rejects(call(7,'apply_operation',[id(103),id(203),id(303),1]),/APPLICATION_FORBIDDEN/);
+ await assert.rejects(call(7,'invite_company',[id(7),'carla@example.test','admin',[id(103)]]),/FARM_DELEGATION_FORBIDDEN/);
+ await assert.rejects(call(7,'company_farms',[id(6),id(7),[id(101)],randomUUID()]),/COMPANY_OWNER_REQUIRED/);
+ const key=randomUUID();await call(6,'company_farms',[id(6),id(7),[id(101)],key]);await call(6,'company_farms',[id(6),id(7),[id(101)],key]);
+ assert.deepEqual((await as(7,'SELECT id FROM license_lab.farms')).map(f=>f.id),[id(101)]);
+ await as(7,"INSERT INTO license_lab.reports(farm_id,area_id,author_id,observed_on,stage,description) VALUES($1,$2,$3,CURRENT_DATE,'V4','Relato da equipe')",[id(101),id(201),id(7)]);
+ await call(1,'revoke_member',[id(101),id(6)]);
+ assert.equal((await as(7,'SELECT * FROM license_lab.farms')).length,0);
+ const rehire=(await call(1,'invite',[id(101),'fabio@example.test','consultant']))[0].value;await call(6,'accept_invitation',[rehire]);
+ assert.equal((await as(7,'SELECT * FROM license_lab.farms')).length,0,'Reinviting Fabio must not silently restore his previous staff scopes');
+ await call(6,'company_farms',[id(6),id(7),[id(101)],randomUUID()]);
+ assert.equal((await as(7,'SELECT * FROM license_lab.farms')).length,1);
+ const companyPlan=(await as(6,'SELECT id FROM license_lab.subscriptions WHERE consultant_id=$1',[id(6)]))[0].id;
+ await call(6,'plan_change',[companyPlan,'cancel',[],randomUUID()]);
+ assert.equal((await as(7,'SELECT license_lab.writable($1) AS yes',[id(101)]))[0].yes,false);
+ assert.equal((await as(7,'SELECT * FROM license_lab.reports')).length,2,'Cancelled company preserves scoped historical reads');
+ await call(6,'plan_change',[companyPlan,'reactivate',[],randomUUID()]);
+ await call(6,'dismiss_company',[id(6),id(7),false,[],randomUUID()]);
+ assert.equal((await as(7,'SELECT * FROM license_lab.farms')).length,0);
+ assert.equal((await db.query("SELECT * FROM license_lab.reports WHERE description='Relato da equipe'")).rows.length,1);
+ const newInvite=(await call(6,'invite_company',[id(6),'gabriel@example.test','monitor',[]]))[0].value;await call(7,'accept_company',[newInvite]);
+ assert.equal((await as(7,'SELECT * FROM license_lab.farms')).length,0,'Rehire with no farms must not inherit former grants');
+ await call(6,'company_farms',[id(6),id(7),[id(103)],randomUUID()]);
+ assert.equal((await as(7,'SELECT * FROM license_lab.products')).length,0,'Monitor must not see stock');
+ await assert.rejects(call(7,'invite_company',[id(6),'carla@example.test','monitor',[id(103)]]),/COMPANY_OWNER_REQUIRED/);
+ await assert.rejects(as(7,"UPDATE license_lab.company_access SET active=true"),/permission denied/);
+}));
+
+test('consultancy has four seats, five shared devices, pending reservations and atomic extra cancellation',()=>lab(async({db,as,call})=>{
+ const plan=(await as(6,'SELECT id FROM license_lab.subscriptions WHERE consultant_id=$1',[id(6)]))[0].id;
+ for(const [email,user] of [['gabriel@example.test',7],['carla@example.test',3],['eva@example.test',5]]){
+  const invitation=(await call(6,'invite_company',[id(6),email,'monitor',[]]))[0].value;await call(user,'accept_company',[invitation]);
+ }
+ assert.equal((await as(6,'SELECT * FROM license_lab.company_members WHERE company_owner=$1 AND active',[id(6)])).length,4);
+ await assert.rejects(call(6,'invite_company',[id(6),'diego@example.test','operator',[]]),/SEAT_LIMIT/);
+ for(let n=0;n<5;n++)await call(6,'device_change',[plan,id(n%2?7:6),'Equipamento '+n,null,randomUUID()]);
+ await assert.rejects(call(6,'device_change',[plan,id(6),'Sexto aparelho',null,randomUUID()]),/DEVICE_LIMIT/);
+ await call(6,'plan_change',[plan,'buy_extra',[],randomUUID()]);
+ const extra=(await call(6,'invite_company',[id(6),'diego@example.test','operator',[]]))[0].value;
+ await assert.rejects(call(6,'plan_change',[plan,'cancel_extra',[],randomUUID()]),/SEAT_LIMIT/);
+ await call(4,'accept_company',[extra]);
+ await call(6,'device_change',[plan,id(4),'Celular adicional',null,randomUUID()]);
+ await call(6,'dismiss_company',[id(6),id(4),true,[],randomUUID()]);
+ assert.equal((await as(6,'SELECT extras FROM license_lab.subscriptions WHERE id=$1',[plan]))[0].extras,0);
+ assert.equal((await as(6,'SELECT * FROM license_lab.devices WHERE subscription_id=$1 AND active',[plan])).length,5);
+ const freed=(await call(6,'dismiss_company',[id(6),id(5),false,[],randomUUID()]));assert.ok(freed);
+ const pending=(await call(6,'invite_company',[id(6),'novo@example.test','monitor',[id(103)]]))[0].value;
+ const token=(await as(6,'SELECT token FROM license_lab.company_mail WHERE id=$1',[pending]))[0].token;
+ const account=(await call(null,'register_demo',['Novo','novo@example.test',true,token]))[0].value;
+ assert.deepEqual((await as(account,'SELECT id FROM license_lab.farms')).map(f=>f.id),[id(103)]);
+ const before=(await as(6,'SELECT * FROM license_lab.company_members WHERE active')).length;
+ await assert.rejects(call(null,'register_demo',['Outro','outro@example.test',true,token]),/INVITATION_UNAVAILABLE/);
+ assert.equal((await as(6,'SELECT * FROM license_lab.company_members WHERE active')).length,before);
+}));
+
+test('company invitations with no farms, revoked or expired tokens never widen access',()=>lab(async({db,as,call})=>{
+ const create=async(email,farms=[])=>(await call(6,'invite_company',[id(6),email,'monitor',farms]))[0].value;
+ const pending=await create('nova@example.test',[id(103)]);
+ const token=(await as(6,'SELECT token FROM license_lab.company_mail WHERE id=$1',[pending]))[0].token;
+ await assert.rejects(call(null,'register_demo',['Nova','outra@example.test',true,token]),/INVITATION_FORBIDDEN/);
+ await assert.rejects(call(7,'revoke_company_invite',[pending]),/COMPANY_OWNER_REQUIRED/);
+ await call(6,'revoke_company_invite',[pending]);
+ assert.equal((await as(6,'SELECT * FROM license_lab.preview_invite_v3($1)',[token])).length,0);
+ await assert.rejects(call(null,'register_demo',['Nova','nova@example.test',true,token]),/INVITATION_UNAVAILABLE/);
+ const expired=await create('gabriel@example.test');
+ await db.query("UPDATE license_lab.company_invites SET expires_at=now()-interval '1 second' WHERE id=$1",[expired]);
+ await assert.rejects(call(7,'accept_company',[expired]),/INVITATION_UNAVAILABLE/);
+ const normal=await create('gabriel@example.test');await call(7,'accept_company',[normal]);
+ assert.equal((await as(7,'SELECT * FROM license_lab.farms')).length,0);
+ await assert.rejects(call(7,'accept_company',[normal]),/INVITATION_UNAVAILABLE/);
+ // Newly onboarded clients remain private until the owner explicitly selects them.
+ const newFarm=(await call(6,'create_company',['Fazenda adicional','farm','monthly',true,randomUUID()]))[0].value;
+ assert.ok(newFarm);assert.equal((await as(7,'SELECT * FROM license_lab.farms')).length,0);
+ await call(6,'company_farms',[id(6),id(7),[newFarm],randomUUID()]);
+ assert.deepEqual((await as(7,'SELECT id FROM license_lab.farms')).map(f=>f.id),[newFarm]);
 }));

@@ -13,7 +13,7 @@ e cortesias simulados. Escopo e limites em [ETAPA-3.md](ETAPA-3.md).
 | Regra | Licença da fazenda | Licença do consultor |
 | --- | --- | --- |
 | Responsável pela contratação | Proprietário | Titular da consultoria |
-| Usuários base | 4: proprietário e 3 funcionários | 1 titular, proposta a confirmar antes da implementação |
+| Usuários base | 4: proprietário e 3 funcionários | 4: proprietário e 3 funcionários, confirmado em 20/11/2026 |
 | Dispositivos base | 6 compartilhados entre os usuários da licença | 5 compartilhados entre os usuários da licença |
 | Usuário adicional | Cobrança adicional e mais 2 dispositivos | Cobrança adicional e mais 2 dispositivos |
 | Periodicidade | Mensal ou anual | Mensal ou anual |
@@ -30,8 +30,8 @@ Para a fazenda, considerando `a` usuários adicionais contratados:
 Para a consultoria, o limite de dispositivos é `5 + 2 × a`: 5 sem adicionais,
 7 com um usuário adicional e 9 com dois usuários adicionais. O acréscimo de dois
 dispositivos por usuário adicional foi confirmado pelo usuário em 20/11/2026.
-A quantidade de usuários incluídos na licença base de consultor continua sendo
-uma decisão separada, ainda indicada como proposta na tabela.
+Foi confirmado que a consultoria também inclui quatro usuários: proprietário e
+três funcionários. Seu limite de usuários é `4 + a`.
 
 Os adicionais contratados, e não o número de funcionários cadastrados no momento,
 determinam os limites. No desligamento que liberar uma vaga adicional paga, o
@@ -69,8 +69,11 @@ ou substituir a propriedade dos dados.
 
 O convite de consultor deve ser emitido pelo proprietário e vinculado à fazenda,
 à função e ao destinatário. A aceitação exige a conta destinatária autenticada e
-o convite válido. O vínculo não se estende a outros usuários da mesma consultoria.
-Cada consultor adicional precisará da autorização das fazendas que poderá atender.
+o convite válido. O vínculo não se estende automaticamente a outros usuários da
+consultoria. O titular pode convidar funcionários como administrador, monitor ou
+responsável e selecionar explicitamente as fazendas autorizadas para cada um.
+Funcionários não podem repassar os acessos. A revogação do titular pela fazenda
+bloqueia os acessos derivados. Detalhes em [CONSULTORIA-0.3.md](CONSULTORIA-0.3.md).
 Consultores devem ter conta e empresa cadastradas antes do convite. Funcionários
 podem receber convite por email antes de ter conta, com link direto ao cadastro
 e fazenda/função preenchidas e validadas pelo servidor.
@@ -165,7 +168,6 @@ se tivessem sido criados por outro usuário ou em outra fazenda.
 
 ## Decisões ainda abertas
 
-- Confirmação de um usuário base na licença de consultor.
 - Quem será o proprietário legítimo de cada fazenda já existente.
 - Validade da autorização offline e política de inadimplência/vencimento. No
   cancelamento efetivo, foi confirmada a consulta do histórico sem mutações,

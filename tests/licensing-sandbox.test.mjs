@@ -23,7 +23,7 @@ test('local database enforces farm membership, role capabilities, invitation ide
   const stock=async n=>Number((await db.query('SELECT quantity FROM license_lab.products WHERE id=$1',[id(n)])).rows[0].quantity);
   try {
     await db.exec("SELECT set_config('agrigest.licensing_sandbox','synthetic-only-v1',false)");
-    await db.exec(schema);await db.exec(seed);await db.exec(lifecycle);
+    await db.exec(schema);await db.exec(seed);await db.exec(lifecycle);await db.exec(await readFile('licensing-sandbox/consultancy.sql','utf8'));
     assert.equal((await as(1,'SELECT * FROM license_lab.farms')).length,1);
     assert.equal((await as(1,'SELECT * FROM license_lab.products WHERE farm_id=$1',[id(102)])).length,0);
     assert.equal((await as(2,'SELECT * FROM license_lab.reports WHERE farm_id=$1',[id(101)])).length,0);
