@@ -93,3 +93,19 @@ novo conjunto de testes. O instalador independente mantém o nome AgriGest
 Licencas Teste e passa à versão 0.2.0. A entrega deve registrar execução, commit e
 SHA-256 conferido. A instalação/execução nativa será validada pelo usuário;
 os testes de interface aqui descritos foram executados no navegador local.
+
+Entrega verificada em 20/11/2026:
+
+- Actions: https://github.com/fbdelatorre/Agrigeest/actions/runs/44772594957 — sucesso.
+- Commit compilado: `4486c4347a990157854ab73acc2b00803f5606bf`.
+- Arquivo: `AgriGest_Licencas_Teste_0.2.0_x64-setup.exe`, 6.358.376 bytes.
+- SHA-256: `C186BC26473A44DC7A5ABEC8A03655B204D31EE80F2BF38D0A18955ADCE01224`.
+- Cópia em `checks.local/entregas/licenciamento-etapa3-0.2.0`, com roteiro,
+  metadados, checksums e alternativa pelo navegador. ZIP, CRC, commit, identidade
+  e hash do instalador conferidos. Instalador ainda sem assinatura comercial.
+- Restauração de código anterior à etapa: tag local
+  `agrigest-antes-licenciamento-etapa3-2026-11-20`, apontando para `e041baf`;
+  bundle verificado em `checks.local/restauracao-licenciamento-etapa3-2026-11-20`.
+  SHA-256 do bundle: `144DCB1E6746703596100C4CC32313552A82B9994BE278823E4F520EF1774836`.
+  Esse marco preserva código e histórico Git; não é backup do Supabase nem do
+  IndexedDB fictício de cada instalação. As cópias anteriores permanecem intactas.
