@@ -41,9 +41,17 @@ const bootstrap=spawnSync(docker,['exec','-i','supabase_db_agrigest-licensing-lo
 if(bootstrap.status!==0)throw Error('Bootstrap local falhou.');
 const instructions=join(folder,'ACESSO-TESTE-LOCAL.txt');
 await writeFile(instructions,`GESTOR DE LICENCAS - TESTE LOCAL\n\nConta ficticia deste computador. Nao existe no Supabase de producao.\n\nEndereco: http://127.0.0.1:4180\nServico: ${url}\nChave PUBLICA (somente se o instalador pedir): ${config.ANON_KEY}\nEmail: ${account.email}\nSenha inicial de teste: ${account.password}\n\nNo primeiro login, clique em Configurar ou usar autenticador e confirme o codigo no seu aplicativo autenticador. A segunda etapa continua obrigatoria.\n\nA pagina do navegador ja recebe endereco e chave publica automaticamente. Nao use sua senha real neste teste. Nao envie este arquivo ao GitHub. Cobranca Asaas e dados de producao NAO estao conectados.\n`);
-console.log('Gestor local: http://127.0.0.1:4180\nCredenciais fictícias em '+instructions+'\nMantenha esta janela aberta durante o teste.');
-const child=spawn(process.execPath,[join(root,'node_modules/vite/bin/vite.js'),'--config',join(root,'licensing-manager/vite.config.ts')],{cwd:root,env:{...env,VITE_LICENSING_URL:url,VITE_LICENSING_PUBLIC_KEY:config.ANON_KEY},stdio:'inherit',windowsHide:true});
-child.once('error',()=>{process.exitCode=1;});
+let alreadyRunning=false;
+try{
+ const response=await fetch('http://127.0.0.1:4180',{redirect:'error',signal:AbortSignal.timeout(1500)});
+ if(!response.ok||!(await response.text()).includes('Gestor de Licenças'))throw Error('A porta 4180 está ocupada por outro programa.');
+ alreadyRunning=true;
+}catch(error){if(error.cause?.code!=='ECONNREFUSED')throw error;}
+console.log('Gestor local: http://127.0.0.1:4180\nCredenciais fictícias em '+instructions+'\n'+(alreadyRunning?'O gestor já está aberto.':'Mantenha esta janela aberta durante o teste.'));
+if(!alreadyRunning){
+ const child=spawn(process.execPath,[join(root,'node_modules/vite/bin/vite.js'),'--config',join(root,'licensing-manager/vite.config.ts')],{cwd:root,env:{...env,VITE_LICENSING_URL:url,VITE_LICENSING_PUBLIC_KEY:config.ANON_KEY},stdio:'inherit',windowsHide:true});
+ child.once('error',()=>{process.exitCode=1;});child.once('exit',code=>{process.exitCode=code??1;});
+}
 if(process.platform==='win32'){
  spawn('notepad.exe',[instructions],{detached:true,stdio:'ignore'}).unref();
  // Abre somente a interface local; não autentica nem aceita termos pelo usuário.

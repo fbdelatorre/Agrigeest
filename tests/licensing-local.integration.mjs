@@ -76,6 +76,22 @@ function totp(secret){
 }
 
 try{
+ const signupClient=client(anon),signupEmail=`local-email-${stamp}@example.test`;
+ const signup=ok(await signupClient.auth.signUp({email:signupEmail,password}));
+ assert.equal(signup.session,null,'Cadastro exige confirmação de email.');users.push(signup.user.id);
+ let mail;
+ for(let attempt=0;attempt<10&&!mail;attempt++){
+  const response=await fetch('http://127.0.0.1:46324/api/v1/messages',{redirect:'error'});assert.equal(response.status,200);
+  const mailbox=await response.json();mail=mailbox.messages.find(item=>item.To.some(to=>to.Address===signupEmail));
+  if(!mail)await new Promise(resolve=>setTimeout(resolve,300));
+ }
+ assert.ok(mail,'Confirmação precisa chegar à caixa local, sem envio externo.');
+ const messageResponse=await fetch('http://127.0.0.1:46324/api/v1/message/'+encodeURIComponent(mail.ID),{redirect:'error'});
+ assert.equal(messageResponse.status,200);const message=await messageResponse.json();
+ const hash=(message.HTML+' '+message.Text).match(/[?&]token=([^&"\s<>]+)/)?.[1];assert.ok(hash,'Email precisa conter o token de confirmação.');
+ ok(await signupClient.auth.verifyOtp({token_hash:decodeURIComponent(hash),type:'signup'}));
+ assert.ok(ok(await signupClient.auth.getUser()).user.email_confirmed_at);
+ checks.push('Cadastro público exige confirmação; email recebido no Mailpit local e token validado pelo Auth');
  const admin=await account('admin'),owner=await account('owner'),other=await account('other'),unverified=await account('unverified',false);
  // Bootstrap só neste contêiner local. A conta real do proprietário do app não é modificada.
  assert.match(admin.user.id,/^[0-9a-f-]{36}$/);

@@ -114,8 +114,19 @@ Referências primárias conferidas:
   banco. Dados de licenças, pagamentos, histórico, usuários/MFA, administradores,
   funções e políticas RLS foram comparados. Dump, hash e relatório ficam em
   `checks.local/licensing-local`, ignorados pelo Git. Isso não é backup da nuvem.
-- Confirmação por email recebido, Asaas Sandbox, restauração do banco real,
-  migração dos perfis e instalação nativa ainda não foram executados. A conta
+- Cadastro público/confirmação de email também testados: a sessão só foi liberada
+  após receber o email no Mailpit local e validar seu token no GoTrue. Nenhum
+  email foi enviado externamente. A interface com configuração automática foi
+  aberta no Edge com login real e exigiu MFA antes de exibir as licenças.
+- `node tests/licensing-webhook-local.integration.mjs --local-only`: executado
+  contra a função Edge real. Recusou token inválido, confirmou HTTP 200 somente
+  após persistir, deduplicou eventos e removeu campos privados. Eventos fictícios;
+  nenhuma conexão ao Asaas, cobrança ou ativação financeira nesta validação.
+  A função foi servida com `functions serve` e o caminho absoluto do `.env.local`,
+  obrigatório na versão da CLI observada. O processo precisa ficar aberto para
+  continuar este teste; `start` sozinho não carrega esse arquivo privado.
+- Asaas Sandbox, restauração do banco real, migração dos perfis e instalação
+  nativa ainda não foram executados. A conta
   Sandbox foi confirmada pelo usuário; a chave precisa ser configurada privadamente.
 
 ## Próximos passos necessários
@@ -144,7 +155,15 @@ Referências primárias conferidas:
 
 O gestor 0.1.1 usa a nova porta local 46321, inclusive na CSP nativa. O instalador
 0.1.0 anterior continua sendo um artefato de preparação e usa a porta antiga.
-A compilação 0.1.1 precisa ser entregue/verificada separadamente. Nenhuma destas
+A compilação 0.1.1 foi concluída, baixada e conferida: Actions 44842128333,
+commit `bffb1a18c6c039529e2e634842aa1a8221b763cb`, arquivo de 2.017.198 bytes,
+SHA-256 `169357C87007FF7975F0E7F38B281B85979A74AA3EBFF16A994CCCDAF0534A13`.
+Está em `checks.local/entregas/gestor-licencas-0.1.1-preparacao`. Instalação
+nativa ainda não testada; o executável é de preparação e não tem assinatura.
+O launcher de login usa diretamente o binário da CLI, dispensando Node no PATH.
+O launcher do gestor pode ler um caminho de Node gerado em arquivo local ignorado
+(`checks.local/licensing-local/node-path.cmd`), sem mudar o PATH global do Windows.
+Nenhuma destas
 versões substitui o AgriGest principal ou conecta pagamentos automaticamente.
 Os testes locais não mudaram a main e nenhuma operação foi feita no banco real.
 

@@ -1,8 +1,10 @@
 @echo off
 cd /d "%~dp0.."
-node scripts\licensing-local.mjs start
+set "AGRIGEST_NODE=node"
+if exist "checks.local\licensing-local\node-path.cmd" call "checks.local\licensing-local\node-path.cmd"
+"%AGRIGEST_NODE%" scripts\licensing-local.mjs start
 if errorlevel 1 goto :failed
-node scripts\licensing-manager-local.mjs
+"%AGRIGEST_NODE%" scripts\licensing-manager-local.mjs
 goto :end
 :failed
 echo Nao foi possivel iniciar o Supabase local. Confira se o Docker esta aberto.

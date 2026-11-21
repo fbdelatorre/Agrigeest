@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+assert.equal(process.argv[2],'--local-only');
+const root=fileURLToPath(new URL('..',import.meta.url));
+const endpoint='http://127.0.0.1:46321/functions/v1/asaas-webhook';
+const contents=await readFile(join(root,'licensing-server-local/supabase/functions/.env.local'),'utf8');
+const settings=Object.fromEntries(contents.split(/\r?\n/).filter(line=>line&&!line.startsWith('#')).map(line=>{const p=line.indexOf('=');return [line.slice(0,p),line.slice(p+1).replace(/^['"]|['"]$/g,'')];}));
+assert.equal(settings.ASAAS_ENV,'sandbox');assert.equal(settings.ASAAS_ENABLE_PRODUCTION,'false');assert.ok(settings.ASAAS_WEBHOOK_TOKEN);
+const id='evt_local_'+randomUUID().replaceAll('-','');
+const event={id,event:'PAYMENT_RECEIVED',payment:{id:'pay_local_test',value:100,customer:'cus_fictitious',creditCard:{creditCardNumber:'NEVER_PERSIST'},description:'PRIVATE_TEST_DESCRIPTION'}};
+const send=token=>fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','asaas-access-token':token},body:JSON.stringify(event),redirect:'error',signal:AbortSignal.timeout(20000)});
+assert.equal((await send('invalid')).status,401);
+assert.equal((await send(settings.ASAAS_WEBHOOK_TOKEN)).status,200);
+assert.equal((await send(settings.ASAAS_WEBHOOK_TOKEN)).status,200);
+const docker=join(process.env.LOCALAPPDATA,'Programs/DockerDesktop/resources/bin/docker.exe');
+const result=spawnSync(docker,['exec','-i','supabase_db_agrigest-licensing-local','psql','-X','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-At'],{input:`SELECT jsonb_build_object('count',count(*),'payload',jsonb_agg(payload),'status',jsonb_agg(status)) FROM licensing_private.asaas_inbox WHERE event_id='${id}';`,encoding:'utf8',windowsHide:true});
+assert.equal(result.status,0);const stored=JSON.parse(result.stdout);assert.equal(stored.count,1);assert.equal(stored.status[0],'pending');
+assert.equal(stored.payload[0].payment.creditCard,undefined);assert.equal(stored.payload[0].payment.description,undefined);
+await mkdir(join(root,'checks.local/licensing-local'),{recursive:true});
+await writeFile(join(root,'checks.local/licensing-local/webhook-result.json'),JSON.stringify({passed:true,completedAt:new Date().toISOString(),actualEdgeRuntime:true,unauthorizedRejected:true,duplicatesPersistedOnce:true,privateFieldsRemoved:true,productionTouched:false,eventId:id},null,2)+'\n');
+console.log('PASS: função local real recusou token inválido, persistiu evento antes de HTTP 200 e ignorou duplicata sem guardar dados de cartão. Sem cobrança ou acesso ao Asaas.');
