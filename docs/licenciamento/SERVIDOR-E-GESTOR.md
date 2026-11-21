@@ -326,7 +326,20 @@ em `checks.local/licensing-local/antes-conciliacao-2026-11-21.bundle`.
 
 ## Entrega de preparação
 
-- **Atual: 0.1.2**, Actions concluído:
+- **Atual: 0.1.3**, Actions concluído:
+  https://github.com/fbdelatorre/Agrigeest/actions/runs/44892380539.
+  Commit `4251b8a6f1f207c07db725782f283d290a1a1206`.
+  Instalador em `checks.local/entregas/gestor-licencas-0.1.3-preparacao`,
+  2.018.749 bytes, SHA-256
+  `DD092535FF2C619B95F0C217B41290C1A4E16B76F46017FD83AA07B561B045A8`.
+  ZIP extraído, versão/identidade/commit/hash conferidos; instalação nativa ainda
+  não testada. Não assinado. `COMO-TESTAR.txt` acompanha a entrega local.
+  Interface compilada testada no Edge sob CSP, com mocks e com Auth/MFA e tabelas
+  reais locais; usuário administrativo sem MFA foi recusado. Reenfileiramento
+  conferido no fluxo de interface simulado e endpoint autorizado com sessão MFA
+  real. Os nove testes de lógica/infraestrutura e TypeScript passaram também no CI.
+
+- **Anterior: 0.1.2**, Actions concluído:
   https://github.com/fbdelatorre/Agrigeest/actions/runs/44887010938.
   Commit `c68830afc4229b3671ba4e5d55ad7ea7672e6cf2`.
   Instalador em `checks.local/entregas/gestor-licencas-0.1.2-preparacao`,
