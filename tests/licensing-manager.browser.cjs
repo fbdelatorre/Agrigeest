@@ -28,6 +28,7 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
    if(url.pathname==='/auth/v1/logout'){assert.equal(url.searchParams.get('scope'),'local','Manager signout must not revoke sessions in the principal app');return fulfill({});}
    if(url.pathname.endsWith('/manager_access'))return fulfill({authorized:signedEmail==='manager@example.test',can_manage:signedEmail==='manager@example.test'});
    if(url.pathname.endsWith('/admin_accounts'))return fulfill([{id:owner,email:'owner@example.test'}]);
+   if(url.pathname.endsWith('/admin_checkout_requests'))return fulfill([{id:'checkout-display-test',license_id:license,label:'Empresa para validação',environment:'sandbox',state:'cancelled',amount_minor:1000,period:'monthly',created_at:new Date().toISOString(),provider_id:'fictitious-checkout'}]);
    if(url.pathname.endsWith('/admin_set_license')){commands.push(JSON.parse(req.postData()));free=true;if(commands.length===1)return route.abort('failed');return fulfill(null);}
    if(url.pathname.endsWith('/licenses'))return fulfill([{id:license,label:'Empresa para validação',owner_id:owner,kind:'farm',period:'monthly',status:free?'active':'pending',extras:0,amount_minor:0,complimentary:free,valid_until:null}]);
    if(url.pathname.endsWith('/payments')||url.pathname.endsWith('/events'))return fulfill([]);
@@ -49,6 +50,10 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
   await grant.getByRole('button',{name:'Conceder cortesia',exact:true}).click();
   await page.getByText('Licença atualizada no servidor.',{exact:true}).waitFor();
   assert.equal(commands.length,2);assert.equal(commands[0].p_action,'grant_free');assert.equal(commands[0].p_id,license);assert.equal(commands[1].p_request,commands[0].p_request,'Retry after a lost response must reuse the request identity');
+  await page.getByRole('button',{name:'Pagamentos',exact:true}).click();
+  await page.getByRole('heading',{name:'Solicitações Asaas',exact:true}).waitFor();
+  await page.getByText('Ambiente de testes · sem valor real',{exact:false}).waitFor();
+  await page.getByText('Referência: checkout-display-test',{exact:true}).waitFor();
   await page.screenshot({path:'checks.local/license-manager-preview.png',fullPage:true});
   await page.getByRole('button',{name:'Sair',exact:true}).click();await login.waitFor();
   await login.getByLabel('Email',{exact:true}).fill('employee@example.test');await login.getByLabel('Senha',{exact:true}).fill('Fictitious-password-only');await login.getByRole('button',{name:'Entrar',exact:true}).click();

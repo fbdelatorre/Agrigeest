@@ -1,0 +1,55 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {randomUUID} from 'node:crypto';import {readFile} from 'node:fs/promises';import {PGlite} from '@electric-sql/pglite';
+import {createCheckoutHandler} from '../licensing-server-local/supabase/functions/_shared/checkout.mjs';
+const id=n=>`30000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+test('checkout reservations bind ownership and server price, block duplicates and preserve uncertain attempts',async()=>{
+ const db=new PGlite();
+ const as=(actor,role,sql,args=[])=>db.transaction(async tx=>{await tx.exec('SET LOCAL ROLE '+role);await tx.query("SELECT set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)",[actor?id(actor):'',JSON.stringify({aal:'aal2'})]);return (await tx.query(sql,args)).rows[0]?.result;});
+ const call=(actor,fn,args=[])=>as(actor,'authenticated',`SELECT licensing.${fn}(${args.map((_,i)=>'$'+(i+1)).join(',')}) AS result`,args);
+ const service=(fn,args=[])=>as(null,'service_role',`SELECT licensing.${fn}(${args.map((_,i)=>'$'+(i+1)).join(',')}) AS result`,args);
+ try{
+  await db.exec("CREATE SCHEMA auth;CREATE ROLE anon NOLOGIN;CREATE ROLE authenticated NOLOGIN;CREATE ROLE service_role NOLOGIN BYPASSRLS;CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz);CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT NULLIF(current_setting('request.jwt.claim.sub',true),'')::uuid $$;CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT NULLIF(current_setting('request.jwt.claims',true),'')::jsonb $$;GRANT USAGE ON SCHEMA auth TO authenticated;");
+  for(const n of [1,2,3])await db.query('INSERT INTO auth.users VALUES($1,$2,now())',[id(n),`checkout${n}@example.test`]);
+  for(const file of ['20261120000100_license_control.sql','20261120000200_asaas_inbox.sql','20261121000300_checkout_reservations.sql','20261121000400_checkout_admin_view.sql'])await db.exec(await readFile('licensing-server-local/supabase/migrations/'+file,'utf8'));
+  await db.query('INSERT INTO licensing_private.platform_admins(user_id) VALUES($1)',[id(1)]);
+  const make=()=>call(1,'admin_create_license',[id(2),'Checkout local','farm','monthly',15000,0,randomUUID()]);
+  const license=await make(),key=randomUUID();
+  await assert.rejects(call(3,'reserve_checkout',[license,key,'sandbox']),/OWNER_REQUIRED/);
+  const reserved=await call(2,'reserve_checkout',[license,key,'sandbox']);assert.equal(reserved.state,'reserved');
+  assert.equal((await as(1,'authenticated','SELECT count(*) AS result FROM licensing.admin_checkout_requests()')),1);
+  await assert.rejects(call(2,'admin_checkout_requests'),/PLATFORM_ADMIN_REQUIRED/);
+  assert.deepEqual(await call(2,'reserve_checkout',[license,key,'sandbox']),reserved);
+  await assert.rejects(call(2,'reserve_checkout',[license,randomUUID(),'sandbox']),/CHECKOUT_ALREADY_PENDING/);
+  await assert.rejects(call(2,'claim_checkout',[id(2),key]),/permission denied/);
+  const claim=await service('claim_checkout',[id(2),key]);assert.equal(claim.amount_minor,15000);assert.equal(claim.period,'monthly');
+  assert.equal(await service('claim_checkout',[id(2),key]),null);
+  const ready=await service('finish_checkout',[id(2),key,'checkout_test_1']);assert.equal(ready.state,'ready');assert.match(ready.url,/sandbox\.asaas\.com/);
+  assert.deepEqual(await service('finish_checkout',[id(2),key,'checkout_test_1']),ready);
+  assert.equal(await call(2,'is_active',[license]),false,'Creating checkout never confirms payment');
+  await call(2,'owner_license_action',[license,'cancel',randomUUID()]);
+  assert.equal((await call(2,'reserve_checkout',[license,key,'sandbox'])).url,null,'Cancellation suppresses stale checkout URL');
+  const otherLicense=await make(),uncertain=randomUUID();await call(2,'reserve_checkout',[otherLicense,uncertain,'sandbox']);await service('claim_checkout',[id(2),uncertain]);
+  await service('mark_checkout_uncertain',[id(2),uncertain]);
+  await db.query("UPDATE licensing_private.checkout_requests SET expires_at=now()-interval '1 day' WHERE id=$1",[uncertain]);
+  assert.equal((await call(2,'reserve_checkout',[otherLicense,uncertain,'sandbox'])).state,'uncertain');
+  await assert.rejects(call(2,'reserve_checkout',[otherLicense,randomUUID(),'sandbox']),/CHECKOUT_ALREADY_PENDING/);
+  await assert.rejects(as(2,'authenticated','SELECT count(*) AS result FROM licensing_private.checkout_requests'),/permission denied/);
+  const expiredLicense=await make(),expired=randomUUID();await call(2,'reserve_checkout',[expiredLicense,expired,'sandbox']);await service('claim_checkout',[id(2),expired]);await service('finish_checkout',[id(2),expired,'checkout_test_expired']);
+  await db.query("UPDATE licensing_private.checkout_requests SET expires_at=now()-interval '1 minute' WHERE id=$1",[expired]);
+  assert.equal((await call(2,'reserve_checkout',[expiredLicense,expired,'sandbox'])).state,'expired');
+  assert.equal((await call(2,'reserve_checkout',[expiredLicense,randomUUID(),'sandbox'])).state,'reserved');
+ }finally{await db.close();}
+});
+test('HTTP checkout rejects price tampering and never retries an ambiguous provider creation',async()=>{
+ let authenticated=true,state='reserved',calls=0,serverArgs;
+ const deps={authenticate:async()=>authenticated?id(2):null,reserve:async()=>({state,url:state==='ready'?'https://sandbox.asaas.com/checkoutSession/show?id=test':null}),claim:async()=>({license_id:id(10),request_id:id(20),environment:'sandbox',label:'Valor servidor',period:'annual',amount_minor:120000}),finish:async()=>({state:'ready',url:'https://sandbox.asaas.com/checkoutSession/show?id=test'}),markUncertain:async()=>{state='uncertain';},provider:{createRecurringCheckout:async args=>{calls++;serverArgs=args;return {id:'test'};}}};
+ const handler=createCheckoutHandler(deps);const request=body=>new Request('http://localhost/checkout',{method:'POST',headers:{Origin:'http://127.0.0.1:4180','Content-Type':'application/json'},body:JSON.stringify(body)});
+ const body={license_id:id(10),request_id:id(20)};
+ assert.equal((await handler(request({...body,amount_minor:1}))).status,400);assert.equal(calls,0);
+ authenticated=false;assert.equal((await handler(request(body))).status,401);authenticated=true;
+ const result=await handler(request(body));assert.equal(result.status,200);assert.equal((await result.json()).confirmed,false);assert.equal(serverArgs.amountMinor,120000);
+ state='ready';await handler(request(body));assert.equal(calls,1);
+ state='reserved';deps.provider.createRecurringCheckout=async()=>{calls++;throw Error('private-provider-message-never-expose');};
+ assert.equal((await handler(request(body))).status,503);assert.equal(state,'uncertain');
+ assert.equal((await handler(request(body))).status,202);assert.equal(calls,2,'Ambiguous creation is not repeated');
+ const blocked=await handler(new Request('http://localhost/checkout',{method:'POST',headers:{Origin:'https://evil.example'},body:JSON.stringify(body)}));assert.equal(blocked.status,403);
+});

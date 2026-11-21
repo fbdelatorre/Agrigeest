@@ -10,6 +10,8 @@ test('Asaas recurring checkout uses hosted credit-card collection and never trea
  assert.deepEqual(body.billingTypes,['CREDIT_CARD']);assert.deepEqual(body.chargeTypes,['RECURRENT']);assert.equal(body.subscription.cycle,'YEARLY');assert.equal(body.items[0].value,1200);assert.equal(body.externalReference,'license-1:request-1');
  assert.equal(requests[0].options.headers.access_token,'fictitious-api-key');assert.equal(requests[0].options.redirect,'error');assert.equal(result.confirmed,false);
  assert.equal(new URL(result.url).origin,'https://sandbox.asaas.com');assert.ok(body.callback.successUrl.includes('payment=processing'));
+ await api.createRecurringCheckout({licenseId:'x',requestId:'long-name',label:'😀'.repeat(25)+' Fazenda de nome extenso',period:'monthly',amountMinor:1000,nextDueDate:'2026-12-01'});
+ const longName=JSON.parse(requests[1].options.body).items[0].name;assert.ok(longName.length<=30);assert.ok(!/[\uD800-\uDBFF]$/.test(longName),'Não corta um par Unicode ao limitar o nome exigido pela API');
  assert.throws(()=>api.getPayment('../customers'),/INVALID_PROVIDER_ID/);
  await assert.rejects(api.createRecurringCheckout({licenseId:'x',requestId:'y',label:'Plano',period:'monthly',amountMinor:0,nextDueDate:'2026-12-01'}),/INVALID_AMOUNT/);
  assert.throws(()=>createAsaasClient({environment:'production',apiKey:'fictitious'}),/ASAAS_PRODUCTION_NOT_ENABLED/);

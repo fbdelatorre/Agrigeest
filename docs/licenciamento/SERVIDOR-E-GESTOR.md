@@ -145,9 +145,9 @@ Referências primárias conferidas:
    real da administração ainda não recebeu autorização no banco de produção.
 2. Login da CLI concluído e validado. O launcher só executa login; não faz deploy,
    push ou reset. Não confundir a autenticação da CLI com entrar apenas no painel.
-3. Exportação inicial e restauração já verificadas, conforme seção abaixo. Antes
-   de publicar, concluir homologação na mesma versão PostgreSQL 15 da produção,
-   avaliar RPCs/grants/funcionalidade das operações e reconciliar migrações manuais.
+3. Exportação, restauração e contrato SQL de licenças também verificados no
+   PostgreSQL 15. Antes de publicar, avaliar a integração de todas as RPCs/grants
+   operacionais e reconciliar migrações manuais.
    Não executar `db push` indiscriminadamente no projeto real.
 4. Confirmar proprietários e vínculos reais. Não presumir titularidade por quem
    criou o cadastro, pela profissão ou pelo `is_admin` atual.
@@ -199,10 +199,74 @@ RLS públicas, comparadas sob o mesmo search_path. A diferença inicial de nomes
 
 As duas migrações de licenças foram aplicadas **somente a essa cópia**. Repetida a
 comparação, os mesmos registros e políticas legadas continuaram idênticos.
-Limite: o container de restauração usa PostgreSQL 17.12, e a origem usa 15.8;
-validar também na versão 15 antes de publicar. Isso não prova funcionamento de
+Essa primeira restauração usou PostgreSQL 17.12. A etapa seguinte foi repetida
+no PostgreSQL 15.8, conforme seção abaixo. Isso não prova funcionamento de
 todos os fluxos legados, emails externos, restauração do serviço Auth em outra
 instalação ou integração financeira completa. Nenhuma licença real foi ativada.
+
+## Etapa de 21/11/2026: PostgreSQL 15 e checkout Sandbox
+
+Criado o marco Git `agrigest-antes-cobranca-sandbox-2026-11-21`, com bundle
+verificado em `checks.local/licensing-local/antes-cobranca-sandbox-2026-11-21.bundle`.
+A main e os registros de produção permaneceram intactos nesta etapa.
+
+A imagem oficial `public.ecr.aws/supabase/postgres:15.8.1.121` foi baixada e um
+ambiente local separado usa a rede `agrigest-compat15-loopback`, porta de banco
+48322 restrita a 127.0.0.1. O dump foi restaurado em outro banco dessa instância.
+Foi necessário omitir, só durante a restauração, `SET transaction_timeout = 0`,
+diretiva emitida pelo pg_dump 17 que não existe no servidor 15. Os arquivos
+originais e todos os valores de registros foram preservados.
+
+No PostgreSQL 15.8, os hashes dos valores das mesmas 62 tabelas e as 70 políticas
+públicas/flags RLS coincidiram. Aplicadas as quatro migrações de licenças somente
+nessa cópia, os registros e regras legadas continuaram idênticos. O contrato
+`tests/licensing-postgres15.sql` validou preço no servidor, isolamento, idempotência,
+claim único por serviço, bloqueio do relatório financeiro para não administradores
+e ausência de ativação por checkout. Fixtures foram revertidos por ROLLBACK.
+Relatórios privados: `checks.local/cloud-backup-pg15-2026-11-21`.
+Isso valida restauração/SQL na versão 15; a pilha Auth/MFA com JWT real foi
+exercitada no ambiente principal de testes, PostgreSQL 17. A nova instalação
+completa de Auth no projeto auxiliar 15 não foi homologada nesta etapa.
+
+As migrações 003 e 004 criam somente reservas privadas de checkout e uma visão
+administrativa por RPC, respectivamente. O endpoint local `asaas-checkout` verifica
+o usuário no Supabase Auth, confirma propriedade e email no banco, lê preço/período
+do servidor e recusa campos adicionais como valor enviado pelo cliente. Origem
+permitida e JWT são verificações distintas. Somente service_role pode reclamar e
+concluir a reserva; usuários não podem gravar IDs/estados de pagamento diretamente.
+
+Uma tentativa só é reclamada uma vez, sob locks. Solicitação repetida reutiliza
+o resultado. Resultado incerto permanece bloqueado para conferência e não expira
+para criação automática de outro checkout. Este desenho evita supor que o Asaas
+oferece idempotência de criação quando a resposta se perde. O callback de sucesso
+e o link de checkout continuam sem poder ativar licença.
+
+`tests/checkout-sandbox.integration.mjs --sandbox-local-only` passou com Auth real
+local e API real Sandbox: outro proprietário e alteração de valor foram recusados;
+duas chamadas simultâneas e a repetição retornaram um único checkout; a licença
+permaneceu pendente. O checkout fictício foi cancelado pelo próprio teste, sem
+enviar cartão ou gerar pagamento real. Também foi criado/cancelado um checkout
+isolado de diagnóstico. O Asaas limita o nome do item a 30 caracteres; foi corrigida
+a abreviação apenas no envio, preservando o nome cadastrado e pares Unicode.
+Tentativas rejeitadas ficaram documentadas privadamente; não foram repetidas na
+mesma licença. Diagnóstico normal registra códigos/campos, sem chave ou descrição
+livre do provedor. Não há chave Sandbox em frontend ou no repositório.
+
+O gestor 0.1.2 mostra, na aba Pagamentos, as solicitações Asaas e seus estados,
+com indicação clara de Sandbox. A consulta exige administrador confirmado e MFA;
+não fornece acesso aos dados operacionais da fazenda. Servidor antigo sem essa
+RPC continua abrindo o painel e informa que a visão precisa ser atualizada.
+Interface conferida no Edge sob CSP, com respostas HTTP simuladas.
+
+O encaminhador local por named pipe foi ajustado para separar as redes dos dois
+projetos e preservar o protocolo Docker attach, inclusive streams hijacked. Só
+aceita helpers oficiais explícitos sem portas e na rede escolhida. O teste real
+de named pipe valida autenticação, remoção do token interno e fluxo de bytes.
+
+**Ainda falta para cobrança automática:** conciliação canônica de pagamento,
+ativação/renovação, inadimplência/estorno/chargeback, cancelamento e adicionais
+sincronizados, vinculação real de equipes/aparelhos e integração ao AgriGest.
+Nenhuma licença comercial foi ativada e nenhuma migração foi publicada na nuvem.
 
 ## Entrega de preparação
 

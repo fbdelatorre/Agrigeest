@@ -1,25 +1,32 @@
 const bases={sandbox:'https://api-sandbox.asaas.com/v3',production:'https://api.asaas.com/v3'};
 const id=value=>{if(typeof value!=='string'||!value||value.length>200||!/^[a-zA-Z0-9_-]+$/.test(value))throw Error('INVALID_PROVIDER_ID');return value;};
-export function createAsaasClient({environment='sandbox',apiKey,enableProduction=false,fetchImpl=fetch}){
+export function createAsaasClient({environment='sandbox',apiKey,enableProduction=false,fetchImpl=fetch,onDiagnostic=()=>{}}){
  if(!Object.hasOwn(bases,environment))throw Error('INVALID_ASAAS_ENVIRONMENT');
  if(environment==='production'&&!enableProduction)throw Error('ASAAS_PRODUCTION_NOT_ENABLED');
  if(typeof apiKey!=='string'||!apiKey.trim())throw Error('ASAAS_KEY_NOT_CONFIGURED');
  const request=async(method,path,body)=>{
   const response=await fetchImpl(bases[environment]+path,{method,redirect:'error',headers:{access_token:apiKey,'User-Agent':'AgriGest-Licensing/1.0','Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(15000)});
-  if(!response.ok)throw Error('ASAAS_REQUEST_FAILED_HTTP_'+response.status);
-  return response.json();
+  if(!response.ok){
+   const data=await response.clone().json().catch(()=>null);
+   const codes=(Array.isArray(data?.errors)?data.errors:[]).map(e=>e.code).filter(code=>typeof code==='string'&&/^(invalid_[a-z_]{1,50}|unauthorized|forbidden|resource_not_found)$/.test(code));
+   const fields=['name','nextDueDate','subscription','billingTypes','chargeTypes','callback','items','externalReference','value','customer'].filter(field=>(data?.errors??[]).some(e=>typeof e.description==='string'&&e.description.includes(field)));
+   onDiagnostic({operation:method+' '+path.split('?')[0],status:response.status,codes,fields});
+   throw Error('ASAAS_REQUEST_FAILED_HTTP_'+response.status);
+  }
+  const text=await response.text();return text?JSON.parse(text):null;
  };
  return {
   async createRecurringCheckout({licenseId,requestId,label,period,amountMinor,nextDueDate}){
    if(!Number.isSafeInteger(amountMinor)||amountMinor<=0||amountMinor>1000000000)throw Error('INVALID_AMOUNT');
    if(!['monthly','annual'].includes(period))throw Error('INVALID_PERIOD');
    if(typeof label!=='string'||!label.trim()||label.length>150)throw Error('INVALID_LABEL');
+   let checkoutName='';for(const character of label.trim()){if(checkoutName.length+character.length>30)break;checkoutName+=character;}
    if(!/^\d{4}-\d{2}-\d{2}$/.test(nextDueDate??''))throw Error('INVALID_DUE_DATE');
    const response=await request('POST','/checkouts',{
     billingTypes:['CREDIT_CARD'],chargeTypes:['RECURRENT'],minutesToExpire:60,
     externalReference:id(licenseId)+':'+id(requestId),
     callback:{successUrl:'https://agrigeest.netlify.app/login?payment=processing',cancelUrl:'https://agrigeest.netlify.app/login?payment=cancelled',expiredUrl:'https://agrigeest.netlify.app/login?payment=expired'},
-    items:[{name:label,description:'Licença '+(period==='annual'?'anual':'mensal')+' do AgriGest',quantity:1,value:amountMinor/100}],
+    items:[{name:checkoutName,description:'Licença '+(period==='annual'?'anual':'mensal')+' do AgriGest',quantity:1,value:amountMinor/100}],
     subscription:{cycle:period==='annual'?'YEARLY':'MONTHLY',nextDueDate},
    });
    const checkoutId=id(response.id),origin=environment==='sandbox'?'https://sandbox.asaas.com':'https://asaas.com';
@@ -27,6 +34,7 @@ export function createAsaasClient({environment='sandbox',apiKey,enableProduction
   },
   getPayment:paymentId=>request('GET','/payments/'+id(paymentId)),
   getSubscription:subscriptionId=>request('GET','/subscriptions/'+id(subscriptionId)),
+  cancelCheckout:checkoutId=>request('POST','/checkouts/'+id(checkoutId)+'/cancel'),
  };
 }
 export async function validateWebhookToken(provided,expected){
