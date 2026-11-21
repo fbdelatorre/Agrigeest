@@ -1,7 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 export function validateConfiguration(url:string,key:string) {
  if(!url||!key)return 'O serviço ainda precisa ser configurado. Inicie o Supabase local e configure a chave pública deste programa.';
- try{const endpoint=new URL(url);if(!['http://127.0.0.1:55321','https://qnhykflwwihdpahvktmb.supabase.co'].includes(endpoint.origin)||endpoint.pathname!=='/')return 'Endereço do serviço não autorizado neste programa.';}catch{return 'Endereço do serviço inválido.';}
+ try{const endpoint=new URL(url);if(!['http://127.0.0.1:46321','https://qnhykflwwihdpahvktmb.supabase.co'].includes(endpoint.origin)||endpoint.pathname!=='/')return 'Endereço do serviço não autorizado neste programa.';}catch{return 'Endereço do serviço inválido.';}
  if(key.startsWith('sb_secret_'))return 'Chave administrativa recusada. Este programa aceita apenas chave pública.';
  if(key.startsWith('eyJ')){try{const payload=JSON.parse(atob(key.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));if(payload.role!=='anon')return 'JWT administrativo recusado. Use a chave pública do projeto.';}catch{return 'Chave pública inválida.';}}
  else if(!key.startsWith('sb_publishable_'))return 'Formato de chave pública inválido.';

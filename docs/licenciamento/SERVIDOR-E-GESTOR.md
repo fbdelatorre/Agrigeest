@@ -8,8 +8,8 @@ necessárias. Nenhuma alteração de banco real ou integração à main foi exec
 ## Decisões desta etapa
 
 - Provedor confirmado: Asaas, com cobrança automática como objetivo; não Stripe.
-- Instalação de Docker Desktop/WSL2 será feita manualmente pelo usuário. O agente
-  não recebeu autorização para instalá-los nem para reiniciar o computador.
+- Docker Desktop e WSL2 foram instalados após autorização posterior do usuário,
+  que também aceitou os termos na primeira abertura. Nenhum reinício automático.
 - Conta administradora desejada foi informada pelo usuário e anotada em arquivo
   privado em `checks.local`. O acesso ainda não foi concedido no Supabase real.
   Não colocar email pessoal, chaves ou o bootstrap privado no repositório público.
@@ -19,17 +19,23 @@ necessárias. Nenhuma alteração de banco real ou integração à main foi exec
 ## Preparado no código
 
 `licensing-server-local` é um projeto CLI separado, não vinculado à nuvem. Usa
-API 55321, banco 55322, Studio 55323 e caixa de emails local 55324. Autenticação
+API 46321, banco 46322, Studio 46323 e caixa de emails local 46324. Autenticação
 exige confirmação de email e permite TOTP. Novas tabelas não ganham grants amplos
 automaticamente. Serviços desnecessários foram desabilitados para esta validação.
 
 `scripts/licensing-local.mjs` aceita somente doctor/start/status/stop, recusa um
 project-ref remoto, isola credenciais do processo e verifica uma rede Docker com
 publicação de portas em loopback. Não fornece reset, push ou deploy. Stop mantém
-o comportamento padrão de preservação dos volumes. No diagnóstico realizado,
-CLI 3.2.0 disponível; Docker/WSL2 não instalados/disponíveis. Portanto o Supabase
-local **ainda não foi iniciado** e o isolamento de rede ainda precisa ser testado
-com Docker de verdade. Há 32 GB de RAM, Windows 11 e cerca de 31 GB livres no disco.
+o comportamento padrão de preservação dos volumes. CLI 3.2.0, Docker e WSL2 foram
+validados e o projeto local foi iniciado com as duas migrações. A faixa anterior
+55320–55329 estava reservada pelo Windows; foi substituída por 46320–46329.
+No Docker Desktop observado, a opção de bind padrão da rede não restringiu as
+portas. O início foi interrompido, preservando volumes. O script agora usa um
+named pipe efêmero autenticado para fixar `HostIp=127.0.0.1` ao criar somente
+contêineres deste projeto/rede. Não abre uma API Docker TCP nem modifica o daemon.
+Após iniciar, inspeciona as portas efetivas e para os serviços preservando volumes
+se encontrar publicação externa. O teste de integração verifica a mesma condição.
+O diretório do Docker recém-instalado também é incluído no PATH dos subprocessos.
 
 As migrações novas criam somente `licensing` e `licensing_private`. Não alteram
 RLS/tabelas/rotinas operacionais do AgriGest. Identidade vem de `auth.uid()` e a
@@ -99,14 +105,27 @@ Referências primárias conferidas:
   persistir os detalhes financeiros do formulário no armazenamento local.
   Logout usa escopo local para não encerrar as sessões do aplicativo principal.
 - TypeScript, ESLint dos arquivos novos e compilação web do gestor aprovados.
-- Testes reais de Supabase/Auth/email/Docker, Asaas Sandbox, restauração do banco,
-  migração dos perfis e instalação nativa ainda não foram executados.
+- `npm run test:license-local`: executado contra GoTrue/PostgREST/PostgreSQL reais
+  no Docker. Login com senha, MFA/TOTP, recusa de email não confirmado, metadados
+  forjados e JWT adulterado, isolamento de proprietários por RLS, cortesias,
+  idempotência, cancelamento, pagamentos manuais/anulações e fila Asaas passaram.
+  As contas e lançamentos são fictícios, criados somente no projeto local.
+- Backup completo desse banco local em formato custom foi restaurado em outro
+  banco. Dados de licenças, pagamentos, histórico, usuários/MFA, administradores,
+  funções e políticas RLS foram comparados. Dump, hash e relatório ficam em
+  `checks.local/licensing-local`, ignorados pelo Git. Isso não é backup da nuvem.
+- Confirmação por email recebido, Asaas Sandbox, restauração do banco real,
+  migração dos perfis e instalação nativa ainda não foram executados. A conta
+  Sandbox foi confirmada pelo usuário; a chave precisa ser configurada privadamente.
 
 ## Próximos passos necessários
 
-1. Usuário instala e inicia Docker Desktop com WSL2, reiniciando por conta própria
-   se necessário. Então executar `npm run licenses:local -- doctor` e iniciar a
-   cópia com `npm run licenses:local -- start`.
+1. Docker/WSL2 e testes reais locais concluídos. Para reabrir o gestor no navegador,
+   executar `licensing-server-local/Testar-Gestor-Local.cmd`. Ele inicia o projeto
+   isolado, preenche a conexão pública e prepara uma conta fictícia local com MFA
+   obrigatório. Email/senha inicial ficam em `checks.local/licensing-local`, nunca
+   no Git ou no terminal. A janela deve permanecer aberta durante o teste. A conta
+   real da administração ainda não recebeu autorização no banco de produção.
 2. Conectar a CLI à conta Supabase usando `licensing-server-local/Conectar-Supabase.cmd`.
    O launcher só executa login; não faz deploy, push, reset ou alterações de banco.
 3. Obter backup completo e inventário do projeto real, restaurar a cópia e conferir
@@ -120,6 +139,14 @@ Referências primárias conferidas:
    mutações legadas/RPCs, fila offline e transição entre versões, preservando dados.
 7. Só depois promover a integração validada à main e publicar de forma controlada,
    sem suspender inesperadamente as contas existentes.
+
+## Etapa local de 20/11/2026
+
+O gestor 0.1.1 usa a nova porta local 46321, inclusive na CSP nativa. O instalador
+0.1.0 anterior continua sendo um artefato de preparação e usa a porta antiga.
+A compilação 0.1.1 precisa ser entregue/verificada separadamente. Nenhuma destas
+versões substitui o AgriGest principal ou conecta pagamentos automaticamente.
+Os testes locais não mudaram a main e nenhuma operação foi feita no banco real.
 
 ## Entrega de preparação
 

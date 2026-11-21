@@ -9,6 +9,9 @@ on:
       - scripts/*license-manager*.mjs
       - tests/licensing-control.test.mjs
       - tests/asaas.test.mjs
+      - tests/licensing-docker-loopback.test.mjs
+      - scripts/licensing-docker-loopback.mjs
+      - scripts/licensing-local.mjs
       - package-lock.json
   workflow_dispatch:
 permissions:
@@ -33,7 +36,7 @@ jobs:
       - name: Check server logic and manager types
         run: |
           npm exec tsc -- -p licensing-manager/tsconfig.json --noEmit
-          node --test tests/licensing-control.test.mjs tests/asaas.test.mjs
+          node --test tests/licensing-control.test.mjs tests/asaas.test.mjs tests/licensing-docker-loopback.test.mjs
       - run: rustup default stable-msvc
       - run: npm run desktop:license-manager
       - run: node scripts/collect-license-manager.mjs

@@ -14,11 +14,11 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
   const errors=[],external=[],commands=[];let signedEmail='',free=false;
   page.on('pageerror',e=>errors.push(e.message));
   const origin='http://127.0.0.1:'+server.address().port;
-  page.on('request',req=>{if(/^https?:/.test(req.url())&&!req.url().startsWith(origin+'/')&&!req.url().startsWith('http://127.0.0.1:55321/'))external.push(req.url());});
+  page.on('request',req=>{if(/^https?:/.test(req.url())&&!req.url().startsWith(origin+'/')&&!req.url().startsWith('http://127.0.0.1:46321/'))external.push(req.url());});
   const b64=v=>Buffer.from(JSON.stringify(v)).toString('base64url');
   const jwt=payload=>b64({alg:'HS256',typ:'JWT'})+'.'+b64(payload)+'.fictitious-test-signature';
   const owner='20000000-0000-4000-8000-000000000001',license='20000000-0000-4000-8000-000000000101';
-  await page.route('http://127.0.0.1:55321/**',async route=>{
+  await page.route('http://127.0.0.1:46321/**',async route=>{
    const req=route.request(),url=new URL(req.url());if(req.method()==='OPTIONS')return route.fulfill({status:204,headers:{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS'}});
    const fulfill=body=>route.fulfill({status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':origin},body:JSON.stringify(body)});
    if(url.pathname==='/auth/v1/token'){

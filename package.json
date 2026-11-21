@@ -28,6 +28,7 @@
     "dev:license-manager": "vite --config licensing-manager/vite.config.ts",
     "desktop:license-manager": "node scripts/build-license-manager-windows.mjs",
     "test:license-control": "node --test tests/licensing-control.test.mjs",
+    "test:license-local": "node tests/licensing-local.integration.mjs --local-only",
     "mobile:sync:android": "npm run build:native && cap sync android",
     "mobile:sync:ios": "npm run build:native && cap sync ios"
   },
