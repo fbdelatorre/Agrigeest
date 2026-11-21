@@ -6,7 +6,10 @@ on:
     paths:
       - .github/workflows/licensing-sandbox-windows.yml
       - licensing-sandbox/**
-      - scripts/*licensing*.mjs
+      - scripts/build-licensing-sandbox.mjs
+      - scripts/build-licensing-windows.mjs
+      - scripts/package-licensing-sandbox.mjs
+      - scripts/collect-licensing-installer.mjs
       - tests/licensing-sandbox.test.mjs
       - tests/licensing-lifecycle.test.mjs
       - package.json

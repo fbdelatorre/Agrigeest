@@ -16,7 +16,8 @@ oficial da CLI; não redefiniu a senha principal nem alterou lançamentos.
   privado em `checks.local`. O acesso ainda não foi concedido no Supabase real.
   Não colocar email pessoal, chaves ou o bootstrap privado no repositório público.
 - Não há preços comerciais definidos no código. Valores contratados são inteiros
-  em centavos; nenhuma cobrança foi criada ou enviada ao Asaas.
+  em centavos. Checkouts fictícios foram criados e cancelados só no Sandbox;
+  nenhum pagamento ou cobrança de produção foi criado.
 
 ## Preparado no código
 
@@ -29,7 +30,7 @@ automaticamente. Serviços desnecessários foram desabilitados para esta valida�
 project-ref remoto, isola credenciais do processo e verifica uma rede Docker com
 publicação de portas em loopback. Não fornece reset, push ou deploy. Stop mantém
 o comportamento padrão de preservação dos volumes. CLI 3.2.0, Docker e WSL2 foram
-validados e o projeto local foi iniciado com as duas migrações. A faixa anterior
+validados e o projeto local recebeu as quatro migrações preparadas. A faixa anterior
 55320–55329 estava reservada pelo Windows; foi substituída por 46320–46329.
 No Docker Desktop observado, a opção de bind padrão da rede não restringiu as
 portas. O início foi interrompido, preservando volumes. O script agora usa um
@@ -74,8 +75,10 @@ por ambiente/ID antes de responder HTTP 200. Apenas o serviço pode inserir na
 fila; clientes autenticados não podem forjar eventos. Falha de persistência não
 recebe confirmação de sucesso. O segredo fica em arquivo ignorado e no servidor.
 
-**Ainda falta**: endpoint autenticado que cria/reserva checkout de forma idempotente,
-vinculação contratual com cliente/checkout/assinatura, reconciliação de eventos
+O endpoint autenticado `asaas-checkout` já reserva e cria checkout com o preço
+do servidor e proteção contra repetição, validado no Sandbox nesta etapa.
+
+**Ainda falta**: vinculação contratual com cliente/checkout/assinatura, reconciliação de eventos
 com consulta autenticada ao Asaas, ativação e renovação por pagamento canônico,
 inadimplência/reembolso/chargeback, sincronização de cancelamento/adicionais e
 reprocessamento monitorado. A fila preparada não ativa licenças automaticamente.
@@ -256,7 +259,10 @@ O gestor 0.1.2 mostra, na aba Pagamentos, as solicitações Asaas e seus estados
 com indicação clara de Sandbox. A consulta exige administrador confirmado e MFA;
 não fornece acesso aos dados operacionais da fazenda. Servidor antigo sem essa
 RPC continua abrindo o painel e informa que a visão precisa ser atualizada.
-Interface conferida no Edge sob CSP, com respostas HTTP simuladas.
+Interface conferida no Edge sob CSP, com respostas HTTP simuladas e depois com
+backend local real. Uma conta fictícia administrativa foi recusada em AAL1,
+autorizada após TOTP e exibiu o checkout Sandbox cancelado. Nenhuma requisição
+externa partiu dessa interface durante a verificação.
 
 O encaminhador local por named pipe foi ajustado para separar as redes dos dois
 projetos e preservar o protocolo Docker attach, inclusive streams hijacked. Só
@@ -269,6 +275,17 @@ sincronizados, vinculação real de equipes/aparelhos e integração ao AgriGest
 Nenhuma licença comercial foi ativada e nenhuma migração foi publicada na nuvem.
 
 ## Entrega de preparação
+
+- **Atual: 0.1.2**, Actions concluído:
+  https://github.com/fbdelatorre/Agrigeest/actions/runs/44887010938.
+  Commit `c68830afc4229b3671ba4e5d55ad7ea7672e6cf2`.
+  Instalador em `checks.local/entregas/gestor-licencas-0.1.2-preparacao`,
+  2.017.314 bytes, SHA-256
+  `789AA1C4A665A43B7AC39A3CEBA2DBB18DA85727AC647DD2A4BFEC8CF6376633`.
+  ZIP extraído, versão/identidade/commit/hash conferidos; instalação nativa ainda
+  não testada. Não assinado. `COMO-TESTAR.txt` acompanha a entrega local.
+  A compilação antiga do protótipo passou a observar só seus próprios scripts,
+  evitando novos builds quando mudam apenas os helpers do servidor real.
 
 - Actions concluído: https://github.com/fbdelatorre/Agrigeest/actions/runs/44833613805.
 - Commit compilado: `d73c702f8767273f3c8e9f2a34d9515d2d7f6323`.
