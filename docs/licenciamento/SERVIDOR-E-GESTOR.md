@@ -3,7 +3,9 @@
 O usuário autorizou a futura integração à main e publicação no Supabase real.
 Isso não torna o protótipo de identidade simulada apto para produção. As condições
 de backup, restauração, compatibilidade e mapeamento de titularidade continuam
-necessárias. Nenhuma alteração de banco real ou integração à main foi executada.
+necessárias. Nenhuma migração de licenças foi publicada no banco real e nenhuma
+integração à main foi executada. A exportação posterior usou o login temporário
+oficial da CLI; não redefiniu a senha principal nem alterou lançamentos.
 
 ## Decisões desta etapa
 
@@ -125,9 +127,13 @@ Referências primárias conferidas:
   A função foi servida com `functions serve` e o caminho absoluto do `.env.local`,
   obrigatório na versão da CLI observada. O processo precisa ficar aberto para
   continuar este teste; `start` sozinho não carrega esse arquivo privado.
-- Asaas Sandbox, restauração do banco real, migração dos perfis e instalação
-  nativa ainda não foram executados. A conta
-  Sandbox foi confirmada pelo usuário; a chave precisa ser configurada privadamente.
+- A chave Sandbox foi configurada privadamente pelo usuário e validada com uma
+  única consulta GET a `/v3/myAccount/status/`: HTTP 200, situação aprovada.
+  Nenhuma cobrança foi criada; checkout, conciliação e automação de pagamento
+  continuam pendentes de implementação e homologação.
+- A exportação do banco real foi restaurada em um banco separado no Docker.
+  Migração de perfis, homologação do pagamento e instalação nativa continuam
+  pendentes. A restauração do banco real em produção não foi executada.
 
 ## Próximos passos necessários
 
@@ -137,15 +143,16 @@ Referências primárias conferidas:
    obrigatório. Email/senha inicial ficam em `checks.local/licensing-local`, nunca
    no Git ou no terminal. A janela deve permanecer aberta durante o teste. A conta
    real da administração ainda não recebeu autorização no banco de produção.
-2. Conectar a CLI à conta Supabase usando `licensing-server-local/Conectar-Supabase.cmd`.
-   O launcher só executa login; não faz deploy, push, reset ou alterações de banco.
-3. Obter backup completo e inventário do projeto real, restaurar a cópia e conferir
-   esquema, funções, RLS, contagens, saldos e arquivos. Reconciliar migrações que
-   foram aplicadas manualmente antes. Não executar `db push` no projeto real.
+2. Login da CLI concluído e validado. O launcher só executa login; não faz deploy,
+   push ou reset. Não confundir a autenticação da CLI com entrar apenas no painel.
+3. Exportação inicial e restauração já verificadas, conforme seção abaixo. Antes
+   de publicar, concluir homologação na mesma versão PostgreSQL 15 da produção,
+   avaliar RPCs/grants/funcionalidade das operações e reconciliar migrações manuais.
+   Não executar `db push` indiscriminadamente no projeto real.
 4. Confirmar proprietários e vínculos reais. Não presumir titularidade por quem
    criou o cadastro, pela profissão ou pelo `is_admin` atual.
-5. Criar/configurar conta Asaas Sandbox e guardar sua API key somente no arquivo
-   privado/secret store do servidor. Não usar chave de produção nos testes.
+5. Conta Asaas Sandbox/chave configuradas e GET de autenticação aprovado. Manter
+   a chave só no arquivo privado/secret store; concluir os testes financeiros.
 6. Concluir integração financeira e autorização real de equipes, testar todas as
    mutações legadas/RPCs, fila offline e transição entre versões, preservando dados.
 7. Só depois promover a integração validada à main e publicar de forma controlada,
@@ -165,7 +172,37 @@ O launcher do gestor pode ler um caminho de Node gerado em arquivo local ignorad
 (`checks.local/licensing-local/node-path.cmd`), sem mudar o PATH global do Windows.
 Nenhuma destas
 versões substitui o AgriGest principal ou conecta pagamentos automaticamente.
-Os testes locais não mudaram a main e nenhuma operação foi feita no banco real.
+Os testes locais não mudaram a main e nenhum lançamento foi alterado no banco real.
+
+## Exportação real e restauração isolada
+
+A CLI autenticada confirmou o projeto AgroGest ativo, PostgreSQL 15.8, com sete
+backups físicos concluídos. O usuário desconhece a senha do banco. A exportação
+utilizou o login temporário oficial da CLI, após verificar seus efeitos no código
+da versão 3.2.0, sem redefinir a senha principal. A conexão direta IPv6 não estava
+disponível; a CLI usou seu fallback oficial para o pooler IPv4. Não foram passados
+`--yes`, comandos de reset, restore remoto ou remoção de bloqueios de rede.
+
+Esquema, dados, roles e esquema ampliado com Auth/Storage foram guardados em
+`checks.local/cloud-backup-2026-11-20`, com hashes e manifestos. Esse conteúdo é
+privado e ignorado pelo Git, pois contém dados reais e material de autenticação.
+Os schemas gerenciados não substituem a cópia da configuração externa do projeto.
+A inspeção encontrou zero buckets, zero objetos Storage e zero segredos Vault.
+
+O dump foi restaurado em banco novo, separado do banco de testes do gestor, no
+Docker local. PostGIS 3.3.7 foi inicializado antes da restauração. As contagens e
+hashes das linhas de 62 tabelas exportadas coincidiram, incluindo Auth. A tabela
+de referência padrão do PostGIS é tratada separadamente porque o dump inclui
+apenas seus registros customizados. Também coincidiram as 70 políticas e as flags
+RLS públicas, comparadas sob o mesmo search_path. A diferença inicial de nomes
+`uid()`/`auth.uid()` vinha da exibição conforme search_path, sem alteração de regra.
+
+As duas migrações de licenças foram aplicadas **somente a essa cópia**. Repetida a
+comparação, os mesmos registros e políticas legadas continuaram idênticos.
+Limite: o container de restauração usa PostgreSQL 17.12, e a origem usa 15.8;
+validar também na versão 15 antes de publicar. Isso não prova funcionamento de
+todos os fluxos legados, emails externos, restauração do serviço Auth em outra
+instalação ou integração financeira completa. Nenhuma licença real foi ativada.
 
 ## Entrega de preparação
 
