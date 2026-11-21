@@ -12,5 +12,14 @@ const handler=createAsaasWebhookHandler({secret,enqueue:async(event:Record<strin
  if(!key.startsWith('sb_secret_'))headers.Authorization='Bearer '+key;
  const response=await fetch(url+'/rest/v1/rpc/ingest_asaas_event',{method:'POST',headers,body:JSON.stringify({p_environment:environment,p_event:event}),redirect:'error'});
  if(!response.ok)throw Error('Inbox persistence failed');
+ const workerToken=Deno.env.get('ASAAS_RECONCILE_TOKEN');
+ if(workerToken){
+  const task=fetch(url+'/functions/v1/asaas-reconcile',{method:'POST',headers:{'x-agrigest-worker-token':workerToken,'Content-Type':'application/json'},body:JSON.stringify({event_id:event.id}),redirect:'error',signal:AbortSignal.timeout(60000)}).then(r=>r.body?.cancel()).catch(()=>{});
+  const runtime=(globalThis as unknown as {EdgeRuntime?:{waitUntil:(p:Promise<unknown>)=>void}}).EdgeRuntime;
+  if(runtime)runtime.waitUntil(task);else await task;
+ }
 }});
-Deno.serve(handler);
+Deno.serve((request:Request)=>{
+ if(request.headers.get('x-agrigest-expected-environment')&&request.headers.get('x-agrigest-expected-environment')!==environment)return Response.json({error:'ENVIRONMENT_MISMATCH'},{status:409});
+ return handler(request);
+});

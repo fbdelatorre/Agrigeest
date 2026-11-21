@@ -5,6 +5,7 @@ import {randomBytes} from 'node:crypto';
 import {join,dirname,delimiter} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createClient} from '@supabase/supabase-js';
+import {parseEnv} from 'node:util';
 
 const root=fileURLToPath(new URL('..',import.meta.url));const workdir=join(root,'licensing-server-local');
 await assertUnlinked();
@@ -40,7 +41,11 @@ const exists=await server.auth.admin.getUserById(account.id);if(exists.error||ex
 const bootstrap=spawnSync(docker,['exec','-i','supabase_db_agrigest-licensing-local','psql','-X','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1'],{env,input:`INSERT INTO licensing_private.platform_admins(user_id) VALUES('${account.id}'::uuid) ON CONFLICT DO NOTHING;`,encoding:'utf8',windowsHide:true});
 if(bootstrap.status!==0)throw Error('Bootstrap local falhou.');
 const instructions=join(folder,'ACESSO-TESTE-LOCAL.txt');
-await writeFile(instructions,`GESTOR DE LICENCAS - TESTE LOCAL\n\nConta ficticia deste computador. Nao existe no Supabase de producao.\n\nEndereco: http://127.0.0.1:4180\nServico: ${url}\nChave PUBLICA (somente se o instalador pedir): ${config.ANON_KEY}\nEmail: ${account.email}\nSenha inicial de teste: ${account.password}\n\nNo primeiro login, clique em Configurar ou usar autenticador e confirme o codigo no seu aplicativo autenticador. A segunda etapa continua obrigatoria.\n\nA pagina do navegador ja recebe endereco e chave publica automaticamente. Nao use sua senha real neste teste. Nao envie este arquivo ao GitHub. Cobranca Asaas e dados de producao NAO estao conectados.\n`);
+await writeFile(instructions,`GESTOR DE LICENCAS - TESTE LOCAL\n\nConta ficticia deste computador. Nao existe no Supabase de producao.\n\nEndereco: http://127.0.0.1:4180\nServico: ${url}\nChave PUBLICA (somente se o instalador pedir): ${config.ANON_KEY}\nEmail: ${account.email}\nSenha inicial de teste: ${account.password}\n\nNo primeiro login, clique em Configurar ou usar autenticador e confirme o codigo no seu aplicativo autenticador. A segunda etapa continua obrigatoria.\n\nA pagina do navegador ja recebe endereco e chave publica automaticamente. Nao use sua senha real neste teste. Nao envie este arquivo ao GitHub. Somente Asaas Sandbox pode ser conectado neste teste. Nao ha cobranca real. Dados de producao NAO estao conectados.\n`);
+try{
+ const backendEnv=parseEnv(await readFile(join(root,'licensing-server-local/supabase/functions/.env.local'),'utf8'));
+ if(backendEnv.ASAAS_ENV==='sandbox'&&backendEnv.ASAAS_ENABLE_PRODUCTION==='false'&&/^\S{32,255}$/.test(backendEnv.ASAAS_RECONCILE_TOKEN??''))spawn(process.execPath,[join(root,'scripts/licensing-reconcile-local.mjs'),'--watch'],{cwd:root,env,detached:true,stdio:'ignore',windowsHide:true}).unref();
+}catch{ /* conexão privada pendente; painel continua disponível */ }
 let alreadyRunning=false;
 try{
  const response=await fetch('http://127.0.0.1:4180',{redirect:'error',signal:AbortSignal.timeout(1500)});

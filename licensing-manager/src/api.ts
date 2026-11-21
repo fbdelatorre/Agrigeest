@@ -13,11 +13,14 @@ export function saveConfiguration(url:string,key:string){const error=validateCon
 export const configurationError=validateConfiguration(url,key);
 export const client=configurationError?null:createClient(url,key,{auth:{storageKey:'agrigest-license-manager:'+new URL(url).host,persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
 export const db=client?.schema('licensing');
-export type License={id:string;label:string;owner_id:string;kind:'farm'|'consultancy';period:'monthly'|'annual';status:string;extras:number;amount_minor:number;complimentary:boolean;valid_until:string|null};
+export type License={id:string;label:string;owner_id:string;kind:'farm'|'consultancy';period:'monthly'|'annual';status:string;extras:number;amount_minor:number;complimentary:boolean;valid_until:string|null;test_mode?:boolean;institution_id?:string|null};
 export type Payment={id:string;license_id:string;amount_minor:number;status:string;due_on:string;paid_on:string|null;method:string;reference:string};
 export type Event={id:string;license_id:string;action:string;created_at:string;details:Record<string,unknown>};
 export type Account={id:string;email:string};
 export type Checkout={id:string;license_id:string;label:string;environment:string;state:string;amount_minor:number;period:string;created_at:string;provider_id:string|null};
+export type ProviderPayment={environment:string;payment_id:string;license_id:string;amount_minor:number;status:string;due_on:string;paid_on:string|null;coverage_until:string;eligible:boolean;has_refund:boolean;verified_at:string};
+export type ProviderAudit={id:string;license_id:string;environment:string;action:string;created_at:string;details:Record<string,unknown>};
+export type BillingJob={environment:string;event_id:string;state:string;attempts:number;error_code:string|null;received_at:string};
 export async function rpc<T=unknown>(name:string,args:Record<string,unknown>={}):Promise<T>{
  if(!db||!client)throw Error('Serviço não configurado.');
  let pendingKey:string|undefined;const payload={...args};
@@ -35,11 +38,12 @@ export async function rpc<T=unknown>(name:string,args:Record<string,unknown>={})
 }
 export async function snapshot(){
  if(!db)throw Error('Serviço não configurado.');
- const [licenses,payments,events,checkouts]=await Promise.all([db.from('licenses').select('*').order('created_at',{ascending:false}).limit(500),db.from('payments').select('*').order('created_at',{ascending:false}).limit(500),db.from('events').select('*').order('created_at',{ascending:false}).limit(100),db.rpc('admin_checkout_requests')]);
+ const [licenses,payments,events,checkouts,providerPayments,providerAudit,queue]=await Promise.all([db.from('licenses').select('*').order('created_at',{ascending:false}).limit(500),db.from('payments').select('*').order('created_at',{ascending:false}).limit(500),db.from('events').select('*').order('created_at',{ascending:false}).limit(100),db.rpc('admin_checkout_requests'),db.from('provider_payments').select('*').order('verified_at',{ascending:false}).limit(500),db.from('provider_audit').select('*').order('created_at',{ascending:false}).limit(100),db.rpc('admin_billing_queue')]);
  for(const result of [licenses,payments,events])if(result.error)throw result.error;
  const checkoutAvailable=!checkouts.error;
  if(checkouts.error&&!['PGRST202','42883'].includes(checkouts.error.code))throw checkouts.error;
- return {licenses:licenses.data as License[],payments:payments.data as Payment[],events:events.data as Event[],checkouts:(checkouts.data??[]) as Checkout[],checkoutAvailable};
+ for(const result of [providerPayments,providerAudit,queue])if(result.error&&!['PGRST202','PGRST205','42883','42P01'].includes(result.error.code))throw result.error;
+ return {licenses:licenses.data as License[],payments:payments.data as Payment[],events:events.data as Event[],checkouts:(checkouts.data??[]) as Checkout[],checkoutAvailable,providerPayments:(providerPayments.data??[]) as ProviderPayment[],providerAudit:(providerAudit.data??[]) as ProviderAudit[],queue:(queue.data??[]) as BillingJob[],billingAvailable:![providerPayments,providerAudit,queue].some(r=>r.error)};
 }
 export function moneyInput(text:string){const normalized=text.trim().replace(',','.');if(!/^\d{1,7}(\.\d{1,2})?$/.test(normalized))throw Error('Informe o valor com até duas casas decimais.');const [whole,fraction='']=normalized.split('.');return Number(whole)*100+Number(fraction.padEnd(2,'0'));}
 export function friendly(error:unknown){const message=error&&typeof error==='object'&&'message'in error?String(error.message):String(error);if(/PLATFORM_ADMIN_REQUIRED|permission denied|row-level security/.test(message))return 'Esta conta não possui autorização administrativa confirmada.';if(/schema|function.*does not exist|PGRST/.test(message))return 'O serviço de licenças ainda não foi publicado ou configurado neste servidor.';if(message.includes('Invalid login credentials'))return 'Email ou senha incorretos.';return message;}

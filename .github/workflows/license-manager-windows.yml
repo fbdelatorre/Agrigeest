@@ -10,6 +10,7 @@ on:
       - tests/licensing-control.test.mjs
       - tests/asaas.test.mjs
       - tests/checkout.test.mjs
+      - tests/reconciliation.test.mjs
       - tests/licensing-docker-pipe.test.mjs
       - tests/licensing-docker-loopback.test.mjs
       - scripts/licensing-docker-loopback.mjs
@@ -38,7 +39,7 @@ jobs:
       - name: Check server logic and manager types
         run: |
           npm exec tsc -- -p licensing-manager/tsconfig.json --noEmit
-          node --test tests/licensing-control.test.mjs tests/asaas.test.mjs tests/checkout.test.mjs tests/licensing-docker-loopback.test.mjs tests/licensing-docker-pipe.test.mjs
+          node --test tests/licensing-control.test.mjs tests/asaas.test.mjs tests/checkout.test.mjs tests/reconciliation.test.mjs tests/licensing-docker-loopback.test.mjs tests/licensing-docker-pipe.test.mjs
       - run: rustup default stable-msvc
       - run: npm run desktop:license-manager
       - run: node scripts/collect-license-manager.mjs

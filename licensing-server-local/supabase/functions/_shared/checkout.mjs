@@ -9,6 +9,7 @@ export function createCheckoutHandler({environment='sandbox',enableProduction=fa
   if(origin&&!origins.includes(origin))return reply(403,{error:'ORIGIN_NOT_ALLOWED'});
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers});
   if(request.method!=='POST')return reply(405,{error:'METHOD_NOT_ALLOWED'});
+  if(request.headers.get('x-agrigest-expected-environment')&&request.headers.get('x-agrigest-expected-environment')!==environment)return reply(409,{error:'ENVIRONMENT_MISMATCH'});
   if(!['sandbox','production'].includes(environment)||(environment==='production'&&!enableProduction))return reply(503,{error:'CHECKOUT_NOT_CONFIGURED'});
   let actor;try{actor=await authenticate(request);}catch{return reply(503,{error:'AUTH_UNAVAILABLE'});}
   if(!actor)return reply(401,{error:'AUTH_REQUIRED'});

@@ -435,3 +435,6 @@ verify_jwt = false
 [functions.asaas-checkout]
 verify_jwt = false
 
+[functions.asaas-reconcile]
+verify_jwt = false
+

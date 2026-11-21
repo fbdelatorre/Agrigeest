@@ -11,7 +11,7 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
  try{
   browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
   const page=await browser.newPage({viewport:{width:1400,height:1000}});page.setDefaultTimeout(15000);page.on('dialog',dialog=>dialog.accept());
-  const errors=[],external=[],commands=[];let signedEmail='',free=false;
+  const errors=[],external=[],commands=[];let signedEmail='',free=false,retried=false;
   page.on('pageerror',e=>errors.push(e.message));
   const origin='http://127.0.0.1:'+server.address().port;
   page.on('request',req=>{if(/^https?:/.test(req.url())&&!req.url().startsWith(origin+'/')&&!req.url().startsWith('http://127.0.0.1:46321/'))external.push(req.url());});
@@ -32,6 +32,11 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
    if(url.pathname.endsWith('/admin_set_license')){commands.push(JSON.parse(req.postData()));free=true;if(commands.length===1)return route.abort('failed');return fulfill(null);}
    if(url.pathname.endsWith('/licenses'))return fulfill([{id:license,label:'Empresa para validação',owner_id:owner,kind:'farm',period:'monthly',status:free?'active':'pending',extras:0,amount_minor:0,complimentary:free,valid_until:null}]);
    if(url.pathname.endsWith('/payments')||url.pathname.endsWith('/events'))return fulfill([]);
+   if(url.pathname.endsWith('/provider_payments'))return fulfill([{environment:'sandbox',payment_id:'pay_test_only',license_id:license,amount_minor:99999,status:'RECEIVED',due_on:'2026-11-21',eligible:true,has_refund:false,verified_at:new Date().toISOString()}]);
+   if(url.pathname.endsWith('/provider_audit'))return fulfill([]);
+   if(url.pathname.endsWith('/admin_billing_queue'))return fulfill([{environment:'sandbox',event_id:'evt_review_fixture',state:retried?'processed':'review',attempts:1,error_code:retried?null:'PROVIDER_CONTRACT_MISMATCH',received_at:new Date().toISOString()}]);
+   if(url.pathname.endsWith('/admin_retry_billing_event')){assert.deepEqual(JSON.parse(req.postData()),{p_environment:'sandbox',p_event_id:'evt_review_fixture'});return fulfill(null);}
+   if(url.pathname==='/functions/v1/asaas-reconcile'){assert.equal(req.headers()['x-agrigest-expected-environment'],'sandbox');assert.deepEqual(JSON.parse(req.postData()),{event_id:'evt_review_fixture'});retried=true;return fulfill({state:'processed',event_id:'evt_review_fixture'});}
    throw Error('Unexpected mock API request: '+url.pathname);
   });
   await page.goto(origin);
@@ -54,6 +59,10 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
   await page.getByRole('heading',{name:'Solicitações Asaas',exact:true}).waitFor();
   await page.getByText('Ambiente de testes · sem valor real',{exact:false}).waitFor();
   await page.getByText('Referência: checkout-display-test',{exact:true}).waitFor();
+  await page.getByRole('heading',{name:'Conciliação automática Asaas',exact:true}).waitFor();
+  await page.getByText('TESTE SANDBOX · sem valor real',{exact:false}).waitFor();
+  assert.match(await page.getByText('Recebimentos brutos de produção conferidos:',{exact:false}).innerText(),/0,00/,'Sandbox amounts must not appear as production receipts');
+  await page.getByRole('button',{name:'Conferir novamente',exact:true}).click();await page.getByText('Nova conferência solicitada. Atualize para acompanhar o resultado.',{exact:true}).waitFor();assert.equal(retried,true);
   await page.screenshot({path:'checks.local/license-manager-preview.png',fullPage:true});
   await page.getByRole('button',{name:'Sair',exact:true}).click();await login.waitFor();
   await login.getByLabel('Email',{exact:true}).fill('employee@example.test');await login.getByLabel('Senha',{exact:true}).fill('Fictitious-password-only');await login.getByRole('button',{name:'Entrar',exact:true}).click();

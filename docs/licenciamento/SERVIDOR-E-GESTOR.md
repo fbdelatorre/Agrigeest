@@ -269,10 +269,60 @@ projetos e preservar o protocolo Docker attach, inclusive streams hijacked. Só
 aceita helpers oficiais explícitos sem portas e na rede escolhida. O teste real
 de named pipe valida autenticação, remoção do token interno e fluxo de bytes.
 
-**Ainda falta para cobrança automática:** conciliação canônica de pagamento,
-ativação/renovação, inadimplência/estorno/chargeback, cancelamento e adicionais
-sincronizados, vinculação real de equipes/aparelhos e integração ao AgriGest.
-Nenhuma licença comercial foi ativada e nenhuma migração foi publicada na nuvem.
+## Conciliação canônica — etapa local 0.1.3
+
+A migração `20261121000500_canonical_payments.sql` foi aplicada apenas aos bancos
+locais PostgreSQL 17 e à cópia restaurada PostgreSQL 15. O processador consulta
+`GET /payments/{id}` e, quando necessário, `GET /subscriptions/{id}` autenticados
+no Asaas. O webhook fornece somente a referência para consulta; valor, status e
+assinatura recebidos no aviso não autorizam acesso. O vínculo usa checkout ou
+referência exata licença/solicitação, cliente, preço e periodicidade do servidor.
+
+Pagamentos elegíveis cobrem períodos mensais/anuais de calendário, desde o
+vencimento. Períodos contíguos podem renovar a validade; duplicatas não somam dias.
+Estornos removem a cobertura daquele pagamento. O vencimento de uma fatura futura
+não remove um período já pago. Cancelamento pelo proprietário, cortesias e decisões
+administrativas posteriores ficam protegidos por revisão da licença, inclusive
+contra eventos atrasados. Um pagamento antecipado fora da cobertura corrente
+agenda nova conferência na data inicial. Isso exige processador de fila ativo.
+
+As tabelas de pagamentos e auditoria têm RLS e leitura restrita. Só RPCs do servidor
+aplicam a conciliação; o histórico automático não pode ser editado/excluído.
+Há lease exclusivo por ambiente, fencing contra execução vencida e até oito
+tentativas com espera progressiva; casos permanentes pedem revisão. O gestor
+permite reenfileirar e consultar novamente, com autorização administrativa e MFA.
+
+Licenças Sandbox precisam de `test_mode=true`, não podem ter fazenda vinculada e
+não são ativadas como comerciais. O painel identifica testes e os exclui da soma
+de recebimentos brutos de produção. Lançamentos financeiros manuais ficam separados.
+Chaves Asaas, chave administrativa e token do processador continuam somente no
+servidor/arquivos privados ignorados; o instalador contém apenas interface pública.
+
+**Validação:** testes SQL/PGlite cobrem ativação, renovação, repetição, estorno,
+isolamento, concorrência e decisões manuais. O PostgreSQL 15 executou o fluxo real
+das funções em transação desfeita. A conferência da cópia confirmou os valores das
+62 tabelas e as 70 políticas públicas iguais ao backup, sem alteração na produção.
+O teste integrado criou cliente fictício sem notificações e assinatura PIX na API
+real do Asaas Sandbox, confirmou pagamento simulado, ativou licença local e recusou
+aviso forjado, duplicatas e reativação após cancelamento. Cancelou a assinatura e
+o checkout de teste ao terminar. Não houve dinheiro real nem envio de cartão.
+Esse teste usa assinatura PIX com referência vinculada à solicitação; **não comprova
+a conclusão do checkout hospedado por cartão**, nem entrega pública de webhook.
+
+Para teste local, `scripts/licensing-reconcile-local.mjs --watch` acompanha a fila
+em loopback e recusa configuração de produção; o atalho do gestor o inicia quando
+o token privado está configurado. Ele não inicia Docker nem as Edge Functions.
+O token novo `ASAAS_RECONCILE_TOKEN` deve ser aleatório e privado. Em produção ainda
+será necessário publicar funções/webhook e configurar um agendador persistente.
+
+**Ainda falta:** homologar cartão/checkout e entrega pública dos webhooks; sincronizar
+cancelamento/reativação e adicionais com a assinatura no Asaas; definir a política
+comercial para inadimplência/estorno/chargeback; vincular equipes/aparelhos e aplicar
+as permissões no AgriGest e na fila offline. Cancelar uma licença neste painel
+**ainda não cancela a cobrança recorrente no provedor**. Nenhuma licença comercial
+foi ativada e nenhuma migração desta etapa foi publicada na nuvem. A main permanece
+intacta. Marco Git: `agrigest-antes-conciliacao-2026-11-21`; bundle local verificado
+em `checks.local/licensing-local/antes-conciliacao-2026-11-21.bundle`.
 
 ## Entrega de preparação
 
