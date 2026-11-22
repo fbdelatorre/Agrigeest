@@ -493,7 +493,22 @@ Esta etapa não publicou funções/migrações em produção e não fez merge na
 
 ## Entrega de preparação
 
-- **Atual: 0.1.4**, Actions concluído:
+- **Atual: 0.1.5**, Actions concluído:
+  https://github.com/fbdelatorre/Agrigeest/actions/runs/45024271933.
+  Commit `93b38d4417076e399c142651f8eecb5970adb558`.
+  Instalador em `checks.local/entregas/gestor-licencas-0.1.5-preparacao`,
+  2.024.041 bytes, SHA-256
+  `6831F971691A2A043F78C32965B01D6BBE32DDCFC03E25817D701DEB45C4D885`.
+  Versão/identidade/commit/hash conferidos após extração do ZIP. Não assinado;
+  instalação nativa neste Windows ainda depende do teste do usuário. O arquivo
+  `COMO-TESTAR.txt` explica a configuração dos preços base, o portal do titular,
+  primeiro pagamento, conferência no teste local e reativação por nova contratação.
+  Os 14 testes e TypeScript do PWA/gestor passaram no CI. Build PWA, interface com
+  mocks, Auth/RLS reais e ciclo de pagamento PIX simulado Sandbox passaram localmente.
+  A compilação anterior sem o botão de conferência também concluiu, mas o arquivo
+  entregue é o commit mais recente, com o recurso e suas verificações.
+
+- **Anterior: 0.1.4**, Actions concluído:
   https://github.com/fbdelatorre/Agrigeest/actions/runs/45018280678.
   Commit `85b08ea90d65ea2393366d76b8b77569e3ff1dc3`.
   Instalador em `checks.local/entregas/gestor-licencas-0.1.4-preparacao`,
