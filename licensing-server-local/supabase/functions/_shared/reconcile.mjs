@@ -24,18 +24,18 @@ export function createReconciler({environment='sandbox',enableProduction=false,c
    const paymentId=job.payload?.payment?.id;if(!safeId(paymentId))throw Error('INVALID_PAYMENT_REFERENCE');
    // O payload recebido é apenas uma pista. Todos os fatos financeiros vêm do GET autenticado.
    const payment=paymentData(await provider.getPayment(paymentId),paymentId);
-   let ctx=await context(environment,payment.subscription,null,null);
+   let ctx=await context(environment,payment.subscription,null,null,payment.due_on);
    let subscription=null;
    if(!ctx||paidStatuses.includes(payment.status)){
     subscription=subscriptionData(await provider.getSubscription(payment.subscription),payment.subscription);
     if(subscription.customer!==payment.customer)throw Error('PROVIDER_CUSTOMER_MISMATCH');
     if(payment.checkout_id&&subscription.checkout_id&&payment.checkout_id!==subscription.checkout_id)throw Error('CHECKOUT_BINDING_MISMATCH');
-    if(!ctx)ctx=await context(environment,payment.subscription,payment.checkout_id??subscription.checkout_id,subscription.reference);
+    if(!ctx)ctx=await context(environment,payment.subscription,payment.checkout_id??subscription.checkout_id,subscription.reference,payment.due_on);
    }
    if(!ctx)throw Error('UNKNOWN_BILLING_CONTRACT');
    if((environment==='sandbox')!==ctx.test_mode)throw Error('BILLING_ENVIRONMENT_MISMATCH');
    if(payment.amount_minor!==Number(ctx.amount_minor)||(ctx.customer_id&&ctx.customer_id!==payment.customer))throw Error('PROVIDER_CONTRACT_MISMATCH');
-   if(subscription&&(subscription.amount_minor!==Number(ctx.amount_minor)||subscription.cycle!==(ctx.period==='monthly'?'MONTHLY':'YEARLY')))throw Error('PROVIDER_CONTRACT_MISMATCH');
+   if(subscription&&(subscription.amount_minor!==Number(ctx.subscription_amount_minor??ctx.amount_minor)||subscription.cycle!==(ctx.period==='monthly'?'MONTHLY':'YEARLY')))throw Error('PROVIDER_CONTRACT_MISMATCH');
    const result=await apply(environment,job.event_id,job.lease,ctx.request_id,payment,subscription);
    return {state:'processed',event_id:job.event_id,changed:result.changed};
   }catch(error){

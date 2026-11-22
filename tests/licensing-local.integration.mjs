@@ -110,6 +110,7 @@ try{
  await denied(other.app.schema('licensing').rpc('admin_accounts',{p_search:''}));
  checks.push('Metadados enviados pelo cliente não concedem privilégio');
  const args={p_owner:owner.user.id,p_label:'Fazenda teste local '+stamp,p_kind:'farm',p_period:'monthly',p_amount:10000,p_extras:1,p_request:randomUUID()};
+ if(!(await rows(admin.app,'extra_prices')).some(p=>p.kind==='farm'&&p.period==='monthly'))await rpc(admin.app,'admin_set_extra_price',{p_kind:'farm',p_period:'monthly',p_unit:500,p_request:randomUUID()});
  const license=await rpc(admin.app,'admin_create_license',args);
  assert.equal(await rpc(admin.app,'admin_create_license',args),license);
  await denied(admin.app.schema('licensing').rpc('admin_create_license',{...args,p_amount:20000}));
@@ -138,6 +139,7 @@ try{
  await denied(owner.app.schema('licensing').rpc('ingest_asaas_event',{p_environment:'sandbox',p_event:{id:'fake',event:'PAYMENT_RECEIVED'}}));
  const event={id:'evt_'+stamp,event:'PAYMENT_RECEIVED',payment:{id:'pay_'+stamp,value:100}};
  await rpc(server,'ingest_asaas_event',{p_environment:'sandbox',p_event:event});await rpc(server,'ingest_asaas_event',{p_environment:'sandbox',p_event:event});
+ await rpc(server,'mark_billing_test_event',{p_event_id:event.id});
  assert.equal(sql(`SELECT count(*) FROM licensing_private.asaas_inbox WHERE event_id='${event.id}';`),'1');
  assert.equal(await rpc(owner.app,'is_active',{p_id:license}),false);
  checks.push('Fila Asaas exclusiva do servidor, duplicata ignorada, ingresso não ativa licença');

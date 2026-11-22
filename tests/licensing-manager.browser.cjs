@@ -34,7 +34,9 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
    if(url.pathname.endsWith('/payments')||url.pathname.endsWith('/events'))return fulfill([]);
    if(url.pathname.endsWith('/provider_payments'))return fulfill([{environment:'sandbox',payment_id:'pay_test_only',license_id:license,amount_minor:99999,status:'RECEIVED',due_on:'2026-11-21',eligible:true,has_refund:false,verified_at:new Date().toISOString()}]);
    if(url.pathname.endsWith('/provider_audit'))return fulfill([]);
-   if(url.pathname.endsWith('/admin_billing_queue'))return fulfill([{environment:'sandbox',event_id:'evt_review_fixture',state:retried?'processed':'review',attempts:1,error_code:retried?null:'PROVIDER_CONTRACT_MISMATCH',received_at:new Date().toISOString()}]);
+   if(url.pathname.endsWith('/extra_prices'))return fulfill([]);
+   if(url.pathname.endsWith('/admin_subscription_changes'))return fulfill([]);
+   if(url.pathname.endsWith('/admin_billing_queue'))return fulfill([{environment:'sandbox',event_id:'evt_review_fixture',state:retried?'processed':'review',attempts:1,error_code:retried?null:'PROVIDER_CONTRACT_MISMATCH',received_at:new Date().toISOString()},{environment:'sandbox',event_id:'evt_internal_fake',state:'review',attempts:1,error_code:'ASAAS_REQUEST_FAILED_HTTP_404',is_fixture:true,received_at:new Date().toISOString()}]);
    if(url.pathname.endsWith('/admin_retry_billing_event')){assert.deepEqual(JSON.parse(req.postData()),{p_environment:'sandbox',p_event_id:'evt_review_fixture'});return fulfill(null);}
    if(url.pathname==='/functions/v1/asaas-reconcile'){assert.equal(req.headers()['x-agrigest-expected-environment'],'sandbox');assert.deepEqual(JSON.parse(req.postData()),{event_id:'evt_review_fixture'});retried=true;return fulfill({state:'processed',event_id:'evt_review_fixture'});}
    throw Error('Unexpected mock API request: '+url.pathname);
@@ -60,6 +62,9 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
   await page.getByText('Ambiente de testes · sem valor real',{exact:false}).waitFor();
   await page.getByText('Referência: checkout-display-test',{exact:true}).waitFor();
   await page.getByRole('heading',{name:'Conciliação automática Asaas',exact:true}).waitFor();
+  await page.getByText('Teste interno: esta referência é fictícia e não corresponde a uma cobrança no Asaas. Nenhum pagamento será liberado por ela.',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Conferir novamente',exact:true}).count(),1,'Fictitious internal reference must not suggest repeated provider lookup');
+  await page.getByRole('heading',{name:'Assinaturas e usuários adicionais',exact:true}).waitFor();
   await page.getByText('TESTE SANDBOX · sem valor real',{exact:false}).waitFor();
   assert.match(await page.getByText('Recebimentos brutos de produção conferidos:',{exact:false}).innerText(),/0,00/,'Sandbox amounts must not appear as production receipts');
   await page.getByRole('button',{name:'Conferir novamente',exact:true}).click();await page.getByText('Nova conferência solicitada. Atualize para acompanhar o resultado.',{exact:true}).waitFor();assert.equal(retried,true);

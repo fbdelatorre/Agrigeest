@@ -34,6 +34,8 @@ export function createAsaasClient({environment='sandbox',apiKey,enableProduction
   },
   getPayment:paymentId=>request('GET','/payments/'+id(paymentId)),
   getSubscription:subscriptionId=>request('GET','/subscriptions/'+id(subscriptionId)),
+  suspendSubscription:subscriptionId=>request('PUT','/subscriptions/'+id(subscriptionId),{status:'INACTIVE',updatePendingPayments:false}),
+  updateSubscriptionValue:(subscriptionId,amountMinor)=>{if(!Number.isSafeInteger(amountMinor)||amountMinor<=0||amountMinor>1000000000)throw Error('INVALID_AMOUNT');return request('PUT','/subscriptions/'+id(subscriptionId),{value:amountMinor/100,updatePendingPayments:false});},
   cancelCheckout:checkoutId=>request('POST','/checkouts/'+id(checkoutId)+'/cancel'),
  };
 }

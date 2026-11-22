@@ -315,14 +315,77 @@ o token privado está configurado. Ele não inicia Docker nem as Edge Functions.
 O token novo `ASAAS_RECONCILE_TOKEN` deve ser aleatório e privado. Em produção ainda
 será necessário publicar funções/webhook e configurar um agendador persistente.
 
-**Ainda falta:** homologar cartão/checkout e entrega pública dos webhooks; sincronizar
-cancelamento/reativação e adicionais com a assinatura no Asaas; definir a política
-comercial para inadimplência/estorno/chargeback; vincular equipes/aparelhos e aplicar
-as permissões no AgriGest e na fila offline. Cancelar uma licença neste painel
-**ainda não cancela a cobrança recorrente no provedor**. Nenhuma licença comercial
-foi ativada e nenhuma migração desta etapa foi publicada na nuvem. A main permanece
-intacta. Marco Git: `agrigest-antes-conciliacao-2026-11-21`; bundle local verificado
+**Limites da etapa 0.1.3:** cancelamento e adicionais ainda não eram sincronizados.
+A etapa seguinte abaixo acrescenta esses fluxos no Sandbox. Ainda faltam homologar
+cartão/checkout e entrega pública dos webhooks, reativação da recorrência, política
+comercial para inadimplência/estorno/chargeback, equipes/aparelhos e permissões no
+AgriGest e na fila offline. Nenhuma licença comercial foi ativada e nenhuma migração
+desta etapa foi publicada na nuvem. A main permanece intacta.
+Marco Git: `agrigest-antes-conciliacao-2026-11-21`; bundle local verificado
 em `checks.local/licensing-local/antes-conciliacao-2026-11-21.bundle`.
+
+## Sincronização de assinaturas — etapa local 0.1.4
+
+A migração `20261122000600_subscription_changes.sql` permanece restrita aos dois
+bancos locais. Antes dela, foi criado o marco Git
+`agrigest-antes-sincronizacao-2026-11-22`, bundle verificado e backup privado dos
+dois schemas de licenciamento. Não altera tabelas ou RLS operacionais da fazenda.
+
+Cancelamento da licença e concessão de cortesia enfileiram a suspensão dos contratos
+vinculados. O processador confirma cliente, assinatura e periodicidade, executa
+`PUT /subscriptions/{id}` com `status=INACTIVE` e consulta novamente antes de concluir.
+Isso interrompe **novas** cobranças recorrentes; não remove nem estorna faturas já
+emitidas. A documentação do Asaas diferencia suspensão e remoção:
+https://docs.asaas.com/reference/atualizar-assinatura-existente.
+O gestor mostra pendente/concluído e permite reenfileirar falhas. Contratos de
+licenças canceladas antes da migração exigem solicitação explícita pelo botão da
+licença; não são alterados silenciosamente ao publicar a migração.
+
+Os quatro preços de adicional (fazenda/consultoria, mensal/anual) são configurados
+somente pelo administrador com MFA. Não há preços comerciais presumidos. Sem preço,
+o orçamento é recusado. O orçamento é calculado no servidor e a confirmação contém
+o valor esperado, recusando mudanças entre simulação e aceite. Cada adicional soma
+um usuário e dois aparelhos; os limites iniciais continuam 4 usuários/6 aparelhos
+para fazenda e 4 usuários/5 aparelhos para consultoria.
+
+O novo preço é aplicado com `updatePendingPayments=false`, somente às próximas
+faturas ainda não geradas. Versões de preço por vencimento preservam a validação
+das cobranças antigas, mesmo depois de mudar a recorrência. O preço unitário
+contratado fica preservado para os próximos ajustes da mesma assinatura. Adicionais
+novos só recebem capacidade após pagamento elegível e início do período; estorno
+retira a capacidade correspondente. Redução de cota diminui o limite e o próximo
+valor, sem reembolso implícito do período já pago. Cancelar a licença supersede
+alterações de adicionais pendentes. O processador usa lease compartilhado com a
+conciliação, verifica resultado antes de repetir uma alteração e não cria outra
+assinatura ao tentar novamente. Faturas conhecidas na fronteira do preço bloqueiam
+uma alteração incompatível para conferência.
+
+O teste com a API real Sandbox confirmou aumento e redução do valor de assinatura
+PIX e suspensão após cancelamento. A fatura paga original permaneceu com R$10 e
+o adicional não foi liberado antes de pagamento/início do novo período. As funções
+de orçamento e interrupção foram exercitadas na cópia PostgreSQL 15 em transação
+desfeita. Testes SQL também cobrem confirmação de valor, isolamento, estorno de
+capacidade e recuperação de resposta perdida. Uma correção trata HTTP 204 das RPCs
+que retornam void, evitando reportar falha após uma gravação bem-sucedida. Houve uma
+primeira tentativa Sandbox que identificou esse problema; o relatório privado é
+preservado e o teste posterior passou. Nenhuma cobrança de produção foi criada.
+
+As mensagens de conferência agora explicam cobrança/assinatura não encontrada,
+credencial recusada ou contrato divergente. Referências fictícias são identificadas
+por marcação explícita do servidor, apenas no Sandbox, sem inferir pelo erro 404.
+Os quatro eventos antigos foram marcados localmente após conferência exata dos
+pares evento/pagamento; o histórico não foi apagado. Eles não oferecem uma tentativa
+inútil de consulta. O código técnico fica nos detalhes. Um 404 sem essa marcação
+continua sendo caso real de conferência, sem ser apresentado como teste interno.
+
+**Ainda pendente para uso comercial:** concluir reativação da recorrência, validar
+checkout/cartão e entrega pública/agendamento dos webhooks, mapear contratos legados
+com adicionais sem preço unitário e licenças com múltiplas assinaturas, integrar
+remoção de funcionários e ocupação efetiva de cotas, equipe/aparelhos, permissões e
+fila offline no AgriGest. Os limites desta etapa são metadados do gestor; o AgriGest
+principal continua sem ser bloqueado por eles. Contratos ambíguos são recusados,
+não têm preço inferido automaticamente. Não foi publicada migração na produção e
+não houve merge na main.
 
 ## Entrega de preparação
 

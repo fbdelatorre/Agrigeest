@@ -14,6 +14,7 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub',admin_id::text,true),set_config('request.jwt.claims','{"aal":"aal2"}',true) FROM checkout_fixture;
 UPDATE checkout_fixture SET license_id=licensing.admin_create_license(owner_id,'Contrato PG15 fictício','farm','monthly',15000,0,gen_random_uuid());
 SELECT licensing.admin_set_test_mode(license_id,true,gen_random_uuid()) FROM checkout_fixture;
+SELECT licensing.admin_set_extra_price('farm','monthly',500,gen_random_uuid());
 SELECT count(*) FROM licensing.admin_checkout_requests();
 SELECT set_config('request.jwt.claim.sub',owner_id::text,true) FROM checkout_fixture;
 DO $$ DECLARE f record; r jsonb; BEGIN
@@ -73,8 +74,17 @@ SELECT set_config('request.jwt.claim.sub',owner_id::text,true) FROM checkout_fix
 DO $$ DECLARE f record; BEGIN
  SELECT * INTO f FROM checkout_fixture;
  IF NOT licensing.is_active(f.license_id) THEN RAISE EXCEPTION 'CANONICAL_PAYMENT_DID_NOT_ACTIVATE'; END IF;
+ IF (licensing.quote_extras(f.license_id,1)->>'amount_minor')::bigint<>15500 THEN RAISE EXCEPTION 'PG15_EXTRA_QUOTE_FAILED';END IF;
+ PERFORM licensing.request_extra_change(f.license_id,1,15500,gen_random_uuid());
  PERFORM licensing.owner_license_action(f.license_id,'cancel',gen_random_uuid());
  IF licensing.reserve_checkout(f.license_id,f.request_id,'sandbox')->>'url' IS NOT NULL THEN RAISE EXCEPTION 'CANCELLED_CHECKOUT_URL_EXPOSED'; END IF;
+END $$;
+RESET ROLE;
+SET LOCAL ROLE service_role;
+DO $$ DECLARE job jsonb; BEGIN
+ job:=licensing.claim_subscription_change('sandbox');
+ IF job->>'action'<>'suspend' THEN RAISE EXCEPTION 'PG15_STOP_NOT_QUEUED';END IF;
+ PERFORM licensing.finish_subscription_change((job->>'id')::uuid,(job->>'lease')::uuid,'done',NULL);
 END $$;
 RESET ROLE;
 ROLLBACK;
