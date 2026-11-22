@@ -15,12 +15,12 @@ function subscriptionData(raw,expectedId){
  checkout_id:typeof raw.checkoutSession==='string'?raw.checkoutSession:null,reference:typeof raw.externalReference==='string'?raw.externalReference:null,
  deleted:raw.deleted===true,status:typeof raw.status==='string'?raw.status:null};
 }
-export function createReconciler({environment='sandbox',enableProduction=false,claim,context,apply,finish,provider}){
+export function createReconciler({environment='sandbox',enableProduction=false,claim,context,apply,finish,provider,checkoutTerminal}){
  if(!['sandbox','production'].includes(environment)||(environment==='production'&&!enableProduction))throw Error('INVALID_RECONCILIATION_ENVIRONMENT');
  return async(eventId=null)=>{
   const job=await claim(environment,eventId);if(!job)return {state:'idle'};
   try{
-   if(!job.event_type.startsWith('PAYMENT_')){await finish(environment,job.event_id,job.lease,'processed','INFORMATIONAL_EVENT');return {state:'processed',event_id:job.event_id};}
+   if(!job.event_type.startsWith('PAYMENT_')){if(['CHECKOUT_CANCELED','CHECKOUT_EXPIRED'].includes(job.event_type)&&safeId(job.payload?.checkout?.id)&&checkoutTerminal)await checkoutTerminal(environment,job.payload.checkout.id);await finish(environment,job.event_id,job.lease,'processed','INFORMATIONAL_EVENT');return {state:'processed',event_id:job.event_id};}
    const paymentId=job.payload?.payment?.id;if(!safeId(paymentId))throw Error('INVALID_PAYMENT_REFERENCE');
    // O payload recebido é apenas uma pista. Todos os fatos financeiros vêm do GET autenticado.
    const payment=paymentData(await provider.getPayment(paymentId),paymentId);

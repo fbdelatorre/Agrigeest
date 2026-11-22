@@ -15,6 +15,7 @@ async function rpc(name:string,args:Record<string,unknown>,bearer?:string){
 }
 const provider=createAsaasClient({environment,enableProduction,apiKey:Deno.env.get('ASAAS_API_KEY')??''});
 const reconcile=createReconciler({environment,enableProduction,provider,
+ checkoutTerminal:(env:string,id:string)=>rpc('checkout_terminal_event',{p_environment:env,p_checkout:id}),
  claim:(env:string,event:string|null)=>rpc('claim_billing_event',{p_environment:env,p_event_id:event}),
  context:(env:string,sub:string,checkout:string|null,reference:string|null,due:string)=>rpc('billing_payment_context',{p_environment:env,p_subscription_id:sub,p_checkout_id:checkout,p_reference:reference,p_due:due}),
  apply:(env:string,event:string,lease:string,request:string,payment:unknown,subscription:unknown)=>rpc('apply_canonical_payment',{p_environment:env,p_event_id:event,p_lease:lease,p_request:request,p_payment:payment,p_subscription:subscription}),

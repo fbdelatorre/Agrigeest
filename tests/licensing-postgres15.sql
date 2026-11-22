@@ -87,4 +87,17 @@ DO $$ DECLARE job jsonb; BEGIN
  PERFORM licensing.finish_subscription_change((job->>'id')::uuid,(job->>'lease')::uuid,'done',NULL);
 END $$;
 RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub',admin_id::text,true) FROM checkout_fixture;
+SELECT licensing.admin_set_plan_price('farm','monthly',1000,gen_random_uuid());
+SELECT set_config('request.jwt.claim.sub',owner_id::text,true) FROM checkout_fixture;
+DO $$ DECLARE f record; purchased uuid; BEGIN
+ SELECT * INTO f FROM checkout_fixture;
+ purchased:=licensing.start_purchase('farm','monthly','Contratação PG15 pelo titular',0,1000,'sandbox',gen_random_uuid());
+ IF licensing.is_active(purchased) THEN RAISE EXCEPTION 'PG15_PURCHASE_ACTIVATED_WITHOUT_PAYMENT';END IF;
+ PERFORM licensing.owner_license_action(f.license_id,'request_reactivation',gen_random_uuid());
+ PERFORM licensing.reserve_checkout(f.license_id,gen_random_uuid(),'sandbox');
+ IF licensing.is_active(f.license_id) THEN RAISE EXCEPTION 'PG15_REACTIVATION_BEFORE_PAYMENT';END IF;
+END $$;
+RESET ROLE;
 ROLLBACK;

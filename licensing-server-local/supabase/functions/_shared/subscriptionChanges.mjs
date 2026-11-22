@@ -4,6 +4,12 @@ export function createSubscriptionProcessor({environment='sandbox',enableProduct
  return async()=>{
   const job=await claim(environment);if(!job)return {state:'idle'};
   try{
+   if(job.action==='checkout_cancel'){
+    const result=await provider.cancelCheckout(job.subscription_id);
+    if(result?.id&&result.id!==job.subscription_id)throw Error('CHECKOUT_BINDING_MISMATCH');
+    if(result?.status&&!['CANCELED','CANCELLED'].includes(result.status))throw Error('CHECKOUT_CONFIRMATION_REQUIRED');
+    await finish(job.id,job.lease,'done',null);return {state:'processed',change_id:job.id};
+   }
    const read=async()=>{const s=await provider.getSubscription(job.subscription_id);if(!s||s.id!==job.subscription_id||s.customer!==job.customer_id||s.deleted===true||s.cycle!==(job.period==='monthly'?'MONTHLY':'YEARLY'))throw Error('PROVIDER_CONTRACT_MISMATCH');return s;};
    let subscription=await read();
    if(job.action==='suspend'){

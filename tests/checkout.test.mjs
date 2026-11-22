@@ -47,6 +47,7 @@ test('HTTP checkout rejects price tampering and never retries an ambiguous provi
  assert.equal((await handler(request({...body,amount_minor:1}))).status,400);assert.equal(calls,0);
  authenticated=false;assert.equal((await handler(request(body))).status,401);authenticated=true;
  const result=await handler(request(body));assert.equal(result.status,200);assert.equal((await result.json()).confirmed,false);assert.equal(serverArgs.amountMinor,120000);
+ assert.equal(serverArgs.nextDueDate,new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),'First charge is due on purchase day, with no free trial');
  state='ready';await handler(request(body));assert.equal(calls,1);
  state='reserved';deps.provider.createRecurringCheckout=async()=>{calls++;throw Error('private-provider-message-never-expose');};
  assert.equal((await handler(request(body))).status,503);assert.equal(state,'uncertain');

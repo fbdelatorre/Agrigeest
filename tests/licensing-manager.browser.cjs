@@ -11,7 +11,7 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
  try{
   browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
   const page=await browser.newPage({viewport:{width:1400,height:1000}});page.setDefaultTimeout(15000);page.on('dialog',dialog=>dialog.accept());
-  const errors=[],external=[],commands=[];let signedEmail='',free=false,retried=false;
+  const errors=[],external=[],commands=[];let signedEmail='',free=false,retried=false,purchaseState='';
   page.on('pageerror',e=>errors.push(e.message));
   const origin='http://127.0.0.1:'+server.address().port;
   page.on('request',req=>{if(/^https?:/.test(req.url())&&!req.url().startsWith(origin+'/')&&!req.url().startsWith('http://127.0.0.1:46321/'))external.push(req.url());});
@@ -26,15 +26,22 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
     return fulfill({access_token:jwt({sub:owner,role:'authenticated',aal:'aal2',exp:Math.floor(Date.now()/1000)+3600}),refresh_token:'fictitious-refresh-token',token_type:'bearer',expires_in:3600,user:{id:owner,email:signedEmail,aud:'authenticated',role:'authenticated',app_metadata:{},user_metadata:{},created_at:new Date().toISOString()}});
    }
    if(url.pathname==='/auth/v1/logout'){assert.equal(url.searchParams.get('scope'),'local','Manager signout must not revoke sessions in the principal app');return fulfill({});}
+   if(url.pathname==='/auth/v1/user')return fulfill({id:owner,email:signedEmail,aud:'authenticated',role:'authenticated',app_metadata:{},user_metadata:{}});
+   if(url.pathname.endsWith('/owner_checkout_requests'))return fulfill(purchaseState?[{id:'purchase-checkout',license_id:'20000000-0000-4000-8000-000000000102',state:'ready',url:purchaseState==='pending'?'https://sandbox.asaas.com/checkoutSession/show?id=checkout_owner_ui':null}]:[]);
+   if(url.pathname.endsWith('/quote_plan')){assert.deepEqual(JSON.parse(req.postData()),{p_kind:'farm',p_period:'monthly',p_extras:0});return fulfill({amount_minor:1000,users:4,devices:6});}
+   if(url.pathname.endsWith('/start_purchase')){const body=JSON.parse(req.postData());assert.equal(body.p_expected_minor,1000);assert.equal(body.p_environment,'sandbox');assert.equal(body.p_owner,undefined);purchaseState='pending';return fulfill('20000000-0000-4000-8000-000000000102');}
+   if(url.pathname==='/functions/v1/asaas-checkout'){assert.equal(req.headers()['x-agrigest-expected-environment'],'sandbox');return fulfill({state:'ready',url:'https://sandbox.asaas.com/checkoutSession/show?id=checkout_owner_ui'});}
    if(url.pathname.endsWith('/manager_access'))return fulfill({authorized:signedEmail==='manager@example.test',can_manage:signedEmail==='manager@example.test'});
    if(url.pathname.endsWith('/admin_accounts'))return fulfill([{id:owner,email:'owner@example.test'}]);
    if(url.pathname.endsWith('/admin_checkout_requests'))return fulfill([{id:'checkout-display-test',license_id:license,label:'Empresa para validação',environment:'sandbox',state:'cancelled',amount_minor:1000,period:'monthly',created_at:new Date().toISOString(),provider_id:'fictitious-checkout'}]);
    if(url.pathname.endsWith('/admin_set_license')){commands.push(JSON.parse(req.postData()));free=true;if(commands.length===1)return route.abort('failed');return fulfill(null);}
-   if(url.pathname.endsWith('/licenses'))return fulfill([{id:license,label:'Empresa para validação',owner_id:owner,kind:'farm',period:'monthly',status:free?'active':'pending',extras:0,amount_minor:0,complimentary:free,valid_until:null}]);
+   if(url.pathname.endsWith('/licenses')){if(url.searchParams.has('owner_id'))assert.equal(url.searchParams.get('owner_id'),'eq.'+owner);return fulfill([{id:license,label:'Empresa para validação',owner_id:owner,kind:'farm',period:'monthly',status:free?'active':'pending',extras:0,amount_minor:0,complimentary:free,valid_until:null},...(purchaseState?[{id:'20000000-0000-4000-8000-000000000102',label:'Minha nova fazenda',owner_id:owner,kind:'farm',period:'monthly',status:purchaseState,extras:0,amount_minor:1000,test_mode:true,valid_until:null}]:[])]);}
    if(url.pathname.endsWith('/payments')||url.pathname.endsWith('/events'))return fulfill([]);
    if(url.pathname.endsWith('/provider_payments'))return fulfill([{environment:'sandbox',payment_id:'pay_test_only',license_id:license,amount_minor:99999,status:'RECEIVED',due_on:'2026-11-21',eligible:true,has_refund:false,verified_at:new Date().toISOString()}]);
    if(url.pathname.endsWith('/provider_audit'))return fulfill([]);
    if(url.pathname.endsWith('/extra_prices'))return fulfill([]);
+   if(url.pathname.endsWith('/owner_subscription_changes'))return fulfill([]);
+   if(url.pathname.endsWith('/plan_prices'))return fulfill([]);
    if(url.pathname.endsWith('/admin_subscription_changes'))return fulfill([]);
    if(url.pathname.endsWith('/admin_billing_queue'))return fulfill([{environment:'sandbox',event_id:'evt_review_fixture',state:retried?'processed':'review',attempts:1,error_code:retried?null:'PROVIDER_CONTRACT_MISMATCH',received_at:new Date().toISOString()},{environment:'sandbox',event_id:'evt_internal_fake',state:'review',attempts:1,error_code:'ASAAS_REQUEST_FAILED_HTTP_404',is_fixture:true,received_at:new Date().toISOString()}]);
    if(url.pathname.endsWith('/admin_retry_billing_event')){assert.deepEqual(JSON.parse(req.postData()),{p_environment:'sandbox',p_event_id:'evt_review_fixture'});return fulfill(null);}
@@ -73,6 +80,7 @@ const {chromium}=require('../checks.local/node_modules/playwright-core');
   await login.getByLabel('Email',{exact:true}).fill('employee@example.test');await login.getByLabel('Senha',{exact:true}).fill('Fictitious-password-only');await login.getByRole('button',{name:'Entrar',exact:true}).click();
   await page.getByRole('heading',{name:'Acesso não autorizado',exact:true}).waitFor();
   assert.equal(await page.getByText('Empresa para validação',{exact:true}).count(),0);
+  await page.goto(origin+'?area=cliente');await page.getByRole('heading',{name:'Plano e licenças',exact:true}).waitFor();await page.getByText('Contratar uma licença',{exact:true}).click();await page.getByLabel('Nome da fazenda ou consultoria',{exact:true}).fill('Minha nova fazenda');await page.getByRole('button',{name:'Consultar valor',exact:true}).click();await page.getByText('Primeiro pagamento agora:',{exact:false}).waitFor();await page.getByRole('button',{name:'Contratar e pagar agora',exact:true}).click();await page.getByRole('link',{name:'Abrir pagamento no Asaas Sandbox',exact:true}).waitFor();await page.getByText('Aguardando pagamento',{exact:false}).waitFor();assert.equal(purchaseState,'pending','Opening checkout must not activate licence');assert.equal(await page.getByRole('button',{name:'Conceder cortesia',exact:true}).count(),0);
   assert.deepEqual(external,[]);assert.deepEqual(errors,[]);
   console.log('PASS: manager native CSP, private-key rejection, server-verified access flow, courtesy RPC, signout isolation and zero external requests (mock HTTP only)');
  }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

@@ -378,8 +378,9 @@ pares evento/pagamento; o histórico não foi apagado. Eles não oferecem uma te
 inútil de consulta. O código técnico fica nos detalhes. Um 404 sem essa marcação
 continua sendo caso real de conferência, sem ser apresentado como teste interno.
 
-**Ainda pendente para uso comercial:** concluir reativação da recorrência e revogação
-de checkouts ainda sem contrato vinculado; validar checkout/cartão e entrega
+**Ao concluir a etapa 0.1.4, ainda estavam pendentes:** reativação da recorrência e
+revogação de checkouts ainda sem contrato vinculado, acrescentadas na etapa seguinte.
+Para uso comercial, ainda é necessário validar checkout/cartão e entrega
 pública/agendamento dos webhooks; mapear contratos legados
 com adicionais sem preço unitário e licenças com múltiplas assinaturas, integrar
 remoção de funcionários e ocupação efetiva de cotas, equipe/aparelhos, permissões e
@@ -397,6 +398,86 @@ da primeira tentativa falha foi marcada como supersedida porque seu cleanup já
 removera a assinatura fictícia; foi acrescentado evento com estado anterior e
 motivo, sem apagar histórico financeiro. O teste de vínculo tardio após cancelar
 também confirmou a interrupção sob autenticação de serviço com auditoria válida.
+
+## Contratação pelo titular e reativação paga — etapa local 0.1.5
+
+A migração `20261122000700_owner_purchases.sql` foi aplicada somente aos bancos
+locais 17/15, após backup privado dos schemas de licenciamento. Marco Git e bundle
+verificado: `agrigest-antes-contratacao-2026-11-22`, arquivo privado em
+`checks.local/licensing-local/antes-contratacao-2026-11-22.bundle`. Não modifica
+tabelas, permissões ou lançamentos operacionais existentes.
+
+O titular consulta o preço do servidor e registra a contratação via `start_purchase`,
+com identidade obtida de `auth.uid()`, email verificado, idempotência e conferência
+do valor aceito. Não pode escolher outro proprietário, definir seu próprio preço,
+ativar a licença nem acessar funções administrativas. Os quatro preços base ficam
+configuráveis no gestor, separados dos quatro preços de adicionais. Nenhum preço
+comercial é presumido. Solicitações aparecem automaticamente no gestor; sua janela
+não precisa ficar aberta para o servidor publicado processar eventos.
+
+**Primeiro pagamento na contratação:** o checkout usa vencimento no dia atual em
+America/Sao_Paulo, sem período gratuito. A função HTTP não aceita vencimento ou valor
+vindos do cliente. Criar licença, assinatura, checkout ou retornar pelo callback não
+concede acesso; só a conferência canônica do pagamento pode ativar. O Asaas pode
+processar a cobrança de cartão com vencimento no dia, conforme documentação:
+https://docs.asaas.com/docs/checkout-with-subscription-recurring e
+https://docs.asaas.com/docs/subscriptions-faq.
+
+Reativar exige nova contratação paga, após encerrar a recorrência/link anterior.
+Não se retoma silenciosamente a assinatura antiga. `billing_checkout_id` e
+`activation_required_after` impedem que comprovante antigo ou cobertura pré-paga
+do contrato anterior libere ou prorrogue o novo. O histórico antigo continua salvo.
+O estado de reativação é preservado enquanto a nova cobrança estiver pendente.
+Adicionais consideram o contrato corrente, permitindo ajustar a quantidade após
+reativar sem confundir assinaturas antigas já suspensas.
+
+Cancelamento agora enfileira a revogação de checkouts sem contrato concluído. O
+processador usa `POST /checkouts/{id}/cancel`; uma resposta 400/404 não é tratada
+como prova de sucesso. Resultado incerto pede conferência; evento autenticado
+CHECKOUT_CANCELED/EXPIRED pode concluir uma revogação já solicitada. Links gerados
+tardiamente são revogados e ficam bloqueados no portal. Uma revogação antiga não
+deve atingir o link novo. Se surgir pagamento tardio de checkout cancelado, o
+contrato pode ser reconhecido para registrar o pagamento e suspender sua recorrência,
+sem reativar a licença. A fila conserva lease, histórico e revisão de falhas.
+
+A página compartilhada `OwnerPlanPortal` permite consultar planos próprios,
+contratar, abrir checkout hospedado, cancelar, solicitar reativação e alterar
+adicionais. O nome da instituição é sugerido quando disponível e pode ser alterado.
+IDs de requisição sobrevivem a respostas perdidas no armazenamento local, com
+escopo por conexão e titular. Não há dados de cartão ou chaves privadas no cliente.
+O portal desta preparação mostra apenas licenças Sandbox.
+
+No gestor 0.1.5, o botão **Testar portal do cliente** abre a experiência do titular
+com a mesma conta autenticada; não fornece funções administrativas ao cliente e
+não consulta RPCs de gestão nesse modo. O mesmo componente está preparado no PWA
+em `/plano-e-licencas`, com link em Configurações, **somente quando** a flag
+`VITE_LICENSE_PLANS=true` estiver explicitamente habilitada. A flag fica desativada
+por padrão e esta etapa não publica mudanças na main/Netlify nem no Supabase real.
+
+**Validação:** 13 testes de lógica/infraestrutura; TypeScript do PWA e gestor;
+build PWA e gestor; interface com HTTP simulado e Auth/RLS reais. No teste real,
+titular comum viu apenas sua licença, não viu a de outro titular e não conseguiu
+alterar preços administrativos. Nenhuma consulta administrativa partiu do portal.
+O PostgreSQL 15 exercitou contratação e reativação sem pagamento dentro de transação
+desfeita. Os valores das 62 tabelas verificadas e as 70 políticas públicas da cópia
+continuaram iguais ao backup.
+
+Na API real Sandbox, um titular sem permissão administrativa contratou, teve seu
+checkout não pago revogado, reativou por novo checkout e só recebeu ativação após
+confirmação de novo pagamento PIX simulado. Aviso forjado, duplicata e pagamento
+antigo não concederam acesso. Os contratos/links de teste foram encerrados ao final.
+A primeira tentativa encontrou diferença no estado exibido (pendente em vez de
+reativação solicitada), sem liberar acesso; foi corrigida e o teste posterior passou.
+Relatórios privados preservam as tentativas. Esse harness usa assinatura PIX por
+referência vinculada ao checkout e **não comprova concluir o checkout hospedado por
+cartão**. A demonstração ativa da etapa anterior permanece separada desses testes.
+
+**Próxima integração comercial:** vínculo explícito e único entre licença e fazenda,
+cadastro sem empresa, equipes/convites, ocupação efetiva de cotas e aparelhos,
+permissões por fazenda e autorização offline; homologação do pagamento hospedado
+por cartão, webhooks públicos e agendamento persistente. A criação de licença ainda
+não cria/associa uma instituição operacional e não bloqueia o AgriGest principal.
+Esta etapa não publicou funções/migrações em produção e não fez merge na main.
 
 ## Entrega de preparação
 

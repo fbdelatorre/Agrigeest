@@ -4,7 +4,7 @@ export function createCheckoutHandler({environment='sandbox',enableProduction=fa
  return async request=>{
   const origin=request.headers.get('origin');
   const headers={'Content-Type':'application/json','Cache-Control':'no-store','Vary':'Origin'};
-  if(origin&&origins.includes(origin)){headers['Access-Control-Allow-Origin']=origin;headers['Access-Control-Allow-Headers']='authorization,apikey,content-type,x-client-info';headers['Access-Control-Allow-Methods']='POST,OPTIONS';}
+  if(origin&&origins.includes(origin)){headers['Access-Control-Allow-Origin']=origin;headers['Access-Control-Allow-Headers']='authorization,apikey,content-type,x-client-info,x-agrigest-expected-environment';headers['Access-Control-Allow-Methods']='POST,OPTIONS';}
   const reply=(status,body)=>new Response(JSON.stringify(body),{status,headers});
   if(origin&&!origins.includes(origin))return reply(403,{error:'ORIGIN_NOT_ALLOWED'});
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers});

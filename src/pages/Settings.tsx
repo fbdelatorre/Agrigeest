@@ -630,6 +630,7 @@ export default function Settings() {
         {language === 'pt' ? 'Configurações' : 'Settings'}
       </h1>
       {profile?.isAdmin && <RouterLink className="inline-block text-brand-700 underline" to="/audit">Auditoria de lançamentos e conferência de estoque</RouterLink>}
+      {import.meta.env.VITE_LICENSE_PLANS === 'true' && <RouterLink className="inline-block text-brand-700 underline" to="/plano-e-licencas">Plano e licenças — teste Sandbox</RouterLink>}
 
       {/* Language Settings */}
       <Card>

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
@@ -60,6 +60,7 @@ import Statistics from './pages/Statistics';
 
 // Settings
 import Settings from './pages/Settings';
+const LicensePlans = lazy(() => import('./pages/LicensePlans'));
 
 // Notifications
 import Notifications from './pages/Notifications';
@@ -191,6 +192,7 @@ function App() {
 
             {/* Settings */}
             <Route path="settings" element={<Settings />} />
+                {import.meta.env.VITE_LICENSE_PLANS === 'true' && <Route path="plano-e-licencas" element={<Suspense fallback={<p>Carregando planos…</p>}><LicensePlans /></Suspense>} />}
           </Route>
 
           {/* Fallback route for 404 */}
