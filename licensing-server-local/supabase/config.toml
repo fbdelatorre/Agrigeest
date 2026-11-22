@@ -438,3 +438,6 @@ verify_jwt = false
 [functions.asaas-reconcile]
 verify_jwt = false
 
+[functions.asaas-check-payment]
+verify_jwt = false
+

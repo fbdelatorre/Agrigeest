@@ -33,6 +33,8 @@ export function createAsaasClient({environment='sandbox',apiKey,enableProduction
    return {id:checkoutId,url:origin+'/checkoutSession/show?id='+encodeURIComponent(checkoutId),confirmed:false};
   },
   getPayment:paymentId=>request('GET','/payments/'+id(paymentId)),
+  listCheckoutPayments:checkoutId=>request('GET','/payments?checkoutSession='+encodeURIComponent(id(checkoutId))+'&limit=10'),
+  listSubscriptionPayments:subscriptionId=>request('GET','/subscriptions/'+id(subscriptionId)+'/payments?limit=10'),
   getSubscription:subscriptionId=>request('GET','/subscriptions/'+id(subscriptionId)),
   suspendSubscription:subscriptionId=>request('PUT','/subscriptions/'+id(subscriptionId),{status:'INACTIVE',updatePendingPayments:false}),
   updateSubscriptionValue:(subscriptionId,amountMinor)=>{if(!Number.isSafeInteger(amountMinor)||amountMinor<=0||amountMinor>1000000000)throw Error('INVALID_AMOUNT');return request('PUT','/subscriptions/'+id(subscriptionId),{value:amountMinor/100,updatePendingPayments:false});},

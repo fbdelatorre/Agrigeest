@@ -454,7 +454,19 @@ em `/plano-e-licencas`, com link em Configurações, **somente quando** a flag
 `VITE_LICENSE_PLANS=true` estiver explicitamente habilitada. A flag fica desativada
 por padrão e esta etapa não publica mudanças na main/Netlify nem no Supabase real.
 
-**Validação:** 13 testes de lógica/infraestrutura; TypeScript do PWA e gestor;
+**Conferência pelo titular:** a migração local adicional
+`20261122000800_owner_payment_checks.sql` e a função `asaas-check-payment` permitem
+usar **Conferir pagamento** sem depender de webhook público no teste local. O
+servidor autentica o titular, valida propriedade/ambiente, limita a frequência por
+conta e consulta pagamentos do checkout ou da assinatura corrente no Asaas. Somente
+referências compatíveis com esse vínculo entram na fila; valores e status da lista
+não autorizam acesso. A conciliação faz novo GET autenticado do pagamento. O retorno
+ao cliente contém apenas estado/contagem, sem dados de cartão ou de outros clientes.
+A consulta não substitui webhooks públicos e agendamento em produção. Teste real
+confirmou consulta vazia sem ativação, recusa de outra licença, limitação de
+frequência e reconferência de pagamento já recebido sem duplicar a validade.
+
+**Validação:** 14 testes de lógica/infraestrutura; TypeScript do PWA e gestor;
 build PWA e gestor; interface com HTTP simulado e Auth/RLS reais. No teste real,
 titular comum viu apenas sua licença, não viu a de outro titular e não conseguiu
 alterar preços administrativos. Nenhuma consulta administrativa partiu do portal.
