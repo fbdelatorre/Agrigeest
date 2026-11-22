@@ -378,8 +378,9 @@ pares evento/pagamento; o histórico não foi apagado. Eles não oferecem uma te
 inútil de consulta. O código técnico fica nos detalhes. Um 404 sem essa marcação
 continua sendo caso real de conferência, sem ser apresentado como teste interno.
 
-**Ainda pendente para uso comercial:** concluir reativação da recorrência, validar
-checkout/cartão e entrega pública/agendamento dos webhooks, mapear contratos legados
+**Ainda pendente para uso comercial:** concluir reativação da recorrência e revogação
+de checkouts ainda sem contrato vinculado; validar checkout/cartão e entrega
+pública/agendamento dos webhooks; mapear contratos legados
 com adicionais sem preço unitário e licenças com múltiplas assinaturas, integrar
 remoção de funcionários e ocupação efetiva de cotas, equipe/aparelhos, permissões e
 fila offline no AgriGest. Os limites desta etapa são metadados do gestor; o AgriGest
@@ -387,9 +388,32 @@ principal continua sem ser bloqueado por eles. Contratos ambíguos são recusado
 não têm preço inferido automaticamente. Não foi publicada migração na produção e
 não houve merge na main.
 
+Uma demonstração separada foi deixada ativa apenas no Sandbox e no banco local,
+com o nome `DEMONSTRAÇÃO SANDBOX — adicionais e cancelamento`, para teste manual
+pela conta administrativa já configurada. Tem pagamento PIX simulado de R$10,
+sem cartão, notificações ou dinheiro real. Os preços comerciais continuam vazios.
+Os testes anteriores encerraram suas próprias assinaturas. A solicitação pendente
+da primeira tentativa falha foi marcada como supersedida porque seu cleanup já
+removera a assinatura fictícia; foi acrescentado evento com estado anterior e
+motivo, sem apagar histórico financeiro. O teste de vínculo tardio após cancelar
+também confirmou a interrupção sob autenticação de serviço com auditoria válida.
+
 ## Entrega de preparação
 
-- **Atual: 0.1.3**, Actions concluído:
+- **Atual: 0.1.4**, Actions concluído:
+  https://github.com/fbdelatorre/Agrigeest/actions/runs/45018280678.
+  Commit `85b08ea90d65ea2393366d76b8b77569e3ff1dc3`.
+  Instalador em `checks.local/entregas/gestor-licencas-0.1.4-preparacao`,
+  2.022.785 bytes, SHA-256
+  `4148AA0E78ACECFE46E66BC02673C3B7A684AF1356F13B61B83135F7BDDD0790`.
+  Versão/identidade/commit/hash conferidos após extração do ZIP. Não assinado;
+  instalação nativa neste Windows ainda não testada. Instruções `COMO-TESTAR.txt`
+  acompanham a entrega e explicam a licença de demonstração e os limites atuais.
+  Os 11 testes e TypeScript passaram também no CI; interface compilada testada
+  com mocks e Auth/MFA reais. A compilação anterior foi supersedida pelo ajuste
+  de auditoria do vínculo tardio, sem entrega de arquivo desatualizado.
+
+- **Anterior: 0.1.3**, Actions concluído:
   https://github.com/fbdelatorre/Agrigeest/actions/runs/44892380539.
   Commit `4251b8a6f1f207c07db725782f283d290a1a1206`.
   Instalador em `checks.local/entregas/gestor-licencas-0.1.3-preparacao`,
