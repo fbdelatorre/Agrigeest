@@ -70,7 +70,7 @@ END $$;
 CREATE FUNCTION licensing_private.queue_subscription_stop(p_license uuid) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$ BEGIN
  UPDATE licensing_private.subscription_changes SET state='superseded',updated_at=now() WHERE license_id=p_license AND action='extras' AND state IN ('pending','processing','failed','review','scheduled');
  INSERT INTO licensing_private.subscription_changes(license_id,environment,subscription_id,action,actor_id)
- SELECT license_id,environment,subscription_id,'suspend',auth.uid() FROM licensing_private.billing_contracts WHERE license_id=p_license
+ SELECT license_id,environment,subscription_id,'suspend',COALESCE(auth.uid(),(SELECT owner_id FROM licensing.licenses WHERE id=p_license)) FROM licensing_private.billing_contracts WHERE license_id=p_license
  ON CONFLICT(environment,subscription_id) WHERE state IN ('pending','processing','failed','review','scheduled') DO NOTHING;
 END $$;
 CREATE FUNCTION licensing_private.stop_on_license_change() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$ BEGIN
@@ -128,7 +128,7 @@ DECLARE job licensing_private.subscription_changes; l licensing.licenses; manage
  UPDATE licensing_private.subscription_changes SET state=CASE WHEN p_result='failed' AND attempts>=8 THEN 'review' WHEN p_result='done' AND job.action='extras' AND job.target_extras>l.extras THEN 'scheduled' ELSE p_result END,
  error_code=left(p_code,100),lease_token=NULL,updated_at=now(),next_attempt_at=clock_timestamp()+make_interval(secs=>LEAST(3600,30*power(2,LEAST(attempts-1,7)))::integer) WHERE id=p_id;
  UPDATE licensing_private.billing_processors SET token=NULL,lease_until=NULL WHERE environment=job.environment AND token=p_lease;
- INSERT INTO licensing.events(license_id,actor_id,action,details) VALUES(job.license_id,job.actor_id,'subscription_'||job.action||'_'||p_result,jsonb_build_object('change_id',p_id,'environment',job.environment,'effective_on',job.effective_on,'target_extras',job.target_extras,'target_minor',job.target_minor,'code',left(p_code,100)));
+ INSERT INTO licensing.events(license_id,actor_id,action,details) VALUES(job.license_id,COALESCE(job.actor_id,l.owner_id),'subscription_'||job.action||'_'||p_result,jsonb_build_object('change_id',p_id,'environment',job.environment,'effective_on',job.effective_on,'target_extras',job.target_extras,'target_minor',job.target_minor,'code',left(p_code,100)));
 END $$;
 CREATE FUNCTION licensing.admin_subscription_changes() RETURNS TABLE(id uuid,license_id uuid,environment text,subscription_id text,action text,state text,target_extras integer,target_minor bigint,effective_on date,error_code text,created_at timestamptz) LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$ BEGIN
  PERFORM licensing_private.require_admin();RETURN QUERY SELECT q.id,q.license_id,q.environment,q.subscription_id,q.action,q.state,q.target_extras,q.target_minor,q.effective_on,q.error_code,q.created_at FROM licensing_private.subscription_changes q ORDER BY q.created_at DESC LIMIT 100;
