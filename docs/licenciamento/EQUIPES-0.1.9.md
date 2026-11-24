@@ -31,6 +31,9 @@ e demais funções continuam com seus controles explícitos, sem acesso anônimo
 A pessoa pode criar conta sem empresa. Confirmar o email não concede o vínculo:
 o aceite exige sessão real, email confirmado igual ao destinatário, convite
 válido, capacidade e licença revalidados. Convite aceito não pode ser reutilizado.
+Se o link for aberto com outra conta conectada, o portal identifica o destinatário
+e oferece encerrar somente aquela sessão, preservando o convite para o cadastro
+ou login correto. Não troca de conta nem atribui permissões automaticamente.
 Contas existentes encontram o convite no próprio portal, sem refazer cadastro
 nem pagar uma licença de funcionário. Metadados editáveis do Auth não definem
 cargo, empresa ou acesso. O gestor administrativo continua separado e exclusivo

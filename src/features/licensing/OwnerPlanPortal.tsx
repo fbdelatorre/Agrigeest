@@ -4,6 +4,7 @@ import './ownerPlans.css';
 import PaymentCheckoutLink from './PaymentCheckoutLink';
 import OwnerDevices from './OwnerDevices';
 import WorkspacePortal from './WorkspacePortal';
+import IncomingInviteNotice from './IncomingInviteNotice';
 type License={id:string;label:string;kind:string;period:string;status:string;extras:number;amount_minor:number;valid_until:string|null;test_mode:boolean;institution_id:string|null;complimentary:boolean};
 type Checkout={id:string;license_id:string;state:string;url:string|null};
 type Quote={amount_minor:number;users:number;devices:number};
@@ -39,7 +40,7 @@ export default function OwnerPlanPortal({client,connectionId,initialLabel=''}:{c
  };
  return <div className="owner-plans"><h1>Plano e licenças</h1><p className="plan-notice">Ambiente de testes Sandbox. Esta página ainda não controla o acesso nem vincula automaticamente a licença à fazenda do AgriGest principal. Nenhum pagamento real será realizado neste ambiente.</p><p>O primeiro pagamento é exigido na contratação. Criar uma solicitação ou abrir o checkout não libera acesso; é necessário confirmar o pagamento no servidor.</p>
  {message&&<p role={failed?'alert':'status'} className="plan-notice">{message}</p>}{loading?<p>Consultando seus planos…</p>:userId&&<><button disabled={busy} onClick={()=>void act(()=>refresh(userId),'Planos atualizados.')}>Atualizar meus planos</button>
- <WorkspacePortal client={client} connectionId={connectionId} userId={userId} licenses={licenses}/><details><summary>Contratar uma licença</summary><section><label>Nome da fazenda ou consultoria<input value={label} minLength={2} maxLength={150} onChange={e=>{setLabel(e.target.value);setQuote(undefined);}}/></label>
+ <IncomingInviteNotice client={client} connectionId={connectionId}/><WorkspacePortal client={client} connectionId={connectionId} userId={userId} licenses={licenses}/><details><summary>Contratar uma licença</summary><section><label>Nome da fazenda ou consultoria<input value={label} minLength={2} maxLength={150} onChange={e=>{setLabel(e.target.value);setQuote(undefined);}}/></label>
  <fieldset><legend>Tipo de plano</legend>{[['farm','Fazenda'],['consultancy','Consultoria']].map(([v,text])=><label key={v}><input type="radio" name="plan-kind" checked={kind===v} onChange={()=>{setKind(v);setQuote(undefined);}}/>{text}</label>)}</fieldset>
  <fieldset><legend>Período</legend>{[['monthly','Mensal'],['annual','Anual']].map(([v,text])=><label key={v}><input type="radio" name="plan-period" checked={period===v} onChange={()=>{setPeriod(v);setQuote(undefined);}}/>{text}</label>)}</fieldset>
  <label>Usuários adicionais<input type="number" min="0" max="100" value={extras} onChange={e=>{setExtras(e.target.value);setQuote(undefined);}}/></label><button disabled={busy||label.trim().length<2||extras===''} onClick={()=>void act(async()=>setQuote(await rpc<Quote>('quote_plan',{p_kind:kind,p_period:period,p_extras:Number(extras)})),'Valor calculado no servidor.')}>Consultar valor</button>
