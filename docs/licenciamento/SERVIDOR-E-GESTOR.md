@@ -567,7 +567,7 @@ anteriores à migração estão em checks.local/licensing-local.
 
 ## Entrega de preparação
 
-- **Atual: 0.1.9**, Actions concluído:
+- **Anterior: 0.1.9**, Actions concluído:
   https://github.com/fbdelatorre/Agrigeest/actions/runs/45368299128.
   Commit `666db3220f2658ea8edc9b98afaf879f4009acbd`.
   Instalador em `checks.local/entregas/gestor-licencas-0.1.9-preparacao`,

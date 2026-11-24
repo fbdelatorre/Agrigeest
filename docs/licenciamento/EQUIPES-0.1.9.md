@@ -1,5 +1,12 @@
 # Empresas, equipes e convites — preparação 0.1.9
 
+Correção 0.1.10: o cadastro deve exigir e informar pelo menos 12 caracteres,
+conforme a política local de Auth. A tela 0.1.9 aceitava 10 e mostrava erro genérico
+para a recusa 422. A validação foi alinhada sem reduzir a segurança do servidor,
+alterar contas existentes ou invalidar convites. O formulário de login continua
+aceitando senhas de contas existentes sem aplicar a validação de cadastro.
+O teste de política compara o mínimo da interface com supabase/config.toml.
+
 Etapa executada na branch codex/licenciamento-planejamento, em Supabase local e
 na cópia restaurada PostgreSQL 15. Nenhuma migração foi publicada em produção;
 nenhum vínculo operacional, lançamento, estoque ou política pública foi alterado.
