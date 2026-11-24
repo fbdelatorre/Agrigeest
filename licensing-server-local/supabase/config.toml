@@ -441,3 +441,6 @@ verify_jwt = false
 [functions.asaas-check-payment]
 verify_jwt = false
 
+[functions.team-invite]
+verify_jwt = false
+

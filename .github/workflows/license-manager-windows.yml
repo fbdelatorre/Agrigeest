@@ -14,6 +14,8 @@ on:
       - tests/subscription-changes.test.mjs
       - tests/owner-purchases.test.mjs
       - tests/license-devices.test.mjs
+      - tests/license-teams.test.mjs
+      - tests/team-invites.test.mjs
       - tests/checkout-navigation.test.mjs
       - src/features/licensing/**
       - src/pages/LicensePlans.tsx
@@ -46,7 +48,7 @@ jobs:
         run: |
           npm exec tsc -- -p licensing-manager/tsconfig.json --noEmit
           npm exec tsc -- -p tsconfig.app.json --noEmit
-          node --test tests/licensing-control.test.mjs tests/asaas.test.mjs tests/checkout.test.mjs tests/reconciliation.test.mjs tests/subscription-changes.test.mjs tests/owner-purchases.test.mjs tests/license-devices.test.mjs tests/checkout-navigation.test.mjs tests/licensing-docker-loopback.test.mjs tests/licensing-docker-pipe.test.mjs
+          node --test tests/licensing-control.test.mjs tests/asaas.test.mjs tests/checkout.test.mjs tests/reconciliation.test.mjs tests/subscription-changes.test.mjs tests/owner-purchases.test.mjs tests/license-devices.test.mjs tests/license-teams.test.mjs tests/team-invites.test.mjs tests/checkout-navigation.test.mjs tests/licensing-docker-loopback.test.mjs tests/licensing-docker-pipe.test.mjs
       - run: rustup default stable-msvc
       - name: Check Windows checkout URL validation
         shell: pwsh

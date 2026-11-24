@@ -1,0 +1,11 @@
+import {createTeamInviteHandler} from '../_shared/teamInvites.mjs';
+const url=Deno.env.get('SUPABASE_URL')??'',host=new URL(url),publicKey=Deno.env.get('SUPABASE_ANON_KEY')??'',key=Deno.env.get('SUPABASE_SECRET_KEY')??Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')??'';
+const localOnly=['kong','127.0.0.1','localhost'].includes(host.hostname)&&Deno.env.get('ASAAS_ENV')==='sandbox'&&Deno.env.get('ASAAS_ENABLE_PRODUCTION')!=='true';
+async function rpc(name:string,args:unknown,bearer?:string){const headers:Record<string,string>={apikey:bearer?publicKey:key,'Content-Type':'application/json','Content-Profile':'licensing'};if(bearer)headers.Authorization=bearer;else if(!key.startsWith('sb_secret_'))headers.Authorization='Bearer '+key;
+ const r=await fetch(url+'/rest/v1/rpc/'+name,{method:'POST',headers,body:JSON.stringify(args),redirect:'error',signal:AbortSignal.timeout(15000)});if(!r.ok){const b=await r.json().catch(()=>null);throw Error(typeof b?.message==='string'&&/^[A-Z_]{1,80}$/.test(b.message)?b.message:'TEAM_DATABASE_UNAVAILABLE');}return r.status===204?null:r.json();}
+Deno.serve(createTeamInviteHandler({localOnly,secret:Deno.env.get('TEAM_INVITE_SECRET'),
+ authenticate:async(request:Request)=>{const bearer=request.headers.get('authorization');if(!bearer?.startsWith('Bearer '))return null;const r=await fetch(url+'/auth/v1/user',{headers:{apikey:publicKey,Authorization:bearer},redirect:'error',signal:AbortSignal.timeout(15000)});if(!r.ok)return null;return (await r.json()).id??null;},
+ create:(request:Request,args:unknown)=>rpc('workspace_invite',args,request.headers.get('authorization')??''),
+ markDelivery:(id:string,sent:boolean)=>rpc('workspace_mark_delivery',{p_invite:id,p_sent:sent}),
+ send:async(message:{email:string;subject:string;text:string})=>{if(!localOnly)throw Error('LOCAL_MAIL_ONLY');const r=await fetch('http://supabase_inbucket_agrigest-licensing-local:8025/api/v1/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({From:{Email:'convites@agrigest.test',Name:'AgriGest'},To:[{Email:message.email}],Subject:message.subject,Text:message.text}),redirect:'error',signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error('LOCAL_MAIL_UNAVAILABLE');await r.body?.cancel();},
+}));

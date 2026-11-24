@@ -7,10 +7,10 @@ necessárias. Nenhuma migração de licenças foi publicada no banco real e nenh
 integração à main foi executada. A exportação posterior usou o login temporário
 oficial da CLI; não redefiniu a senha principal nem alterou lançamentos.
 
-Estado consolidado de 23/11/2026: pagamento hospedado Sandbox confirmado e
-autorizações de instalações implementadas para o titular em teste local, conforme
-[etapa de aparelhos 0.1.8](APARELHOS-0.1.8.md). A equipe, o vínculo operacional das
-fazendas, webhooks públicos e o bloqueio do aplicativo principal seguem pendentes.
+Estado consolidado de 24/11/2026: pagamentos, aparelhos e empresas/equipes/convites
+com Auth real estão preparados no ambiente local. Veja a [etapa 0.1.9](EQUIPES-0.1.9.md).
+Vínculo operacional das fazendas, webhooks públicos e bloqueio do aplicativo
+principal seguem pendentes.
 Os trechos de preparação inicial abaixo registram o histórico das etapas.
 
 ## Decisões desta etapa
@@ -567,7 +567,7 @@ anteriores à migração estão em checks.local/licensing-local.
 
 ## Entrega de preparação
 
-- **Atual: 0.1.8**, Actions concluído:
+- **Anterior: 0.1.8**, Actions concluído:
   https://github.com/fbdelatorre/Agrigeest/actions/runs/45301264187.
   Commit `bcdcc33be6408aa7bd76de5b9fedf4d11619d9d9`.
   Instalador em `checks.local/entregas/gestor-licencas-0.1.8-preparacao`,
