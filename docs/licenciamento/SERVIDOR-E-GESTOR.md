@@ -530,7 +530,20 @@ na branch `codex/licenciamento-planejamento`, sem alterar a main.
 
 ## Entrega de preparação
 
-- **Atual: 0.1.5**, Actions concluído:
+- **Atual: 0.1.6**, Actions concluído:
+  https://github.com/fbdelatorre/Agrigeest/actions/runs/45293701671.
+  Commit `b322cd25261374a4ec7c2e89de555a4bf0cd1b87`.
+  Instalador em `checks.local/entregas/gestor-licencas-0.1.6-preparacao`,
+  2.032.469 bytes, SHA-256
+  `E81ECB17EA7ECDC37C73B86C8287D43B00BA1C541ED80041C2CA3316BA0E48A0`.
+  Versão/identidade/commit/hash conferidos após extração. Não assinado. Os 15 testes
+  JavaScript/servidor e TypeScript passaram no CI, assim como a compilação e execução
+  do teste Rust de validação de URL no Windows. A interface com IPC simulado passou
+  localmente, incluindo falhas e cópia/seleção, sem gerar nova contratação/checkout.
+  Não se afirma abertura real pelo binário instalado neste computador; essa etapa
+  depende do teste da atualização pelo usuário. `COMO-TESTAR.txt` acompanha a entrega.
+
+- **Anterior: 0.1.5**, Actions concluído:
   https://github.com/fbdelatorre/Agrigeest/actions/runs/45024271933.
   Commit `93b38d4417076e399c142651f8eecb5970adb558`.
   Instalador em `checks.local/entregas/gestor-licencas-0.1.5-preparacao`,
