@@ -2,6 +2,7 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import './ownerPlans.css';
 import PaymentCheckoutLink from './PaymentCheckoutLink';
+import OwnerDevices from './OwnerDevices';
 type License={id:string;label:string;kind:string;period:string;status:string;extras:number;amount_minor:number;valid_until:string|null;test_mode:boolean;institution_id:string|null;complimentary:boolean};
 type Checkout={id:string;license_id:string;state:string;url:string|null};
 type Quote={amount_minor:number;users:number;devices:number};
@@ -47,6 +48,7 @@ export default function OwnerPlanPortal({client,connectionId,initialLabel=''}:{c
  {['pending','reactivation_requested'].includes(l.status)&&(link?<PaymentCheckoutLink url={link.url!}/>:<button disabled={busy} onClick={()=>void act(()=>checkout(l.id),'Link preparado. Abra o pagamento no Asaas Sandbox.')}>Gerar link para pagar agora</button>)}
  {['pending','reactivation_requested'].includes(l.status)&&<button disabled={busy||!checkouts.some(c=>c.license_id===l.id)} onClick={()=>void act(()=>checkPayment(l.id),'Conferência solicitada ao Asaas. Atualize para acompanhar a confirmação.')}>Conferir pagamento</button>}
  {l.status==='cancelled'?<button disabled={busy} onClick={()=>void act(()=>rpc('owner_license_action',{p_id:l.id,p_action:'request_reactivation'},true),'Reativação solicitada. Aguarde o encerramento da contratação anterior e conclua o novo pagamento.')}>Reativar licença</button>:<button disabled={busy} onClick={()=>{if(!window.confirm('Cancelar esta licença e interromper as próximas cobranças? Faturas já emitidas e seu histórico ficam preservados.'))return;void act(()=>rpc('owner_license_action',{p_id:l.id,p_action:'cancel'},true),'Cancelamento registrado. O servidor está encerrando a recorrência e os links antigos.');}}>Cancelar licença</button>}
+ <OwnerDevices key={l.id+':'+l.status+':'+l.extras} client={client} connectionId={connectionId} userId={userId} licenseId={l.id}/>
  {l.status==='active'&&!l.complimentary&&<OwnerExtras key={l.id+':'+l.extras} license={l} busy={busy} run={act} call={rpc}/>}
  {changes.filter(c=>c.license_id===l.id).map(c=><p key={c.id}>{c.action==='suspend'?'Interrupção da recorrência':c.action==='checkout_cancel'?'Encerramento do link antigo':'Alteração de adicionais'}: {{pending:'aguardando envio',processing:'em processamento',failed:'nova tentativa agendada',review:'necessita conferência pela administração',scheduled:'valor atualizado; aguardando pagamento e início do período',done:'concluído',superseded:'substituído por solicitação mais recente'}[c.state]??c.state}{c.target_minor?' · '+money(c.target_minor):''}</p>)}
  </section>;})}</>}

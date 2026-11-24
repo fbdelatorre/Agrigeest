@@ -100,4 +100,37 @@ DO $$ DECLARE f record; purchased uuid; BEGIN
  IF licensing.is_active(f.license_id) THEN RAISE EXCEPTION 'PG15_REACTIVATION_BEFORE_PAYMENT';END IF;
 END $$;
 RESET ROLE;
+-- Cotas de instalações, sessão assinada e preservação do histórico em PostgreSQL 15.
+CREATE TEMP TABLE device_fixture_sessions(idx integer,id uuid);
+INSERT INTO device_fixture_sessions SELECT n,gen_random_uuid() FROM generate_series(1,7) n;
+INSERT INTO auth.sessions(id,user_id) SELECT d.id,f.owner_id FROM device_fixture_sessions d CROSS JOIN checkout_fixture f;
+GRANT SELECT ON device_fixture_sessions TO authenticated;
+SET LOCAL ROLE authenticated;
+DO $$ DECLARE f record; lid uuid; installation uuid; device uuid; first_device uuid; secret text:=repeat('a',64); summary jsonb; BEGIN
+ SELECT * INTO f FROM checkout_fixture;
+ PERFORM set_config('request.jwt.claim.sub',f.admin_id::text,true);
+ PERFORM set_config('request.jwt.claims','{"aal":"aal2"}',true);
+ lid:=licensing.admin_create_license(f.owner_id,'Fixture aparelhos PG15','farm','monthly',1000,0,gen_random_uuid());
+ PERFORM licensing.admin_set_test_mode(lid,true,gen_random_uuid());
+ PERFORM licensing.admin_set_license(lid,'grant_free',NULL,'Fixture local com rollback',gen_random_uuid());
+ PERFORM set_config('request.jwt.claim.sub',f.owner_id::text,true);
+ FOR n IN 1..6 LOOP
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('session_id',(SELECT id FROM device_fixture_sessions WHERE idx=n))::text,true);
+  installation:=gen_random_uuid();device:=licensing.register_device(lid,installation,secret,'Instalação PG15 '||n);
+  IF n=1 THEN first_device:=device;END IF;
+  IF NOT licensing.device_access(lid,installation,secret) THEN RAISE EXCEPTION 'PG15_DEVICE_ACCESS_FAILED';END IF;
+  IF licensing.register_device(lid,installation,secret,'Instalação repetida')<>device THEN RAISE EXCEPTION 'PG15_DEVICE_IDEMPOTENCY_FAILED';END IF;
+ END LOOP;
+ PERFORM set_config('request.jwt.claims',jsonb_build_object('session_id',(SELECT id FROM device_fixture_sessions WHERE idx=7))::text,true);
+ BEGIN
+  PERFORM licensing.register_device(lid,gen_random_uuid(),secret,'Sétima instalação');RAISE EXCEPTION 'PG15_DEVICE_LIMIT_BYPASSED';
+ EXCEPTION WHEN raise_exception THEN IF SQLERRM<>'DEVICE_LIMIT_REACHED' THEN RAISE;END IF;END;
+ PERFORM set_config('request.jwt.claim.sub',f.other_id::text,true);
+ BEGIN PERFORM licensing.owner_devices(lid);RAISE EXCEPTION 'PG15_DEVICE_OTHER_OWNER_ALLOWED';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+ PERFORM set_config('request.jwt.claim.sub',f.owner_id::text,true);
+ PERFORM licensing.revoke_device(lid,first_device);
+ summary:=licensing.owner_devices(lid);
+ IF (summary->>'used')::integer<>5 OR jsonb_array_length(summary->'devices')<>6 THEN RAISE EXCEPTION 'PG15_DEVICE_REVOCATION_HISTORY_FAILED';END IF;
+END $$;
+RESET ROLE;
 ROLLBACK;

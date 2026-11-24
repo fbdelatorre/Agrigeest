@@ -7,6 +7,12 @@ necessárias. Nenhuma migração de licenças foi publicada no banco real e nenh
 integração à main foi executada. A exportação posterior usou o login temporário
 oficial da CLI; não redefiniu a senha principal nem alterou lançamentos.
 
+Estado consolidado de 23/11/2026: pagamento hospedado Sandbox confirmado e
+autorizações de instalações implementadas para o titular em teste local, conforme
+[etapa de aparelhos 0.1.8](APARELHOS-0.1.8.md). A equipe, o vínculo operacional das
+fazendas, webhooks públicos e o bloqueio do aplicativo principal seguem pendentes.
+Os trechos de preparação inicial abaixo registram o histórico das etapas.
+
 ## Decisões desta etapa
 
 - Provedor confirmado: Asaas, com cobrança automática como objetivo; não Stripe.
@@ -561,7 +567,7 @@ anteriores à migração estão em checks.local/licensing-local.
 
 ## Entrega de preparação
 
-- **Atual: 0.1.7**, Actions concluído:
+- **Anterior: 0.1.7**, Actions concluído:
   https://github.com/fbdelatorre/Agrigeest/actions/runs/45297719509.
   Commit `5a5244af0c2be88f63a84c7a9d38751853b6cc50`.
   Instalador em `checks.local/entregas/gestor-licencas-0.1.7-preparacao`,

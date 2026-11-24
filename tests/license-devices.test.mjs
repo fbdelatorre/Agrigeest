@@ -1,0 +1,40 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile,readdir} from 'node:fs/promises';import {randomUUID,randomBytes} from 'node:crypto';import {PGlite} from '@electric-sql/pglite';
+test('device slots are server counted, session/proof bound, isolated and revoked without deleting history',async()=>{
+ const db=new PGlite(),owner=randomUUID(),other=randomUUID();
+ const call=(who,fn,args=[],sid=randomUUID(),role='authenticated')=>db.transaction(async tx=>{if(who&&sid)await tx.query('INSERT INTO auth.sessions(id,user_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[sid,who]);await tx.exec('SET LOCAL ROLE '+role);await tx.query("SELECT set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)",[who??'',JSON.stringify({session_id:sid,aal:'aal2'})]);return (await tx.query(`SELECT licensing.${fn}(${args.map((_,i)=>'$'+(i+1)).join(',')}) AS r`,args)).rows[0]?.r;});
+ const proof=()=>({installation:randomUUID(),secret:randomBytes(32).toString('hex'),session:randomUUID()});
+ const register=(license,p,label='Windows de teste')=>call(owner,'register_device',[license,p.installation,p.secret,label],p.session);
+ const access=(license,p)=>call(owner,'device_access',[license,p.installation,p.secret],p.session);
+ try{
+  await db.exec("CREATE SCHEMA auth;CREATE ROLE anon NOLOGIN;CREATE ROLE authenticated NOLOGIN;CREATE ROLE service_role NOLOGIN BYPASSRLS;CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz,banned_until timestamptz);CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid,not_after timestamptz);CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT NULLIF(current_setting('request.jwt.claim.sub',true),'')::uuid $$;CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT NULLIF(current_setting('request.jwt.claims',true),'')::jsonb $$;GRANT USAGE ON SCHEMA auth TO authenticated;");
+  for(const id of [owner,other])await db.query('INSERT INTO auth.users(id,email,email_confirmed_at) VALUES($1,$2,now())',[id,id+'@example.test']);
+  for(const file of (await readdir('licensing-server-local/supabase/migrations')).filter(n=>n.endsWith('.sql')).sort())await db.exec(await readFile('licensing-server-local/supabase/migrations/'+file,'utf8'));
+  const make=async(kind='farm',testMode=true)=>(await db.query("INSERT INTO licensing.licenses(owner_id,label,kind,period,status,test_mode,complimentary) VALUES($1,'Fixture aparelhos',$2,'monthly','active',$3,true) RETURNING id",[owner,kind,testMode])).rows[0].id;
+  const license=await make(),devices=Array.from({length:6},proof),ids=[];
+  await assert.rejects(call(other,'owner_devices',[license]),/OWNER_REQUIRED/);
+  await assert.rejects(call(null,'owner_devices',[license],randomUUID(),'anon'),/permission denied/);
+  await assert.rejects(db.transaction(async tx=>{await tx.exec('SET LOCAL ROLE authenticated');await tx.query('SELECT * FROM licensing_private.devices');}),/permission denied/);
+  await assert.rejects(call(owner,'register_device',[license,devices[0].installation,devices[0].secret,'Nome'],null),/DEVICE_SESSION_REQUIRED/);
+  for(const d of devices)ids.push(await register(license,d));
+  assert.equal((await call(owner,'owner_devices',[license])).used,6);assert.equal(await register(license,devices[0]),ids[0]);
+  await assert.rejects(register(license,proof()),/DEVICE_LIMIT_REACHED/);
+  await assert.rejects(register(license,{...devices[0],secret:randomBytes(32).toString('hex')}),/DEVICE_PROOF_REQUIRED/);
+  assert.equal(await access(license,devices[0]),true);assert.equal(await access(license,{...devices[0],session:randomUUID()}),false);
+  const foreignSession=randomUUID();await db.query('INSERT INTO auth.sessions(id,user_id) VALUES($1,$2)',[foreignSession,other]);await assert.rejects(call(owner,'owner_devices',[license],foreignSession),/DEVICE_SESSION_REQUIRED/);
+  await db.query("UPDATE auth.sessions SET not_after=now()-interval '1 second' WHERE id=$1",[devices[0].session]);await assert.rejects(access(license,devices[0]),/DEVICE_SESSION_REQUIRED/);await db.query('UPDATE auth.sessions SET not_after=NULL WHERE id=$1',[devices[0].session]);
+  await db.query("UPDATE auth.users SET banned_until=now()+interval '1 day' WHERE id=$1",[owner]);await assert.rejects(call(owner,'owner_devices',[license]),/OWNER_REQUIRED/);await db.query('UPDATE auth.users SET banned_until=NULL WHERE id=$1',[owner]);
+  const oldSession=devices[0].session;devices[0].session=randomUUID();assert.equal(await register(license,devices[0],'Nome atualizado'),ids[0]);assert.equal(await access(license,{...devices[0],session:oldSession}),false);
+  await assert.rejects(register(license,{...proof(),session:devices[0].session}),/DEVICE_SESSION_ALREADY_REGISTERED/);
+  await assert.rejects(call(other,'revoke_device',[license,ids[0]]),/OWNER_REQUIRED/);
+  await call(owner,'revoke_device',[license,ids[1]]);await call(owner,'revoke_device',[license,ids[1]]);assert.equal(await access(license,devices[1]),false);
+  assert.equal((await db.query("SELECT count(*)::integer n FROM licensing.events WHERE license_id=$1 AND action='device_revoked'",[license])).rows[0].n,1);
+  await register(license,proof());await db.query('UPDATE licensing.licenses SET extras=1 WHERE id=$1',[license]);await register(license,proof());await register(license,proof());assert.equal((await call(owner,'owner_devices',[license])).limit,8);await assert.rejects(register(license,proof()),/DEVICE_LIMIT_REACHED/);
+  await db.query('UPDATE licensing.licenses SET extras=0 WHERE id=$1',[license]);assert.equal(await access(license,devices[0]),false,'Over quota cannot approve access silently');
+  await call(owner,'revoke_device',[license,ids[2]]);await call(owner,'revoke_device',[license,ids[3]]);assert.equal(await access(license,devices[0]),true);
+  const summary=await call(owner,'owner_devices',[license]);assert.ok(!JSON.stringify(summary).includes(devices[0].secret));assert.ok(!('session_id'in summary.devices[0]));assert.equal(summary.devices.length,9,'Revocations preserve device history');
+  await db.query("UPDATE licensing.licenses SET status='cancelled' WHERE id=$1",[license]);assert.equal(await access(license,devices[0]),false);await assert.rejects(register(license,proof()),/ACTIVE_LICENSE_REQUIRED/);assert.equal((await call(owner,'owner_devices',[license])).active,false);await call(owner,'revoke_device',[license,ids[0]]);
+  const consult=await make('consultancy');assert.equal((await call(owner,'owner_devices',[consult])).limit,5);for(let i=0;i<5;i++)await register(consult,proof());await assert.rejects(register(consult,proof()),/DEVICE_LIMIT_REACHED/);
+  const expired=await make();await db.query("UPDATE licensing.licenses SET valid_until=now()-interval '1 day' WHERE id=$1",[expired]);await assert.rejects(register(expired,proof()),/ACTIVE_LICENSE_REQUIRED/);
+  const commercial=await make('farm',false);await assert.rejects(register(commercial,proof()),/DEVICE_STAGE_SANDBOX_ONLY/);
+ }finally{await db.close();}
+});

@@ -1,7 +1,7 @@
 {
  "$schema":"https://schema.tauri.app/config/2",
  "productName":"AgriGest Gestor de Licencas",
- "version":"0.1.7",
+ "version":"0.1.8",
  "identifier":"com.agrigest.licenses.manager",
  "build":{"beforeBuildCommand":"node ../scripts/build-license-manager.mjs","frontendDist":"../dist.local"},
  "app":{"security":{"csp":"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:46321 https://qnhykflwwihdpahvktmb.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'"},"windows":[{"title":"AgriGest — Gestor de Licencas — PREPARACAO","width":1280,"height":900,"minWidth":850,"minHeight":650}]},
