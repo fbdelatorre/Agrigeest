@@ -9,7 +9,7 @@ const origins=new Set(['http://127.0.0.1:48780','http://localhost:48780','http:/
 http.createServer((req,res)=>{
  const origin=req.headers.origin;
  if(origin&&!origins.has(origin)){res.writeHead(403);res.end();return;}
- const cors={'Access-Control-Allow-Origin':origin??'http://127.0.0.1:48780','Vary':'Origin','Access-Control-Allow-Headers':'authorization,apikey,content-type,accept-profile,content-profile,x-client-info,x-application-name,x-agrigest-institution-id,prefer,range,range-unit','Access-Control-Allow-Methods':'GET,POST,PATCH,DELETE,PUT,HEAD,OPTIONS','Access-Control-Expose-Headers':'content-range,range-unit,preference-applied'};
+ const cors={'Access-Control-Allow-Origin':origin??'http://127.0.0.1:48780','Vary':'Origin','Access-Control-Allow-Headers':'authorization,apikey,content-type,accept-profile,content-profile,x-client-info,x-supabase-api-version,x-application-name,x-agrigest-institution-id,prefer,range,range-unit','Access-Control-Allow-Methods':'GET,POST,PATCH,DELETE,PUT,HEAD,OPTIONS','Access-Control-Expose-Headers':'content-range,range-unit,preference-applied'};
  if(req.method==='OPTIONS'){res.writeHead(204,cors);res.end();return;}
  if(req.url==='/pilot/health'){res.writeHead(200,{...cors,'Content-Type':'application/json'});res.end('{"pilot":true,"production":false}');return;}
  if(req.url==='/pilot/config'){res.writeHead(200,{...cors,'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify({apiUrl:config.apiUrl,anonKey:config.anonKey,institutionId:config.institutionId}));return;}

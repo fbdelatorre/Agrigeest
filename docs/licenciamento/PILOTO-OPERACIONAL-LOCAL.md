@@ -96,3 +96,17 @@ navegador não comprova por si só o comportamento do WebView instalado.
 - Ajustes posteriores ao commit compilado afetam somente a observação de arquivos
   do servidor de desenvolvimento, sua confirmação de inicialização, testes SQL e
   este relatório. Não alteram os assets do executável entregue.
+
+## Correção do login por senha
+
+O teste inicial de interface usava uma sessão local verificada e não exercitava o
+preflight do login por senha. Esse caminho enviava `x-supabase-api-version`, que
+faltava na lista CORS do proxy. O navegador bloqueava a requisição e mostrava
+`Failed to fetch` antes de a senha ser verificada pelo Auth.
+
+O cabeçalho foi adicionado mantendo a lista restrita de origens. O teste real
+`tests/operational-pilot-login.browser.cjs --local-only` verifica o preflight das
+origens de navegador e Windows, recusa uma origem externa e confirma que o login
+chega ao Auth, que rejeita a conta fictícia inexistente com a mensagem de
+credenciais inválidas. Não utiliza a senha do proprietário nem cria contas.
+Correção exclusiva do servidor local; não exige reinstalar o executável.
