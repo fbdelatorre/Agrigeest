@@ -77,3 +77,22 @@ distribuição comercial. Testes automatizados de UI passaram para login local d
 proprietário, autorização de instalação e leitura de áreas, sem erros JS ou REST.
 O executável Windows deve receber validação manual após compilação; o teste no
 navegador não comprova por si só o comportamento do WebView instalado.
+
+## Entrega compilada
+
+- Versão 0.1.0, commit `2f1417f4d4f8541346580171853fbf91d86d70e1`.
+- GitHub Actions: execução `45477511047`, todos os passos aprovados.
+- Artefato `14960512203`; instalador conferido por tamanho, identidade e SHA-256:
+  `992966B78F7D81B48B0EC6ACD5A27B2975D50FCDAD06DF3B910676719F535519`.
+- Entrega privada em `checks.local/entregas/agrigest-piloto-local-0.1.0/package`,
+  com instalador, instruções, metadados e checksums. Executável sem assinatura comercial.
+- Assets nativos testados com servidor HTTP real, rotas hash e CSP do pacote.
+- Testes adicionais de consultoria aprovados nas tabelas operacionais: consulta
+  de estoque permitida, movimentação recusada, recomendação e monitoramento
+  permitidos, funcionário sem herança automática da fazenda e delegação antiga
+  sem reativação depois de novo convite. Contas fictícias e alterações revertidas.
+- Cinco autorizações criadas pelos testes foram revogadas, mantendo seu histórico.
+  As seis vagas do piloto ficaram disponíveis para o teste manual.
+- Ajustes posteriores ao commit compilado afetam somente a observação de arquivos
+  do servidor de desenvolvimento, sua confirmação de inicialização, testes SQL e
+  este relatório. Não alteram os assets do executável entregue.
