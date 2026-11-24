@@ -567,6 +567,21 @@ anteriores à migração estão em checks.local/licensing-local.
 
 ## Entrega de preparação
 
+- **Atual: 0.1.9**, Actions concluído:
+  https://github.com/fbdelatorre/Agrigeest/actions/runs/45368299128.
+  Commit `666db3220f2658ea8edc9b98afaf879f4009acbd`.
+  Instalador em `checks.local/entregas/gestor-licencas-0.1.9-preparacao`,
+  2.044.227 bytes; SHA-256
+  `D9C9D1D9F1A21205E6714EE62494B9956D4BA0941AB5BA7A201F7F5AF9F29262`.
+  ZIP, identidade, versão, commit e hash conferidos. Não assinado. Os 21 testes,
+  TypeScript e teste Rust passaram no CI Windows. Interface local com Auth/email
+  reais, troca de conta no convite, concorrência e PostgreSQL 15 passaram.
+  A regressão de aparelhos na interface compilada sob CSP também passou.
+  Instalação nativa deste binário ainda depende do teste do usuário.
+  COMO-TESTAR.txt acompanha a entrega e explica os emails capturados localmente
+  e a ausência de integração com os dados operacionais atuais.
+
+
 - **Anterior: 0.1.8**, Actions concluído:
   https://github.com/fbdelatorre/Agrigeest/actions/runs/45301264187.
   Commit `bcdcc33be6408aa7bd76de5b9fedf4d11619d9d9`.
