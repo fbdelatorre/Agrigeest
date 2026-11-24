@@ -13,6 +13,7 @@ on:
       - tests/reconciliation.test.mjs
       - tests/subscription-changes.test.mjs
       - tests/owner-purchases.test.mjs
+      - tests/checkout-navigation.test.mjs
       - src/features/licensing/**
       - src/pages/LicensePlans.tsx
       - tests/licensing-docker-pipe.test.mjs
@@ -44,8 +45,16 @@ jobs:
         run: |
           npm exec tsc -- -p licensing-manager/tsconfig.json --noEmit
           npm exec tsc -- -p tsconfig.app.json --noEmit
-          node --test tests/licensing-control.test.mjs tests/asaas.test.mjs tests/checkout.test.mjs tests/reconciliation.test.mjs tests/subscription-changes.test.mjs tests/owner-purchases.test.mjs tests/licensing-docker-loopback.test.mjs tests/licensing-docker-pipe.test.mjs
+          node --test tests/licensing-control.test.mjs tests/asaas.test.mjs tests/checkout.test.mjs tests/reconciliation.test.mjs tests/subscription-changes.test.mjs tests/owner-purchases.test.mjs tests/checkout-navigation.test.mjs tests/licensing-docker-loopback.test.mjs tests/licensing-docker-pipe.test.mjs
       - run: rustup default stable-msvc
+      - name: Check Windows checkout URL validation
+        shell: pwsh
+        run: |
+          $checkoutTestExe = Join-Path $env:RUNNER_TEMP 'checkout-url-tests.exe'
+          rustc --test licensing-manager/src-tauri/src/checkout_url.rs -o $checkoutTestExe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $checkoutTestExe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - run: npm run desktop:license-manager
       - run: node scripts/collect-license-manager.mjs
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

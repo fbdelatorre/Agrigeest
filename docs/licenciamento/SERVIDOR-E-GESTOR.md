@@ -491,6 +491,43 @@ por cartão, webhooks públicos e agendamento persistente. A criação de licen�
 não cria/associa uma instituição operacional e não bloqueia o AgriGest principal.
 Esta etapa não publicou funções/migrações em produção e não fez merge na main.
 
+## Abertura do checkout no Windows — correção 0.1.6
+
+O usuário relatou que o link não abria no aplicativo Windows 0.1.5. A interface
+usava somente uma âncora com `target=_blank`; o gestor Tauri não tinha uma ponte
+para abrir esse pagamento no navegador do sistema. A correção registra o comando
+nativo `open_payment_checkout` e usa ShellExecuteW/COM no Windows, sem executar
+linha de comando, receber caminho de arquivo ou acrescentar dependências.
+Referência da API: https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew.
+
+JavaScript e Rust aceitam somente o endereço exato do checkout Sandbox com um
+único identificador ASCII de até 200 caracteres. Outros hosts, protocolos, caminhos,
+parâmetros, fragmentos, espaços e caracteres de controle são recusados. Não foi
+liberado um abridor genérico de URLs ou arquivos. O portal de preparação continua
+restrito ao Sandbox. A ponte está registrada no gestor Windows; o PWA no navegador
+mantém a abertura normal em outra aba. A integração nativa do PWA principal continua
+dependente da etapa de publicação/empacotamento desse aplicativo.
+
+O componente compartilhado mostra o endereço em campo somente leitura e oferece
+Copiar link. Falha da área de transferência seleciona o campo e orienta Ctrl+C;
+falha da abertura nativa mostra uma mensagem, sem pedir outro checkout. Abrir ou
+copiar não chama o banco, não cria contratação/checkout e não confirma pagamento.
+O alinhamento do botão do cabeçalho também foi corrigido. Falhas de rede agora têm
+mensagem em português e orientação de iniciar o Docker/servidor no ambiente local.
+
+Validação local: TypeScript do gestor/PWA, teste de endereços permitidos e interface
+sob CSP. A interface com IPC simulado confirmou comando/endereço, falha nativa,
+cópia e alternativa Ctrl+C, sem nova chamada de criação nem liberação da licença.
+O workflow Windows compila e executa adicionalmente o teste Rust do validador antes
+de gerar o instalador. Instalação e abertura real do navegador no Windows do usuário
+ainda dependem do teste da atualização; os testes de IPC não são apresentados como
+execução real do binário instalado.
+
+Ponto de restauração: `agrigest-antes-correcao-link-2026-11-23`, com bundle privado
+verificado em `checks.local/licensing-local/antes-correcao-link-2026-11-23.bundle`.
+Esta correção não modifica banco, registros, RLS ou funções de cobrança e permanece
+na branch `codex/licenciamento-planejamento`, sem alterar a main.
+
 ## Entrega de preparação
 
 - **Atual: 0.1.5**, Actions concluído:
