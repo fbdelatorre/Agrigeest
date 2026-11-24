@@ -38,3 +38,15 @@ test('owner payment check rejects injected facts, scopes lookup and queues only 
  const request=body=>new Request('http://localhost/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
  assert.equal((await handler(request({license_id:license,amount_minor:1}))).status,400);assert.equal(lookups,0);const r=await handler(request({license_id:license}));assert.equal(r.status,200);assert.deepEqual(await r.json(),{state:'queued',queued:1});assert.deepEqual(events[0].payment,{id:'pay_found'});assert.equal(events[0].event,'PAYMENT_RECHECK');assert.throws(()=>createOwnerPaymentCheck({environment:'production'}),/INVALID_PAYMENT_CHECK_ENVIRONMENT/);
 });
+
+test('empty checkout filter recovers only exact checkout matches, scans bounded pages and refuses incomplete scans',async()=>{
+ const license=randomUUID(),events=[],pages=[];let mode='found';
+ const handler=createOwnerPaymentCheck({authenticate:async()=> 'owner',claim:async()=>({provider_id:'checkout_scope',checkout_created_at:'2026-11-23T23:48:39Z'}),provider:{
+  listCheckoutPayments:async()=>({data:[]}),
+  listRecentPayments:async args=>{pages.push(args);return {data:mode==='found'&&args.offset===100?[{id:'pay_exact',checkoutSession:'checkout_scope'},{id:'pay_other',checkoutSession:'other',value:250}]:[{id:'pay_wrong',checkoutSession:'other',value:250}],hasMore:mode==='overflow'||args.offset===0};},
+ },enqueue:async(env,e)=>events.push(e)});
+ const request=()=>new Request('http://localhost/check',{method:'POST',body:JSON.stringify({license_id:license})});
+ const found=await handler(request());assert.equal(found.status,200);assert.deepEqual(await found.json(),{state:'queued',queued:1});assert.deepEqual(events.map(e=>e.payment),[{id:'pay_exact'}]);assert.deepEqual(pages,[{since:'2026-11-22',until:'2026-11-25',offset:0},{since:'2026-11-22',until:'2026-11-25',offset:100}]);
+ mode='overflow';events.length=0;pages.length=0;assert.equal((await handler(request())).status,503);assert.equal(pages.length,5);assert.equal(events.length,0,'No partial scan may enqueue or report awaiting payment');
+ mode='empty';assert.deepEqual(await (await handler(request())).json(),{state:'awaiting_payment',queued:0});
+});

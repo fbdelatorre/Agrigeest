@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAsaasClient,createAsaasWebhookHandler,normalizeAsaasEvent,validateWebhookToken} from '../licensing-server-local/supabase/functions/_shared/asaas.mjs';
 const secret='fictitious-webhook-secret-only-tests-1234567890';
+
+test('recovery payment listing uses a fixed API, bounded offset and encoded date filters',async()=>{
+ let target;const api=createAsaasClient({apiKey:'fictitious',fetchImpl:async url=>{target=new URL(url);return Response.json({data:[],hasMore:false});}});
+ await api.listRecentPayments({since:'2026-11-22',until:'2026-11-25',offset:100});assert.equal(target.origin,'https://api-sandbox.asaas.com');assert.equal(target.pathname,'/v3/payments');assert.equal(target.searchParams.get('dateCreated[ge]'),'2026-11-22');assert.equal(target.searchParams.get('dateCreated[le]'),'2026-11-25');assert.equal(target.searchParams.get('limit'),'100');assert.equal(target.searchParams.get('offset'),'100');
+ assert.throws(()=>api.listRecentPayments({since:'2026-11-22&customer=other',until:'2026-11-25'}),/INVALID_PAYMENT_SCAN/);assert.throws(()=>api.listRecentPayments({since:'2026-11-22',until:'2026-11-25',offset:500}),/INVALID_PAYMENT_SCAN/);
+});
 test('Asaas recurring checkout uses hosted credit-card collection and never treats callback as payment confirmation',async()=>{
  const requests=[];const api=createAsaasClient({apiKey:'fictitious-api-key',fetchImpl:async(url,options)=>{requests.push({url,options});return Response.json({id:'131ca662-56c8-4479-b5b3-fd61a413fce7'});}});
  const result=await api.createRecurringCheckout({licenseId:'license-1',requestId:'request-1',label:'Plano consultoria',period:'annual',amountMinor:120000,nextDueDate:'2026-12-01'});

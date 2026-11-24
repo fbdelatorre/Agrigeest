@@ -528,9 +528,40 @@ verificado em `checks.local/licensing-local/antes-correcao-link-2026-11-23.bundl
 Esta correção não modifica banco, registros, RLS ou funções de cobrança e permanece
 na branch `codex/licenciamento-planejamento`, sem alterar a main.
 
+## Conferência do checkout pago — correção 0.1.7
+
+Em 23/11/2026, o pagamento Sandbox real do teste estava RECEIVED no Asaas,
+mas GET /payments?checkoutSession retornava lista vazia. A consulta por data
+retornou o pagamento com o UUID exato do checkout. A recuperação passou pela
+fila e por novos GETs autenticados de pagamento/assinatura: a licença ficou
+ativa, sem nova cobrança e sem ativação manual direta.
+
+Quando o filtro do checkout retorna vazio e ainda não há assinatura vinculada,
+o servidor consulta no máximo cinco páginas de 100 pagamentos, entre o dia
+anterior e dois dias após a criação persistida do checkout. Só os pagamentos
+com checkoutSession exatamente igual entram na fila; valor/data não identificam
+uma contratação. Busca incompleta falha sem declarar ausência de pagamento.
+O processador continua verificando preço, cliente, assinatura, período e vínculo
+antes de alterar cobertura. A migração 9 acrescenta a data à função privada de
+consulta do titular, preservando autorização e limite de 10 segundos.
+
+A interface distingue indisponibilidade, espera por pagamento e limite de
+consultas. Orienta a não pagar novamente e explica que acompanhar pedido e
+redirecionar ao AgriGest são navegação, não prova de pagamento. No teste local,
+o callback continua apontando ao login publicado: retorne ao portal de teste e
+atualize os planos para conferir a licença.
+
+Validação: 17 testes Node, TypeScript do PWA/gestor e contrato PostgreSQL 15.
+A recuperação foi também testada com GETs reais no Sandbox, autenticação do
+handler simulada e fila apenas capturada, sem criar cobranças. As 62 tabelas,
+70 políticas públicas e RLS da cópia restaurada continuam iguais ao backup.
+Funções locais recarregadas. Produção e main não alteradas. Ponto Git anterior:
+agrigest-antes-conferencia-2026-11-23; bundle e backups dos schemas de licenças
+anteriores à migração estão em checks.local/licensing-local.
+
 ## Entrega de preparação
 
-- **Atual: 0.1.6**, Actions concluído:
+- **Anterior: 0.1.6**, Actions concluído:
   https://github.com/fbdelatorre/Agrigeest/actions/runs/45293701671.
   Commit `b322cd25261374a4ec7c2e89de555a4bf0cd1b87`.
   Instalador em `checks.local/entregas/gestor-licencas-0.1.6-preparacao`,

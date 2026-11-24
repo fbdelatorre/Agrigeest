@@ -34,6 +34,7 @@ export function createAsaasClient({environment='sandbox',apiKey,enableProduction
   },
   getPayment:paymentId=>request('GET','/payments/'+id(paymentId)),
   listCheckoutPayments:checkoutId=>request('GET','/payments?checkoutSession='+encodeURIComponent(id(checkoutId))+'&limit=10'),
+  listRecentPayments:({since,until,offset=0})=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(since??'')||!/^\d{4}-\d{2}-\d{2}$/.test(until??'')||!Number.isInteger(offset)||offset<0||offset>400)throw Error('INVALID_PAYMENT_SCAN');return request('GET','/payments?'+new URLSearchParams({'dateCreated[ge]':since,'dateCreated[le]':until,limit:'100',offset:String(offset)}));},
   listSubscriptionPayments:subscriptionId=>request('GET','/subscriptions/'+id(subscriptionId)+'/payments?limit=10'),
   getSubscription:subscriptionId=>request('GET','/subscriptions/'+id(subscriptionId)),
   suspendSubscription:subscriptionId=>request('PUT','/subscriptions/'+id(subscriptionId),{status:'INACTIVE',updatePendingPayments:false}),
