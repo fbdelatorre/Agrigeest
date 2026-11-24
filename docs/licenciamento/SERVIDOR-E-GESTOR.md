@@ -567,6 +567,21 @@ anteriores à migração estão em checks.local/licensing-local.
 
 ## Entrega de preparação
 
+- **Atual: 0.1.10**, Actions concluído:
+  https://github.com/fbdelatorre/Agrigeest/actions/runs/45421109902.
+  Commit `bd19e12eca04e3c97b7b911a03d336697e9f2c70`.
+  Instalador em `checks.local/entregas/gestor-licencas-0.1.10-preparacao`,
+  2.043.525 bytes; SHA-256
+  `FA5F634D6B7AB76FCD868D7299404D3E5A5A31E9A1885E7CF8E320C6F60F7D16`.
+  ZIP, identidade, versão, commit e hash conferidos. Não assinado. Os 22 testes,
+  TypeScript e teste Rust passaram no CI Windows. O teste de interface/Auth real
+  bloqueou 11 caracteres antes da requisição e completou cadastro, confirmação,
+  aceite, mudança de função e desligamento com senha de exatamente 12 caracteres.
+  Não houve alteração de política do servidor, contas existentes ou convites.
+  Instalação nativa desta atualização ainda depende do usuário. Instruções locais
+  corrigidas para 12 caracteres em COMO-TESTAR.txt.
+
+
 - **Anterior: 0.1.9**, Actions concluído:
   https://github.com/fbdelatorre/Agrigeest/actions/runs/45368299128.
   Commit `666db3220f2658ea8edc9b98afaf879f4009acbd`.
