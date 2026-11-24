@@ -128,3 +128,11 @@ revogado pelo teste e nenhum lançamento foi alterado.
 
 O identificador Windows permanece igual para preservar sessão, autorizações,
 armazenamento e fila local ao atualizar o piloto.
+
+Instalador 0.1.1 compilado do commit
+`8fd72e8989e2407e94460aeb96b4593b3417e315`, execução Actions `45497442932`,
+artefato `14969181996`, com todos os passos aprovados. Pacote de 3.786.183 bytes,
+SHA-256 `36D42467F4375F9450090C6F84A43BB96E0E36FBC9CBD4830D2549B389F9D8E3`,
+identidade, versão e hash conferidos após o download. Entrega em
+`checks.local/entregas/agrigest-piloto-local-0.1.1/package`.
+Teste de layout reproduzível em `tests/operational-pilot-layout.browser.cjs --local-only`.
