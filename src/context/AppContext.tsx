@@ -24,6 +24,7 @@ import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { OfflineScope, readOfflineValue, useOfflineStorage, writeOfflineValue } from '../hooks/useOfflineStorage';
 import { dateToDateString, parseDate } from '../utils/dateHelpers';
 import { useMonitoringStages } from '../hooks/useMonitoringStages';
+import type { PilotContext } from '../features/licensing/OperationalPilotGate';
 
 const READ_ONLY_MSG = 'Sem conexão. O AgriGest está em modo somente leitura.';
 
@@ -108,10 +109,11 @@ interface AppProviderProps {
   children: ReactNode;
   userId: string;
   email?: string;
+  pilotProfile?: PilotContext;
 }
 
-export const AppProvider: React.FC<AppProviderProps> = ({ children, userId, email }) => {
-  const profileKey = 'agrigest:v2:profile:' + userId;
+export const AppProvider: React.FC<AppProviderProps> = ({ children, userId, email, pilotProfile }) => {
+  const profileKey = (pilotProfile ? 'agrigest:pilot:profile:' : 'agrigest:v2:profile:') + userId;
   const { isOnline } = useNetworkStatus();
   const [profile, setProfile] = useState<UserProfile | null>(() =>
     readOfflineValue(profileKey, null)
@@ -137,10 +139,10 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId, emai
         lastName: data.last_name,
         email: email || '',
         phone: data.phone || '',
-        role: data.role || '',
-        institution: data.institution || '',
-        institutionId: data.institution_id || '',
-        isAdmin: data.is_admin || false
+        role: pilotProfile?.role ?? data.role ?? '',
+        institution: pilotProfile?.name ?? data.institution ?? '',
+        institutionId: pilotProfile?.institution_id ?? data.institution_id ?? '',
+        isAdmin: pilotProfile ? ['owner','administrator','application_manager'].includes(pilotProfile.role) : data.is_admin || false
       };
       writeOfflineValue(profileKey, nextProfile);
       setProfile(nextProfile);
@@ -149,7 +151,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, userId, emai
       console.error('Error loading user profile:', error);
       setProfileFailed(true);
     }
-  }, [email, isOnline, profileKey, userId]);
+  }, [email, isOnline, profileKey, userId, pilotProfile?.role, pilotProfile?.name, pilotProfile?.institution_id]);
 
   useEffect(() => {
     const controller = new AbortController();

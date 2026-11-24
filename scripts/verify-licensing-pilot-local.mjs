@@ -1,0 +1,11 @@
+import {spawnSync} from 'node:child_process';import {readFile,writeFile} from 'node:fs/promises';import {join} from 'node:path';import {createHash} from 'node:crypto';
+if(process.argv[2]!=='--local-only')throw Error('Use --local-only.');
+const folder='checks.local/licensing-local/operational-bridge-2026-11-24',context=JSON.parse(await readFile(join(folder,'pilot-context.local.json'),'utf8'));
+if(context.container!=='supabase_db_agrigest-compat15-local'||!/^agrigest_licensing_pilot_[a-f0-9]{12}$/.test(context.database)||!context.restored)throw Error('Destino piloto não confirmado.');
+const docker=join(process.env.LOCALAPPDATA,'Programs/DockerDesktop/resources/bin/docker.exe');const query=sql=>{const r=spawnSync(docker,['exec','-i','-e','PGPASSWORD',context.container,'psql','-X','-w','-qAt','-U','supabase_admin','-d',context.database,'-v','ON_ERROR_STOP=1'],{env:{...process.env,PGPASSWORD:'postgres'},input:sql,encoding:'utf8',windowsHide:true,maxBuffer:32*1024*1024});if(r.status!==0)throw Error('Verificação local falhou.');return r.stdout;};
+const hash=rows=>createHash('sha256').update(rows.slice().sort().join('\n')).digest('hex'),lines=(await readFile('checks.local/cloud-backup-pg15-2026-11-21/data.sql','utf8')).split('\n'),tables=[];
+for(let n=0;n<lines.length;n++){const m=lines[n].match(/^COPY ("[^"]+"\."[^"]+") (\(.+\)) FROM stdin;$/);if(!m)continue;const source=[];while(++n<lines.length&&lines[n]!=='\\.')source.push(lines[n]);if(m[1]==='"public"."spatial_ref_sys"')continue;
+ if(process.argv[3]==='--business-only'&&!m[1].startsWith('"public".'))continue;
+ const output=query(`SET TIME ZONE 'UTC';SET DateStyle TO 'ISO';SET extra_float_digits TO 3;COPY ${m[1]} ${m[2]} TO STDOUT;`),rows=output?output.replace(/\n$/,'').split('\n'):[];tables.push({table:m[1],sourceRows:source.length,pilotRows:rows.length,matches:hash(source)===hash(rows)});
+}
+const result={at:new Date().toISOString(),database:context.database,tablesCompared:tables.length,allOriginalRecordsUnchanged:tables.every(t=>t.matches),sourceModified:false,productionTouched:false,tables};await writeFile(join(context.folder,process.argv[3]==='--business-only'?'business-records-verification.json':'records-verification.json'),JSON.stringify(result,null,2));console.log({...result,tables:undefined});if(!result.allOriginalRecordsUnchanged)process.exitCode=1;

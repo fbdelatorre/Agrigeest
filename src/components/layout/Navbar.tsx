@@ -7,6 +7,7 @@ import {
 import { NavLink } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAppContext } from '../../context/AppContext';
+import {usePilotAccess,pilotModule} from '../../features/licensing/OperationalPilotGate';
 
 interface NavbarProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onSignOut }) => {
   const { t, language } = useLanguage();
   const { seasons = [], activeSeason, setActiveSeason } = useAppContext();
+  const pilot=usePilotAccess();
   interface NavGroup {
     label: string;
     items: { to: string; icon: React.ReactNode; text: string }[];
@@ -134,7 +136,7 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onSignOut }) => {
               {group.label}
             </p>
             <ul className="space-y-0.5">
-              {group.items.map((item) => (
+              {group.items.filter(item=>!pilot||pilot.permissions[pilotModule(item.to)]?.read).map((item) => (
                 <NavItem
                   key={item.to}
                   to={item.to}

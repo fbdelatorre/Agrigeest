@@ -35,6 +35,8 @@ export function writeErrorMessage(error: unknown): string {
   const message = error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error);
   if (/^(Outra pessoa|Esta operação antiga|Saldo sem lote|Estoque insuficiente|Este registro|Este produto|A unidade|Já existe|Registro indisponível|Não foi possível|Este lote|O lote)/.test(message)) return message;
   if (/RECORD_CONFLICT|40001|STALE|Cannot coerce.*single|JSON object requested/.test(message)) return 'Outra pessoa alterou este registro. Atualize a página e confira os dados antes de salvar novamente.';
+  if (/LICENSE_OR_ROLE_FORBIDS_OPERATION|ACTIVE_LICENSE_REQUIRED/.test(message)) return 'Esta ação exige função permitida, licença ativa e instalação autorizada. Atualize as permissões na parte superior do aplicativo; nenhum lançamento foi alterado.';
+  if (/FARM_SCOPE_MISMATCH|RECEIPT_FARM_SCOPE_MISMATCH|FARM_ACCESS_REQUIRED/.test(message)) return 'Este lançamento pertence a outra fazenda ou seu acesso foi encerrado. Confira a conta e a fazenda antes de tentar novamente.';
   if (/LEGACY_STOCK_REVIEW_REQUIRED/.test(message)) return 'Esta operação antiga tem uma distribuição de estoque que precisa de conferência. Nenhum saldo foi alterado. Consulte a auditoria antes de editar ou cancelar.';
   if (/INSUFFICIENT_UNTRACKED/.test(message)) return 'Saldo sem lote insuficiente. Selecione os lotes que serão utilizados.';
   if (/INSUFFICIENT_(PRODUCT|LOT)_STOCK/.test(message)) return 'Estoque insuficiente. Atualize os saldos e confira a distribuição entre lotes.';

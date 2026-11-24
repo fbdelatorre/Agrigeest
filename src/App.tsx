@@ -7,6 +7,8 @@ import { LanguageProvider } from './context/LanguageContext';
 import { MachineryProvider } from './context/MachineryContext';
 import { NotesProvider } from './context/NotesContext';
 import { useAuth } from './hooks/useAuth';
+import { operationalPilot } from './lib/supabase';
+import OperationalPilotGate from './features/licensing/OperationalPilotGate';
 
 // Layout
 import Layout from './components/layout/Layout';
@@ -79,6 +81,12 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   </div>;
   
   if (!session) return <Navigate to="/login" replace />;
+
+  if (operationalPilot) return <OperationalPilotGate userId={session.user.id}>{context => (
+    <AppProvider key={session.user.id + ':' + context.institution_id} userId={session.user.id} email={session.user.email} pilotProfile={context}>
+      <MachineryProvider><NotesProvider>{children}</NotesProvider></MachineryProvider>
+    </AppProvider>
+  )}</OperationalPilotGate>;
 
   return (
     <AppProvider key={session.user.id} userId={session.user.id} email={session.user.email}>

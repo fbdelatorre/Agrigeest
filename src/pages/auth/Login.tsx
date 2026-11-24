@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase, operationalPilot } from '../../lib/supabase';
 import Card from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
@@ -407,6 +407,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      {operationalPilot&&<p className="fixed top-0 left-0 right-0 p-3 bg-amber-100 text-center">AgriGest — TESTE LOCAL · Entre com sua conta da cópia de teste. Os dados da produção não serão alterados.</p>}
       <Card className="w-full max-w-md">
         <form onSubmit={handleSubmit}>
           <Card.Header className="text-center pb-8">
@@ -619,7 +620,7 @@ const Login = () => {
               )}
             </Button>
 
-            <div className="text-center mt-4">
+            {!operationalPilot && <div className="text-center mt-4">
               <Button
                 type="button"
                 variant="ghost"
@@ -630,7 +631,7 @@ const Login = () => {
                   ? (language === 'pt' ? 'Já tem uma conta? Entre aqui' : 'Already have an account? Sign in')
                   : (language === 'pt' ? 'Não tem uma conta? Cadastre-se' : "Don't have an account? Sign up")}
               </Button>
-            </div>
+            </div>}
           </Card.Content>
         </form>
       </Card>

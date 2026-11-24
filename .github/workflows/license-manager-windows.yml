@@ -6,6 +6,7 @@ on:
       - .github/workflows/license-manager-windows.yml
       - licensing-manager/**
       - licensing-server-local/**
+      - '!licensing-server-local/pilot/**'
       - scripts/*license-manager*.mjs
       - tests/licensing-control.test.mjs
       - tests/asaas.test.mjs
@@ -19,6 +20,7 @@ on:
       - tests/account-access.test.mjs
       - tests/checkout-navigation.test.mjs
       - src/features/licensing/**
+      - '!src/features/licensing/OperationalPilotGate.tsx'
       - src/pages/LicensePlans.tsx
       - tests/licensing-docker-pipe.test.mjs
       - tests/licensing-docker-loopback.test.mjs

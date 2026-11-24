@@ -1,0 +1,13 @@
+import {readFile,readdir,mkdir,copyFile,writeFile} from 'node:fs/promises';import {resolve,join} from 'node:path';import {createHash} from 'node:crypto';
+const c=JSON.parse(await readFile('operational-pilot/src-tauri/tauri.conf.json','utf8'));
+if(c.identifier!=='com.agrigest.operational.pilot'||c.productName!=='AgriGest Piloto Local'||/supabase\.co/.test(c.app.security.csp))throw Error('Identidade ou rede incorreta.');
+async function inspect(folder){for(const entry of await readdir(folder,{withFileTypes:true})){const p=join(folder,entry.name);if(entry.isDirectory())await inspect(p);else if(/\.(js|html)$/.test(p)){const text=await readFile(p,'utf8');if(/qnhykflwwihdpahvktmb|[a-z0-9._%+-]+@(?:gmail|hotmail|outlook)\.com/i.test(text))throw Error('Configuração de produção ou identidade real encontrada no pacote.');}}}
+await inspect('operational-pilot/dist.local');
+const nsis=join(resolve(process.env.CARGO_TARGET_DIR??'operational-pilot/src-tauri/target'),'release/bundle/nsis'),names=(await readdir(nsis)).filter(n=>n.startsWith(c.productName+'_'+c.version+'_')&&n.endsWith('-setup.exe'));
+if(names.length!==1)throw Error('Instalador único não encontrado.');
+const destination='operational-pilot/release.local',name=`AgriGest_Piloto_Local_${c.version}_x64-setup.exe`;await mkdir(destination,{recursive:true});await copyFile(join(nsis,names[0]),join(destination,name));
+const sha256=createHash('sha256').update(await readFile(join(destination,name))).digest('hex').toUpperCase();
+await writeFile(join(destination,'SHA256SUMS.txt'),sha256+'  '+name+'\n');
+await writeFile(join(destination,'BUILD-INFO.json'),JSON.stringify({application:c.productName,version:c.version,identifier:c.identifier,commit:process.env.GITHUB_SHA??null,sha256,productionAccess:false,businessDataIncluded:false,requiresLocalDocker:true},null,2));
+await writeFile(join(destination,'COMO-TESTAR.txt'),'AGRIGEST — PILOTO LOCAL\n\nInstalador independente. Não substitui o AgriGest de uso diário. Contém o aplicativo completo, mas não contém dados, contas nem chaves administrativas.\n\n1. Neste computador, abra o Docker Desktop.\n2. Na pasta do projeto, execute Testar-AgriGest-Piloto-Local.cmd.\n3. Instale e abra AgriGest Piloto Local.\n4. Entre com sua conta da cópia local. Abra Licença e acesso de teste, autorize esta instalação e atualize as permissões.\n\nO piloto utiliza exclusivamente a cópia local preparada neste computador. Cobranças, envio de convites por email e satélite não estão ligados neste piloto. Lançamentos de teste não chegam à produção. Esta etapa exige o servidor local em execução; não representa validação final do licenciamento offline.\n');
+console.log(JSON.stringify({installer:name,sha256,identifier:c.identifier}));
