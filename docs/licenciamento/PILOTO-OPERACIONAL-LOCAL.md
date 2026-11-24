@@ -110,3 +110,21 @@ origens de navegador e Windows, recusa uma origem externa e confirma que o login
 chega ao Auth, que rejeita a conta fictícia inexistente com a mensagem de
 credenciais inválidas. Não utiliza a senha do proprietário nem cria contas.
 Correção exclusiva do servidor local; não exige reinstalar o executável.
+
+## Página de membros e alinhamento dos avisos — 0.1.1
+
+A página “Membros e licença”, junto de Configurações, reúne a situação da licença,
+a função atual, a consulta da equipe e os controles de aparelhos. Usuários com
+função restrita também podem abrir essa página para autorizar a própria instalação;
+a listagem completa da equipe continua limitada ao proprietário pelo servidor.
+Convites e alterações de equipe ainda não estão integrados a esta cópia operacional.
+
+Os avisos compactos passaram para dentro do mesmo container central das páginas,
+depois do cabeçalho. O painel de autorização deixou de ocupar o topo de todas as
+telas. Teste real com leitura do piloto em 1366 e 390 px confirmou que o aviso fica
+fora da barra lateral, abaixo do cabeçalho móvel e sem rolagem horizontal. A equipe
+e o controle de aparelhos foram carregados; nenhum aparelho foi autorizado ou
+revogado pelo teste e nenhum lançamento foi alterado.
+
+O identificador Windows permanece igual para preservar sessão, autorizações,
+armazenamento e fila local ao atualizar o piloto.

@@ -63,6 +63,7 @@ import Statistics from './pages/Statistics';
 // Settings
 import Settings from './pages/Settings';
 const LicensePlans = lazy(() => import('./pages/LicensePlans'));
+const MembersLicense = lazy(() => import('./pages/MembersLicense'));
 
 // Notifications
 import Notifications from './pages/Notifications';
@@ -82,7 +83,7 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   
   if (!session) return <Navigate to="/login" replace />;
 
-  if (operationalPilot) return <OperationalPilotGate userId={session.user.id}>{context => (
+  if (operationalPilot) return <OperationalPilotGate key={session.user.id} userId={session.user.id}>{context => (
     <AppProvider key={session.user.id + ':' + context.institution_id} userId={session.user.id} email={session.user.email} pilotProfile={context}>
       <MachineryProvider><NotesProvider>{children}</NotesProvider></MachineryProvider>
     </AppProvider>
@@ -200,6 +201,7 @@ function App() {
 
             {/* Settings */}
             <Route path="settings" element={<Settings />} />
+            {operationalPilot&&<Route path="members-license" element={<Suspense fallback={<p>Carregando membros e licença…</p>}><MembersLicense/></Suspense>}/>}
                 {import.meta.env.VITE_LICENSE_PLANS === 'true' && <Route path="plano-e-licencas" element={<Suspense fallback={<p>Carregando planos…</p>}><LicensePlans /></Suspense>} />}
           </Route>
 

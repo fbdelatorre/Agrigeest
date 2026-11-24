@@ -10,6 +10,7 @@ import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { useLanguage } from '../../context/LanguageContext';
 import { useLegacyOfflineData } from '../../hooks/useLegacyOfflineData';
 import JoinInstitution from '../auth/JoinInstitution';
+import {OperationalPilotNotices} from '../../features/licensing/OperationalPilotGate';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -107,6 +108,7 @@ const Layout: React.FC = () => {
           className="flex-1 px-4 lg:px-6 py-4 lg:py-6 pb-20 pt-[calc(3.5rem+env(safe-area-inset-top))] lg:pt-6"
         >
           <div className="max-w-[1600px] mx-auto">
+            <OperationalPilotNotices/>
             {!isOnline && (
               <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
                 <WifiOff size={18} className="text-amber-600 flex-shrink-0" />

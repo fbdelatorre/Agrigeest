@@ -3,6 +3,7 @@ import React from 'react';
 import {
   ClipboardList, CloudRain, Warehouse, LayoutDashboard, Map, MapPinned, PlaneTakeoff,
   Settings, FileText, Bell, BarChart3, Wrench, StickyNote, LogOut, Sprout, Crosshair,
+  Users,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
@@ -63,6 +64,7 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onSignOut }) => {
       label: language === 'pt' ? 'SISTEMA' : 'SYSTEM',
       items: [
         { to: '/settings', icon: <Settings size={18} />, text: t('settings.title') },
+        ...(pilot?[{to:'/members-license',icon:<Users size={18}/>,text:language==='pt'?'Membros e licença':'Members and license'}]:[]),
       ],
     },
   ];
@@ -136,7 +138,7 @@ const Navbar: React.FC<NavbarProps> = ({ isOpen, onClose, onSignOut }) => {
               {group.label}
             </p>
             <ul className="space-y-0.5">
-              {group.items.filter(item=>!pilot||pilot.permissions[pilotModule(item.to)]?.read).map((item) => (
+              {group.items.filter(item=>!pilot||item.to==='/members-license'||pilot.permissions[pilotModule(item.to)]?.read).map((item) => (
                 <NavItem
                   key={item.to}
                   to={item.to}

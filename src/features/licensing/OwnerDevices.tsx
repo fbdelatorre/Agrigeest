@@ -16,7 +16,7 @@ function message(error:unknown){const code=error&&typeof error==='object'&&'mess
  if(/PGRST|schema|function.*does not exist/.test(code))return 'O controle de aparelhos ainda não foi habilitado neste servidor de testes.';
  return 'Não foi possível consultar ou salvar a autorização. Verifique a conexão com o servidor e tente novamente. Seus dados continuam salvos.';
 }
-export default function OwnerDevices({client,connectionId,userId,licenseId,member=false}:{client:SupabaseClient;connectionId:string;userId:string;licenseId:string;member?:boolean}){
+export default function OwnerDevices({client,connectionId,userId,licenseId,member=false,operational=false}:{client:SupabaseClient;connectionId:string;userId:string;licenseId:string;member?:boolean;operational?:boolean}){
  const key='agrigest-license-installation:'+connectionId+':'+userId+':'+licenseId;
  const [data,setData]=useState<Summary>(),[authorized,setAuthorized]=useState(false),[name,setName]=useState(suggestedName),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[failed,setFailed]=useState(false);const lock=useRef(false),epoch=useRef(0);
  const call=useCallback(async<T,>(fn:string,args:Record<string,unknown>)=>{const r=await client.schema('licensing').rpc(fn,{p_license:licenseId,...args});if(r.error)throw r.error;return r.data as T;},[client,licenseId]);
@@ -25,7 +25,7 @@ export default function OwnerDevices({client,connectionId,userId,licenseId,membe
  const act=async(task:()=>Promise<unknown>,success:string)=>{if(lock.current)return;lock.current=true;setBusy(true);setNotice('');setFailed(false);const current=epoch.current;try{await task();const r=await refresh();if(epoch.current===current){setData(r.summary);setAuthorized(r.valid);setNotice(success);}}catch(e){if(epoch.current===current){setNotice(message(e));setFailed(true);}}finally{lock.current=false;setBusy(false);}};
  const register=()=>act(async()=>{let proof=storedProof(key);if(!proof){proof={installation:crypto.randomUUID(),secret:Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('')};localStorage.setItem(key,JSON.stringify(proof));}await call('register_device',{p_installation:proof.installation,p_secret:proof.secret,p_label:name.trim()});},'Instalação autorizada pelo servidor.');
  return <details className="owner-devices"><summary>Aparelhos autorizados{data?' · '+data.used+' de '+data.limit:''}</summary>
- <p>Cada instalação ou navegador ocupa uma vaga, mesmo no mesmo computador. O cadastro usa a cota compartilhada da empresa no Sandbox; ainda não bloqueia o AgriGest principal.</p>
+ <p>Cada instalação ou navegador ocupa uma vaga, mesmo no mesmo computador. {operational?'Esta autorização vale somente para o piloto local; o AgriGest de uso diário permanece separado.':'O cadastro usa a cota compartilhada da empresa no Sandbox; ainda não bloqueia o AgriGest principal.'}</p>
  {notice&&<p role={failed?'alert':'status'}>{notice}</p>}
  {data&&<><p>{authorized?'Esta instalação está autorizada nesta sessão.':'Esta instalação ainda não está autorizada nesta sessão.'}</p>{data.used>data.limit&&<p role="alert">Há mais instalações autorizadas que o limite atual. Escolha quais revogar para restabelecer a cota; nenhum dado será apagado.</p>}
  {!data.active&&<p>Licença inativa: novas autorizações estão bloqueadas. Você pode consultar e revogar as anteriores.</p>}
