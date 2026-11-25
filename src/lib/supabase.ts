@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
+import {readPilotInstitution} from '../features/licensing/pilotSelection';
 
 export const operationalPilot = import.meta.env.VITE_OPERATIONAL_PILOT === 'true';
 const runtimePilot = operationalPilot ? (window as Window & { __AGRIGEST_PILOT__?: { apiUrl: string; anonKey: string; institutionId: string } }).__AGRIGEST_PILOT__ : undefined;
@@ -15,6 +16,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const authStorageKey = (operationalPilot ? 'agrigest-operational-pilot-' : 'sb-') + new URL(supabaseUrl).hostname.split('.')[0] + '-auth-token';
+export function pilotInstitutionForUser(userId?:string){return readPilotInstitution(userId,pilotInstitution??'',localStorage);}
+function initialPilotInstitution(){try{const session=JSON.parse(localStorage.getItem(authStorageKey)??'null');return pilotInstitutionForUser(session?.user?.id);}catch{return pilotInstitution;}}
+export const pilotRequestInstitution=operationalPilot?initialPilotInstitution():undefined;
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -26,7 +30,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'x-application-name': operationalPilot ? 'agrigest-local-pilot' : 'agrigest',
-      ...(operationalPilot ? { 'x-agrigest-institution-id': pilotInstitution } : {})
+      ...(operationalPilot ? { 'x-agrigest-institution-id': pilotRequestInstitution } : {})
     }
   }
 });

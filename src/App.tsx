@@ -66,6 +66,7 @@ const LicensePlans = lazy(() => import('./pages/LicensePlans'));
 const MembersLicense = lazy(() => import('./pages/MembersLicense'));
 const PilotInvite = lazy(() => import('./pages/PilotInvite'));
 const ConsultancyTeam = lazy(() => import('./pages/ConsultancyTeam'));
+const PilotFarms = lazy(() => import('./pages/PilotFarms'));
 
 // Notifications
 import Notifications from './pages/Notifications';
@@ -146,6 +147,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           {operationalPilot&&<Route path="/convite" element={<Suspense fallback={<p>Carregando convite…</p>}><PilotInvite/></Suspense>}/>}
           {operationalPilot&&<Route path="/consultancy-team" element={<Suspense fallback={<p>Carregando equipe da consultoria…</p>}><ConsultancyTeam/></Suspense>}/>}
+          {operationalPilot&&<Route path="/farms" element={<Suspense fallback={<p>Consultando fazendas…</p>}><PilotFarms/></Suspense>}/>}
 
           <Route
             path="/"

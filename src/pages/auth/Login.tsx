@@ -8,6 +8,7 @@ import { LogIn, Loader, UserPlus, Globe } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import {validRegistrationPassword,minimumRegistrationPasswordLength,registrationPasswordHint} from '../../features/licensing/accountAccess';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -210,10 +211,10 @@ const Login = () => {
       setError(language === 'pt' ? 'Email inválido' : 'Invalid email');
       return false;
     }
-    if (!password || password.length < 6) {
+    if (!validRegistrationPassword(password)) {
       setError(language === 'pt'
-        ? 'A senha deve ter pelo menos 6 caracteres'
-        : 'Password must be at least 6 characters');
+        ? registrationPasswordHint
+        : 'Use at least 8 characters, including a letter and a number. Symbols are optional.');
       return false;
     }
     if (!phone.trim()) {
@@ -398,7 +399,7 @@ const Login = () => {
       !lastName.trim() ||
       !email.trim() ||
       !password ||
-      password.length < 6 ||
+      !validRegistrationPassword(password) ||
       !phone.trim() ||
       !role.trim() ||
       (!isJoining && !institution.trim()) ||
@@ -561,12 +562,15 @@ const Login = () => {
             <Input
               type="password"
               label={language === 'pt' ? 'Senha' : 'Password'}
+              minLength={isRegistering?minimumRegistrationPasswordLength:undefined}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading || (!isRegistering && attempts >= 3)}
               placeholder={language === 'pt' ? 'Sua senha' : 'Your password'}
               required
             />
+
+            {isRegistering&&<p className="text-sm text-gray-600">{language==='pt'?registrationPasswordHint:'Use at least 8 characters, including a letter and a number. Symbols are optional.'}</p>}
 
             {isRegistering && (
               <>

@@ -113,7 +113,7 @@ interface AppProviderProps {
 }
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children, userId, email, pilotProfile }) => {
-  const profileKey = (pilotProfile ? 'agrigest:pilot:profile:' : 'agrigest:v2:profile:') + userId;
+  const profileKey = pilotProfile ? 'agrigest:pilot:profile:'+userId+':'+pilotProfile.institution_id : 'agrigest:v2:profile:'+userId;
   const { isOnline } = useNetworkStatus();
   const [profile, setProfile] = useState<UserProfile | null>(() =>
     readOfflineValue(profileKey, null)

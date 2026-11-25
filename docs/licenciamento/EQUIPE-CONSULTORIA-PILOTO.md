@@ -68,8 +68,7 @@ fora do Git, sem credenciais expostas no código.
 
 ## Próxima integração
 
-Esta seleção define permissões; não troca a fazenda aberta na navegação operacional.
-O piloto continua com a fazenda fixa validada no cabeçalho de cada requisição.
-O seletor operacional de fazenda exige uma etapa própria, mantendo separados
-cache, safra, formulários e filas offline de cada usuário e fazenda. Não foi
-alterado o perfil público ou a instituição de lançamentos para simular essa troca.
+Esta seleção define permissões. A troca da fazenda aberta foi integrada
+posteriormente em [SELECAO-DE-FAZENDA-PILOTO.md](SELECAO-DE-FAZENDA-PILOTO.md),
+com reabertura da página e separação de cache, safra e filas offline por usuário
+e fazenda. O perfil público e a instituição dos lançamentos não foram alterados.

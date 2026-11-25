@@ -1,0 +1,23 @@
+import {useCallback,useEffect,useState} from 'react';import {Link} from 'react-router-dom';import type {SupabaseClient} from '@supabase/supabase-js';
+import {supabase,pilotRequestInstitution} from '../lib/supabase';import {useAuth} from '../hooks/useAuth';import Select from '../components/ui/Select';import {savePilotInstitution} from '../features/licensing/pilotSelection';import {readFieldQueue} from '../lib/fieldQueue';
+type Farm={id:string;institution_id:string;name:string;active:boolean};
+export default function PilotFarms(){
+ const {session,loading}=useAuth(),[farms,setFarms]=useState<Farm[]>([]),[selected,setSelected]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[pending,setPending]=useState<number>(),[accountId,setAccountId]=useState('');
+ const client=supabase as unknown as SupabaseClient;
+ const list=async()=>{const r=await client.schema('licensing').rpc('operational_farms');if(r.error)throw r.error;return r.data as Farm[];};
+ const refresh=useCallback(async()=>{if(!session)return;setBusy(true);setError('');try{const available=await list();setAccountId(session.user.id);setFarms(available);setSelected(id=>available.some(f=>f.institution_id===id)?id:available.find(f=>f.institution_id===pilotRequestInstitution)?.institution_id??available[0]?.institution_id??'');try{const queue=await readFieldQueue(session.user.id+':'+pilotRequestInstitution);setPending(queue.filter(e=>e.state!=='sent').length);}catch{setPending(undefined);}}catch{setFarms([]);setError('Não foi possível consultar as fazendas permitidas. Verifique sua conexão e tente novamente.');}finally{setBusy(false);}},[session?.user.id]);
+ useEffect(()=>{void refresh();},[refresh]);
+ const open=async()=>{if(!session||busy)return;setBusy(true);setError('');try{const {data:{session:verified}}=await client.auth.getSession();if(verified?.user.id!==session.user.id)throw Error('ACCOUNT_CHANGED');const available=await list(),farm=available.find(f=>f.institution_id===selected);if(!farm)throw Error('FARM_ACCESS_REQUIRED');if(!window.confirm('Abrir '+farm.name+'? A página será reaberta. Salve alterações em outras telas antes de continuar. Os lançamentos pendentes permanecem vinculados à fazenda de origem.'))return;savePilotInstitution(session.user.id,farm.institution_id,localStorage);window.location.assign(import.meta.env.MODE==='native'?window.location.pathname+'?farm='+encodeURIComponent(farm.institution_id)+'#/areas':'/areas');}catch{setError('Não foi possível confirmar o acesso à fazenda. Atualize a lista e tente novamente. Nenhum lançamento foi transferido ou apagado.');}finally{setBusy(false);}};
+ return <main className="min-h-screen bg-gray-50 px-4 py-8"><section className="mx-auto max-w-xl rounded-xl border bg-white p-5 space-y-4" data-pilot-farms>
+  <h1 className="text-2xl font-semibold">Escolher fazenda</h1><p className="rounded-lg bg-amber-50 p-3">Piloto local. Esta seleção não altera o AgriGest em produção.</p>
+  {loading?<p>Verificando sua conta…</p>:!session?<p>Entre na sua conta para consultar as fazendas disponíveis. <Link className="underline" to="/login">Entrar</Link></p>:<>
+   <p className="break-all">Conta: {session.user.email}</p><p>Aparecem apenas fazendas operacionais às quais sua conta tem acesso. A seleção é salva por conta neste navegador ou instalação.</p>
+   {error&&<p role="alert" className="text-red-700">{error}</p>}
+   <button className="rounded-lg border px-4 py-2" disabled={busy} onClick={()=>void refresh()}>Atualizar fazendas permitidas</button>
+   {accountId===session.user.id&&farms.length>0&&<><Select label="Fazenda para abrir" value={selected} options={farms.map(f=>({value:f.institution_id,label:f.name+(f.active?'':' — somente consulta')}))} onChange={e=>setSelected(e.target.value)} disabled={busy}/><button className="rounded-lg border px-4 py-2" disabled={busy||!selected||!!error} onClick={()=>void open()}>Abrir fazenda selecionada</button></>}
+   {!busy&&!error&&farms.length===0&&<p>Nenhuma fazenda operacional está disponível para sua conta. Aceite um convite ou solicite ao titular da consultoria que selecione suas fazendas.</p>}
+   <p>{pending===undefined?'Os lançamentos locais continuam preservados na fazenda de origem.':pending+' lançamento(s) ainda não enviado(s) na seleção atual deste aparelho.'} A troca não apaga nem transfere esses registros. Cada fazenda carrega suas próprias safras e dados.</p>
+  </>}
+  <nav className="flex flex-wrap gap-4"><Link className="underline" to="/members-license">Membros e licença</Link><Link className="underline" to="/consultancy-team">Equipe da consultoria</Link><Link className="underline" to="/convite">Minha conta e convites</Link></nav>
+ </section></main>;
+}
