@@ -1,0 +1,30 @@
+import {readFile} from 'node:fs/promises';import {parseEnv} from 'node:util';
+import {createAsaasClient} from '../licensing-server-local/supabase/functions/_shared/asaas.mjs';
+import {createCheckoutHandler} from '../licensing-server-local/supabase/functions/_shared/checkout.mjs';
+import {createOwnerPaymentCheck} from '../licensing-server-local/supabase/functions/_shared/ownerPaymentCheck.mjs';
+import {createReconciler} from '../licensing-server-local/supabase/functions/_shared/reconcile.mjs';
+import {createSubscriptionProcessor} from '../licensing-server-local/supabase/functions/_shared/subscriptionChanges.mjs';
+export async function operationalPilotBilling(context,config){
+ if(!/^agrigest_licensing_pilot_[a-f0-9]{12}$/.test(context.database)||config.database!==context.database||context.container!=='supabase_db_agrigest-compat15-local'||config.apiUrl!=='http://127.0.0.1:48721')throw Error('LOCAL_PILOT_REQUIRED');
+ const settings=parseEnv(await readFile('licensing-server-local/supabase/functions/.env.local','utf8'));
+ if(settings.ASAAS_ENV!=='sandbox'||settings.ASAAS_ENABLE_PRODUCTION!=='false')throw Error('SANDBOX_ONLY');
+ const provider=createAsaasClient({environment:'sandbox',enableProduction:false,apiKey:settings.ASAAS_API_KEY??'',callbackBaseUrl:'http://127.0.0.1:48780/pilot-plans'});
+ const allowedOrigins=['http://127.0.0.1:48780','http://localhost:48780','http://127.0.0.1:4181','http://localhost:4181','http://tauri.localhost','https://tauri.localhost','tauri://localhost'];
+ async function rpc(name,args,bearer){const r=await fetch('http://127.0.0.1:48723/rpc/'+name,{method:'POST',headers:{'Content-Type':'application/json','Content-Profile':'licensing',Authorization:bearer??'Bearer '+config.serviceKey},body:JSON.stringify(args),redirect:'error',signal:AbortSignal.timeout(15000)});if(!r.ok){const b=await r.json().catch(()=>null);throw Error(typeof b?.message==='string'&&/^[A-Z_0-9]{1,100}$/.test(b.message)?b.message:'DATABASE_UNAVAILABLE');}return r.status===204?null:r.json();}
+ async function authenticate(request){const bearer=request.headers.get('authorization');if(!bearer?.startsWith('Bearer '))return null;const r=await fetch('http://127.0.0.1:48722/user',{headers:{Authorization:bearer},redirect:'error',signal:AbortSignal.timeout(15000)});if(!r.ok)return null;const user=await r.json();if(!user.id||!user.email_confirmed_at)return null;await rpc('workspace_home',{},bearer);return user.id;}
+ const reconcile=createReconciler({environment:'sandbox',enableProduction:false,provider,
+  checkoutTerminal:(env,id)=>rpc('checkout_terminal_event',{p_environment:env,p_checkout:id}),claim:(env,event)=>rpc('claim_billing_event',{p_environment:env,p_event_id:event}),
+  context:(env,sub,checkout,reference,due)=>rpc('billing_payment_context',{p_environment:env,p_subscription_id:sub,p_checkout_id:checkout,p_reference:reference,p_due:due}),
+  apply:(env,event,lease,request,payment,subscription)=>rpc('apply_canonical_payment',{p_environment:env,p_event_id:event,p_lease:lease,p_request:request,p_payment:payment,p_subscription:subscription}),
+  finish:(env,event,lease,result,code)=>rpc('finish_billing_event',{p_environment:env,p_event_id:event,p_lease:lease,p_result:result,p_code:code})});
+ const subscriptions=createSubscriptionProcessor({environment:'sandbox',enableProduction:false,provider,claim:env=>rpc('claim_subscription_change',{p_environment:env}),prepare:(id,lease,date)=>rpc('prepare_subscription_change',{p_id:id,p_lease:lease,p_date:date}),finish:(id,lease,result,code)=>rpc('finish_subscription_change',{p_id:id,p_lease:lease,p_result:result,p_code:code})});
+ let running=false;const process=async event=>{if(running)return {state:'busy'};running=true;try{if(!event){const result=await subscriptions();if(result.state!=='idle')return result;}return await reconcile(event??null);}finally{running=false;}};
+ const checkout=createCheckoutHandler({environment:'sandbox',enableProduction:false,allowedOrigins,authenticate,provider,
+  reserve:(_actor,license,requestId,env,request)=>rpc('reserve_checkout',{p_license:license,p_request:requestId,p_environment:env},request.headers.get('authorization')),
+  claim:(actor,id)=>rpc('claim_checkout',{p_actor:actor,p_request:id}),finish:(actor,id,providerId)=>rpc('finish_checkout',{p_actor:actor,p_request:id,p_provider_id:providerId}),markUncertain:(actor,id)=>rpc('mark_checkout_uncertain',{p_actor:actor,p_request:id})});
+ const checkPayment=createOwnerPaymentCheck({environment:'sandbox',enableProduction:false,allowedOrigins,authenticate,provider,
+  claim:(actor,license,env)=>rpc('claim_owner_payment_check',{p_actor:actor,p_license:license,p_environment:env}),enqueue:(env,event)=>rpc('ingest_asaas_event',{p_environment:env,p_event:event}),kick:event=>process(event)});
+ const adminReconcile=async request=>{if(request.method!=='POST')return Response.json({error:'METHOD_NOT_ALLOWED'},{status:405});if(request.headers.get('x-agrigest-expected-environment')!=='sandbox')return Response.json({error:'ENVIRONMENT_MISMATCH'},{status:409});try{if(!await authenticate(request))return Response.json({error:'AUTH_REQUIRED'},{status:401});if(!await rpc('is_platform_admin',{},request.headers.get('authorization')))return Response.json({error:'PLATFORM_ADMIN_REQUIRED'},{status:403});const text=await request.text();if(text.length>1024)return Response.json({error:'BODY_TOO_LARGE'},{status:413});const body=text?JSON.parse(text):{};if(!body||Array.isArray(body)||Object.keys(body).some(k=>k!=='event_id')||(body.event_id!==undefined&&(typeof body.event_id!=='string'||!/^evt_[^\s\x00-\x1f]{1,240}$/.test(body.event_id))))return Response.json({error:'INVALID_BODY'},{status:400});return Response.json(await process(body.event_id));}catch{return Response.json({error:'RECONCILIATION_UNAVAILABLE'},{status:503});}};
+ const timer=setInterval(()=>void process().catch(()=>{}),15000);timer.unref();
+ return {handlers:{'asaas-checkout':checkout,'asaas-check-payment':checkPayment,'asaas-reconcile':adminReconcile},process};
+}

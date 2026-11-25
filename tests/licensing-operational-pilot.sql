@@ -173,4 +173,16 @@ DO $$ DECLARE t record; actor record; changed integer; result jsonb;BEGIN
  result:=public.stock_write_request(t.stock_request,'create_product_with_lots',t.stock_payload);IF COALESCE(result->'product'->>'id',result->>'id')::uuid<>t.product THEN RAISE EXCEPTION 'PILOT_READ_ONLY_RECEIPT_RECOVERY_FAILED';END IF;
 END $$;
 RESET ROLE;
+-- As novas chamadas financeiras não aceitam produção nem sessão encerrada.
+SET LOCAL ROLE authenticated;
+DO $$ BEGIN
+ BEGIN PERFORM licensing.start_purchase('farm','monthly','NEGADO',0,1000,'production',gen_random_uuid());RAISE EXCEPTION 'PILOT_PRODUCTION_PURCHASE_ALLOWED';EXCEPTION WHEN raise_exception THEN IF SQLERRM<>'BILLING_ENVIRONMENT_MISMATCH' THEN RAISE;END IF;END;
+END $$;
+RESET ROLE;
+UPDATE auth.sessions SET not_after=now()-interval '1 minute' WHERE id=(SELECT session_id FROM pilot_actors WHERE role='owner');
+SET LOCAL ROLE authenticated;
+DO $$ DECLARE t record;BEGIN SELECT * INTO t FROM pilot_test;
+ BEGIN PERFORM licensing.owner_license_action(t.license,'request_reactivation',gen_random_uuid());RAISE EXCEPTION 'PILOT_REVOKED_SESSION_BILLED';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+END $$;
+RESET ROLE;
 ROLLBACK;

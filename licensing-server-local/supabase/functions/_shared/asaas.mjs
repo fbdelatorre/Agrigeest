@@ -1,9 +1,11 @@
 const bases={sandbox:'https://api-sandbox.asaas.com/v3',production:'https://api.asaas.com/v3'};
 const id=value=>{if(typeof value!=='string'||!value||value.length>200||!/^[a-zA-Z0-9_-]+$/.test(value))throw Error('INVALID_PROVIDER_ID');return value;};
-export function createAsaasClient({environment='sandbox',apiKey,enableProduction=false,fetchImpl=fetch,onDiagnostic=()=>{}}){
+export function createAsaasClient({environment='sandbox',apiKey,enableProduction=false,fetchImpl=fetch,onDiagnostic=()=>{},callbackBaseUrl}){
  if(!Object.hasOwn(bases,environment))throw Error('INVALID_ASAAS_ENVIRONMENT');
  if(environment==='production'&&!enableProduction)throw Error('ASAAS_PRODUCTION_NOT_ENABLED');
  if(typeof apiKey!=='string'||!apiKey.trim())throw Error('ASAAS_KEY_NOT_CONFIGURED');
+ if(callbackBaseUrl!==undefined&&(environment!=='sandbox'||callbackBaseUrl!=='http://127.0.0.1:48780/pilot-plans'))throw Error('INVALID_CALLBACK_TARGET');
+ const callback=callbackBaseUrl??'https://agrigeest.netlify.app/login';
  const request=async(method,path,body)=>{
   const response=await fetchImpl(bases[environment]+path,{method,redirect:'error',headers:{access_token:apiKey,'User-Agent':'AgriGest-Licensing/1.0','Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(15000)});
   if(!response.ok){
@@ -25,7 +27,7 @@ export function createAsaasClient({environment='sandbox',apiKey,enableProduction
    const response=await request('POST','/checkouts',{
     billingTypes:['CREDIT_CARD'],chargeTypes:['RECURRENT'],minutesToExpire:60,
     externalReference:id(licenseId)+':'+id(requestId),
-    callback:{successUrl:'https://agrigeest.netlify.app/login?payment=processing',cancelUrl:'https://agrigeest.netlify.app/login?payment=cancelled',expiredUrl:'https://agrigeest.netlify.app/login?payment=expired'},
+    callback:{successUrl:callback+'?payment=processing',cancelUrl:callback+'?payment=cancelled',expiredUrl:callback+'?payment=expired'},
     items:[{name:checkoutName,description:'Licença '+(period==='annual'?'anual':'mensal')+' do AgriGest',quantity:1,value:amountMinor/100}],
     subscription:{cycle:period==='annual'?'YEARLY':'MONTHLY',nextDueDate},
    });

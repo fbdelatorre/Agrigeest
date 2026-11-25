@@ -60,7 +60,7 @@ ficam em checks.local; nenhum segredo TOTP foi exibido nos resultados.
 
 ## Próxima etapa
 
-Conectar contratação e adicionais do aplicativo ao Asaas Sandbox: orçamento no
-servidor, primeiro pagamento na contratação, confirmação antes da liberação de
-vagas e tratamento de cancelamentos e pedidos repetidos. Cortesias continuam
-dependendo exclusivamente do gestor autorizado.
+A contratação e os adicionais foram conectados ao Sandbox posteriormente, em
+[COBRANCA-PILOTO-OPERACIONAL.md](COBRANCA-PILOTO-OPERACIONAL.md). Cortesias continuam
+dependendo exclusivamente do gestor autorizado. O vínculo operacional das novas
+contratações e o servidor público de webhooks permanecem em etapas próprias.

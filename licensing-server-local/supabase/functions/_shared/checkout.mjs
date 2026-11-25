@@ -1,6 +1,6 @@
 const uuid=value=>typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value);
-export function createCheckoutHandler({environment='sandbox',enableProduction=false,authenticate,reserve,claim,finish,markUncertain,provider,onFailure=()=>{}}){
- const origins=['https://agrigeest.netlify.app','http://127.0.0.1:4180','http://127.0.0.1:5173','tauri://localhost','http://tauri.localhost','https://tauri.localhost','http://localhost','https://localhost','capacitor://localhost'];
+export function createCheckoutHandler({environment='sandbox',enableProduction=false,authenticate,reserve,claim,finish,markUncertain,provider,onFailure=()=>{},allowedOrigins}){
+ const origins=allowedOrigins??['https://agrigeest.netlify.app','http://127.0.0.1:4180','http://127.0.0.1:5173','tauri://localhost','http://tauri.localhost','https://tauri.localhost','http://localhost','https://localhost','capacitor://localhost'];
  return async request=>{
   const origin=request.headers.get('origin');
   const headers={'Content-Type':'application/json','Cache-Control':'no-store','Vary':'Origin'};

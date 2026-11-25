@@ -1,6 +1,6 @@
-export function createOwnerPaymentCheck({environment='sandbox',enableProduction=false,authenticate,claim,provider,enqueue,kick}){
+export function createOwnerPaymentCheck({environment='sandbox',enableProduction=false,authenticate,claim,provider,enqueue,kick,allowedOrigins}){
  if(!['sandbox','production'].includes(environment)||(environment==='production'&&!enableProduction))throw Error('INVALID_PAYMENT_CHECK_ENVIRONMENT');
- const origins=['http://127.0.0.1:4180','http://127.0.0.1:5173','https://agrigeest.netlify.app','tauri://localhost','http://tauri.localhost','https://tauri.localhost'];
+ const origins=allowedOrigins??['http://127.0.0.1:4180','http://127.0.0.1:5173','https://agrigeest.netlify.app','tauri://localhost','http://tauri.localhost','https://tauri.localhost'];
  return async request=>{
   const origin=request.headers.get('origin');const headers={'Cache-Control':'no-store','Content-Type':'application/json','Vary':'Origin'};
   if(origin&&origins.includes(origin)){headers['Access-Control-Allow-Origin']=origin;headers['Access-Control-Allow-Headers']='authorization,apikey,content-type,x-client-info,x-agrigest-expected-environment';headers['Access-Control-Allow-Methods']='POST,OPTIONS';}
