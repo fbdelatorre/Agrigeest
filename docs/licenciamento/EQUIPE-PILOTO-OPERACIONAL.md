@@ -63,3 +63,18 @@ por senha sem novo cadastro. Contratos de equipe, aparelhos e emails também pas
 
 Consultores, seleção de múltiplas fazendas, contratação/redução de adicionais e
 cancelamento/reativação financeira continuam em etapas próprias desta integração.
+
+## Entrega Windows
+
+Execução Actions `45516631862`, commit compilado
+`4ab168832c7e569128a5213e6813cda828b317dd`, artefato `14979036050`:
+todos os passos aprovados, incluindo contratos Node, build Windows, teste Rust de
+destinos locais e inspeção de isolamento do pacote. Instalador de 3.799.214 bytes,
+SHA-256 `97F39BE287D258CC707AABDEEBCB697A1E397C055DE8A913677BB82AEE1EBD8F`,
+identidade e versão conferidas depois do download. Sem assinatura comercial.
+Entrega em `checks.local/entregas/agrigest-piloto-local-0.1.2/package`.
+
+A persistência inicial do segredo de convites no backend foi posteriormente
+reforçada com gravação em arquivo temporário e substituição atômica, sem rotação do
+segredo existente ou das chaves Auth. Teste local de preservação das chaves passou.
+Essa alteração e a documentação não modificam os assets do executável compilado.

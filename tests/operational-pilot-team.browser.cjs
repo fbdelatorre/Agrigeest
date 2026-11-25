@@ -1,4 +1,4 @@
-// Cria e remove exclusivamente cenário fictício no piloto, validando os dados anteriores. 
+// Cria e remove exclusivamente cenário fictício no piloto, validando os dados anteriores.
 if(process.argv[2]!=='--local-only')throw Error('Use --local-only.');
 const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('node:crypto'),assert=require('node:assert/strict'),{spawnSync}=require('node:child_process');const {createClient}=require('@supabase/supabase-js'),{chromium}=require('../checks.local/node_modules/playwright-core');
 (async()=>{
