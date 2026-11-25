@@ -6,7 +6,7 @@ const c=JSON.parse(await readFile('checks.local/licensing-local/operational-brid
 if(!/^agrigest_licensing_pilot_[a-f0-9]{12}$/.test(c.database))throw Error('Destino inválido.');
 const config=JSON.parse(await readFile(join(c.folder,'api.private.json'),'utf8'));
 if(config.database!==c.database||config.apiUrl!=='http://127.0.0.1:48721')throw Error('Configuração inválida.');
-const origins=new Set(['http://127.0.0.1:48780','http://localhost:48780','http://tauri.localhost','https://tauri.localhost','tauri://localhost']);
+const origins=new Set(['http://127.0.0.1:48780','http://localhost:48780','http://127.0.0.1:4181','http://localhost:4181','http://tauri.localhost','https://tauri.localhost','tauri://localhost']);
 const invite=await operationalPilotInvites(c,config);
 http.createServer(async(req,res)=>{
  const origin=req.headers.origin;

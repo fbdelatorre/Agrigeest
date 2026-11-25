@@ -2,3 +2,4 @@
 
 [role=listbox]{position:fixed;z-index:1000;overflow-y:auto;background:#fff;color:#163c30;border:1px solid #ccd9d1;border-radius:8px;padding:4px;box-shadow:0 8px 24px #1233}[role=option]{display:flex;justify-content:space-between;gap:8px;cursor:pointer;padding:10px 12px}[role=option]:hover,[role=option][aria-selected=true]{background:#e1f0e5}.owner-plans div:has(>input[role=combobox]){position:relative}.owner-plans input[role=combobox]+svg{position:absolute;right:10px;top:12px;pointer-events:none}
 [hidden]{display:none!important}
+header p,article p,.license-row strong{overflow-wrap:anywhere}

@@ -72,5 +72,6 @@ Contratação, alterações de adicionais e cobrança automática ainda não est
 conectadas a esta página operacional. As rotinas Asaas Sandbox já existentes no
 outro ambiente de preparação permanecem separadas. A etapa seguinte deverá ligar
 esses fluxos com confirmação de pagamento no servidor, mantendo a exigência do
-primeiro pagamento na contratação. Aprovação administrativa de cortesias deve
-continuar exclusiva do gestor autorizado, sem autoaprovação no aplicativo cliente.
+primeiro pagamento na contratação. A aprovação administrativa de cortesias foi
+integrada posteriormente em [APROVACAO-REATIVACAO-PILOTO.md](APROVACAO-REATIVACAO-PILOTO.md),
+exclusiva do gestor autorizado e sem autoaprovação no aplicativo cliente.
