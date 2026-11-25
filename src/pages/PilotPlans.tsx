@@ -1,5 +1,6 @@
 import {useCallback,useEffect,useRef,useState} from 'react';import {Link} from 'react-router-dom';import type {SupabaseClient} from '@supabase/supabase-js';
 import OwnerPlanPortal from '../features/licensing/OwnerPlanPortal';
+import PaidCompanySetup from '../features/licensing/PaidCompanySetup';
 import {supabase} from '../lib/supabase';import {useAuth} from '../hooks/useAuth';import {requestKey} from '../lib/businessWrites';import {pilotPlanProblem,pilotPlanStatus,type PilotPlan} from '../features/licensing/pilotPlans';
 export default function PilotPlans(){
  const {session,loading}=useAuth(),[plans,setPlans]=useState<PilotPlan[]>([]),[accountId,setAccountId]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[failed,setFailed]=useState(false);const generation=useRef(0),lock=useRef(false);
@@ -28,6 +29,7 @@ export default function PilotPlans(){
     {plan.local_action_available&&plan.status==='cancelled'&&<button className="rounded-lg border px-4 py-2" disabled={busy} onClick={()=>{if(window.confirm('Solicitar a reativação da licença gratuita de '+plan.name+'? Ela depende da aprovação de quem concedeu a cortesia.'))void act(plan,'request_reactivation');}}>Solicitar reativação</button>}
     {!plan.owner&&<p className="text-sm text-gray-600">Somente o titular pode cancelar ou solicitar reativação. Sua função e as permissões continuam sendo conferidas pelo servidor.</p>}
    </article>)}
+   {accountId===session.user.id&&<PaidCompanySetup key={session.user.id} client={client} onChange={refresh}/>}
    {accountId===session.user.id&&<section className="rounded-xl border bg-white p-4 lg:p-6"><h2 className="text-xl font-semibold">Asaas Sandbox</h2>{billingAvailable?<details open={new URLSearchParams(location.search).has('payment')}><summary className="cursor-pointer font-medium my-3">Contratar licença ou gerenciar adicionais pagos</summary><OwnerPlanPortal client={client} connectionId={import.meta.env.VITE_SUPABASE_URL} initialLabel={plans.find(p=>p.owner)?.name??''} initialKind={plans.find(p=>p.owner)?.kind==='consultancy'?'consultancy':'farm'} operational onChange={refresh}/></details>:<p>A conexão de pagamentos de teste ainda não está disponível. As licenças e os registros continuam preservados.</p>}</section>}
   </>}
  </div></main>;
