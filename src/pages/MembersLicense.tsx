@@ -9,6 +9,7 @@ import '../features/licensing/ownerPlans.css';
 import OperationalTeam,{type OperationalTeamData} from '../features/licensing/OperationalTeam';
 import OperationalConsultants,{type ConsultantGrant} from '../features/licensing/OperationalConsultants';
 import Select from '../components/ui/Select';
+import {Link} from 'react-router-dom';
 type Organization={id:string;license_id:string;active:boolean};
 type Team=OperationalTeamData&{consultants:ConsultantGrant[]};
 type DeviceOrganization={id:string;license_id:string;name:string;kind:string;owner:boolean};
@@ -47,6 +48,7 @@ export default function MembersLicense(){
   </section>
   <section className="rounded-xl border border-gray-200 bg-white p-4 lg:p-6 space-y-3">
    <h2 className="text-xl font-semibold">Membros da equipe</h2>
+   <Link className="block underline" to="/consultancy-team">Equipe da consultoria e fazendas dos funcionários</Link>
    {team&&organization?<OperationalTeam org={organization.id} active={organization.active} team={team} ownerEmail={profile.email} refresh={refresh}/>:<p>{access.role==='owner'?'Carregando equipe…':'Sua função: '+roleName(access.role)+'. A gestão da equipe fica com o proprietário.'}</p>}
    <p className="text-sm text-gray-600">Convites e alterações da equipe utilizam somente esta cópia local. Contratação de adicionais terá uma etapa própria nesta integração.</p>
   </section>

@@ -51,8 +51,9 @@ da consultoria, a recusa para funcionário sem delegação e o vínculo delegado
 
 ## Escopo restante
 
-Esta etapa integra o convite direto da fazenda à consultoria. A gestão da equipe
-da consultoria com seleção explícita de fazendas e a troca de fazenda no aplicativo
-operacional continuam em etapa própria; as regras de servidor já existentes foram
-preservadas. Não foram integradas cobranças ao piloto operacional, nem gerado novo
-instalador, conforme a preferência atual de testar pelo navegador.
+Esta etapa integra o convite direto da fazenda à consultoria. Posteriormente,
+a equipe com seleção explícita de fazendas foi integrada em
+[EQUIPE-CONSULTORIA-PILOTO.md](EQUIPE-CONSULTORIA-PILOTO.md). A troca de fazenda na
+navegação operacional continua em etapa própria. Não foram integradas cobranças
+ao piloto operacional, nem gerado novo instalador, conforme a preferência atual
+de testar pelo navegador.
