@@ -8,6 +8,7 @@ if(process.argv[2]!=='--local-only')throw Error('Use --local-only com o piloto l
   assert.equal(r.status,204);assert.equal(r.headers.get('access-control-allow-origin'),origin);assert.match(r.headers.get('access-control-allow-headers'),/x-supabase-api-version/);
  }
  const denied=await fetch('http://127.0.0.1:48721/auth/v1/token',{method:'OPTIONS',headers:{Origin:'https://outside.example.test'}});assert.equal(denied.status,403);
+ const unauthenticatedInvite=await fetch('http://127.0.0.1:48721/functions/v1/team-invite',{method:'POST',headers:{Origin:'http://127.0.0.1:48780','Content-Type':'application/json'},body:'{}'});assert.equal(unauthenticatedInvite.status,401);assert.equal(unauthenticatedInvite.headers.get('access-control-allow-origin'),'http://127.0.0.1:48780');assert.equal((await unauthenticatedInvite.json()).error,'AUTH_REQUIRED');
  const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'});
  try{
   const page=await browser.newPage(),corsErrors=[];

@@ -1,6 +1,8 @@
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(v);
-export function createTeamInviteHandler({authenticate,create,markDelivery,send,secret,localOnly}){
+export function createTeamInviteHandler({authenticate,create,markDelivery,send,secret,localOnly,portalUrl='http://127.0.0.1:4180/'}){
+ if(!['http://127.0.0.1:4180/','http://127.0.0.1:48780/convite'].includes(portalUrl))throw Error('UNTRUSTED_INVITATION_PORTAL');
  const origins=['http://127.0.0.1:4180','http://127.0.0.1:5173','tauri://localhost','http://tauri.localhost','https://tauri.localhost'];
+ origins.push(new URL(portalUrl).origin);
  return async request=>{
   const origin=request.headers.get('origin'),headers={'Content-Type':'application/json','Cache-Control':'no-store','Vary':'Origin'};
   if(origins.includes(origin)){headers['Access-Control-Allow-Origin']=origin;headers['Access-Control-Allow-Headers']='authorization,apikey,content-type,x-client-info';headers['Access-Control-Allow-Methods']='POST,OPTIONS';}
@@ -14,7 +16,7 @@ export function createTeamInviteHandler({authenticate,create,markDelivery,send,s
    const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);const signature=await crypto.subtle.sign('HMAC',key,new TextEncoder().encode('agrigest-team-invite-v1|'+actor+'|'+b.request_id));const token=Array.from(new Uint8Array(signature),n=>n.toString(16).padStart(2,'0')).join('');
    const invite=await create(request,{p_org:b.organization_id,p_email:b.email,p_role:b.role,p_farms:b.farms,p_consultancy:b.consultancy_id,p_token:token,p_request:b.request_id});
    if(invite.delivery==='sent')return reply(200,{state:'sent',invitation_id:invite.id,registered:invite.registered});
-   const target=new URL('http://127.0.0.1:4180/');target.searchParams.set('area','cliente');if(!invite.registered)target.searchParams.set('cadastro','1');target.hash=new URLSearchParams({convite:invite.id,token}).toString();
+   const target=new URL(portalUrl);if(target.port==='4180')target.searchParams.set('area','cliente');if(!invite.registered)target.searchParams.set('cadastro','1');target.hash=new URLSearchParams({convite:invite.id,token}).toString();
    const roles={administrator:'Administrador',application_manager:'Responsável por aplicação',field_monitor:'Monitor de campo',consultant:'Consultor'};
    try{await send({email:invite.email,subject:'Convite para o AgriGest — teste local',text:'Você recebeu um convite para '+invite.organization+'.\nFunção: '+roles[invite.role]+'.\n\n'+(invite.registered?'Entre na sua conta para aceitar:':'Crie sua conta e confirme seu email para aceitar:')+'\n'+target.href+'\n\nEmpresa e função serão preenchidas automaticamente. Este convite não exige comprar uma licença de funcionário. Link válido por 7 dias, sujeito à revogação. Este email pertence ao teste local.'});await markDelivery(invite.id,true);return reply(200,{state:'sent',invitation_id:invite.id,registered:invite.registered});}
    catch{await markDelivery(invite.id,false).catch(()=>{});return reply(202,{state:'email_failed',invitation_id:invite.id,registered:invite.registered});}

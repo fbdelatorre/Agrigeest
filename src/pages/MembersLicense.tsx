@@ -6,8 +6,9 @@ import {usePilotAccess,usePilotControls} from '../features/licensing/Operational
 import OwnerDevices from '../features/licensing/OwnerDevices';
 import {roleName,teamProblem} from '../features/licensing/team';
 import '../features/licensing/ownerPlans.css';
+import OperationalTeam,{type OperationalTeamData} from '../features/licensing/OperationalTeam';
 type Organization={id:string;license_id:string;active:boolean};
-type Team={used:number;limit:number;members:{id:string;email:string;role:string;revoked_at:string|null}[]};
+type Team=OperationalTeamData;
 export default function MembersLicense(){
  const access=usePilotAccess(),controls=usePilotControls(),{profile}=useAppContext();
  const [organization,setOrganization]=useState<Organization>(),[team,setTeam]=useState<Team>(),[error,setError]=useState(''),[loading,setLoading]=useState(false);
@@ -25,7 +26,7 @@ export default function MembersLicense(){
    <h2 className="text-xl font-semibold">Licença da propriedade</h2><p className="font-medium break-words">{access.name}</p>
    <p>Sua função: <strong>{roleName(access.role)}</strong></p>
    {organization&&<p>{organization.active?'Licença de teste ativa':'Licença inativa — histórico disponível para consulta'}</p>}
-   <p className="text-sm text-gray-600">Este piloto não gera cobranças. Cada instalação ou navegador autorizado ocupa uma vaga.</p>
+   <p className="text-sm text-gray-600">Este piloto não gera cobranças. Cada instalação ou navegador autorizado ocupa uma vaga. Somente o proprietário pode convidar, alterar funções e desligar funcionários.</p>
    <button className="rounded-lg border px-4 py-2" disabled={loading||controls?.busy} onClick={()=>void refresh()}>Atualizar permissões do aplicativo</button>
    {error&&<p role="alert" className="text-red-700">{error}</p>}
   </section>
@@ -36,11 +37,8 @@ export default function MembersLicense(){
   </section>
   <section className="rounded-xl border border-gray-200 bg-white p-4 lg:p-6 space-y-3">
    <h2 className="text-xl font-semibold">Membros da equipe</h2>
-   {team?<><p>{team.used} de {team.limit} vagas, incluindo proprietário e convites pendentes.</p>
-    <ul className="divide-y"><li className="py-3"><strong className="break-all">{profile.email}</strong><p>Proprietário</p></li>
-    {team.members.filter(m=>!m.revoked_at).map(m=><li key={m.id} className="py-3"><strong className="break-all">{m.email}</strong><p>{roleName(m.role)}</p></li>)}</ul>
-   </>:<p>{access.role==='owner'?'Carregando equipe…':'Sua função: '+roleName(access.role)+'. A gestão da equipe fica com o proprietário.'}</p>}
-   <p className="text-sm text-gray-600">Nesta etapa, a equipe é exibida para conferência. A gestão de convites, funções e adicionais será conectada aqui nas próximas etapas.</p>
+   {team&&organization?<OperationalTeam org={organization.id} active={organization.active} team={team} ownerEmail={profile.email} refresh={refresh}/>:<p>{access.role==='owner'?'Carregando equipe…':'Sua função: '+roleName(access.role)+'. A gestão da equipe fica com o proprietário.'}</p>}
+   <p className="text-sm text-gray-600">Convites de funcionários e alterações da equipe utilizam somente esta cópia local. Consultores e contratação de adicionais terão uma etapa própria nesta integração.</p>
   </section>
  </div>;
 }

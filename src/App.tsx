@@ -64,6 +64,7 @@ import Statistics from './pages/Statistics';
 import Settings from './pages/Settings';
 const LicensePlans = lazy(() => import('./pages/LicensePlans'));
 const MembersLicense = lazy(() => import('./pages/MembersLicense'));
+const PilotInvite = lazy(() => import('./pages/PilotInvite'));
 
 // Notifications
 import Notifications from './pages/Notifications';
@@ -142,6 +143,7 @@ function App() {
         <NativeBackNavigation />
         <Routes>
           <Route path="/login" element={<Login />} />
+          {operationalPilot&&<Route path="/convite" element={<Suspense fallback={<p>Carregando convite…</p>}><PilotInvite/></Suspense>}/>}
 
           <Route
             path="/"

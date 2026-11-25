@@ -30,11 +30,15 @@ jobs:
       - name: Verify application and licensing contracts
         run: |
           node node_modules/typescript/bin/tsc --noEmit -p tsconfig.app.json
-          node --test tests/account-access.test.mjs tests/license-devices.test.mjs tests/license-teams.test.mjs tests/writes.test.mjs
+          node --test tests/account-access.test.mjs tests/license-devices.test.mjs tests/license-teams.test.mjs tests/team-invites.test.mjs tests/writes.test.mjs
       - run: rustup default stable-msvc
       - name: Build isolated installer
         run: node scripts/build-operational-pilot-windows.mjs
-      - name: Check package isolation and collect
+      - name: Test trusted local portal destinations
+        run: |
+          rustc --test operational-pilot/src-tauri/src/local_portal.rs -o operational-pilot/src-tauri/target/local-portal-tests.exe
+          & operational-pilot/src-tauri/target/local-portal-tests.exe
+      - name: Check package isolation and collect installer
         run: node scripts/collect-operational-pilot-installer.mjs
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:

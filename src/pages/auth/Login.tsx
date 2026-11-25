@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase, operationalPilot } from '../../lib/supabase';
 import Card from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -620,6 +620,7 @@ const Login = () => {
               )}
             </Button>
 
+            {operationalPilot&&<Link className="block text-center underline mt-4" to="/convite">Cadastro sem fazenda e convites recebidos</Link>}
             {!operationalPilot && <div className="text-center mt-4">
               <Button
                 type="button"
