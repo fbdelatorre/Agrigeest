@@ -146,7 +146,7 @@ CREATE POLICY field_update ON team_field_records FOR UPDATE TO authenticated USI
 CREATE POLICY field_delete ON team_field_records FOR DELETE TO authenticated USING(licensing.workspace_can(farm_id,'monitoring',true,author_id));
 GRANT SELECT,INSERT,UPDATE,DELETE ON team_field_records TO authenticated;
 SET LOCAL ROLE authenticated;
-DO $$ DECLARE f record; lid uuid; org uuid; invitation jsonb; BEGIN
+DO $$ DECLARE f record; lid uuid; org uuid; invitation jsonb; approval jsonb; BEGIN
  SELECT * INTO f FROM checkout_fixture;
  PERFORM set_config('request.jwt.claim.sub',f.admin_id::text,true);PERFORM set_config('request.jwt.claims','{"aal":"aal2"}',true);
  lid:=licensing.admin_create_license(f.owner_id,'Fixture equipe PG15','farm','monthly',1000,0,gen_random_uuid());PERFORM licensing.admin_set_test_mode(lid,true,gen_random_uuid());PERFORM licensing.admin_set_license(lid,'grant_free',NULL,'Fixture com rollback',gen_random_uuid());
@@ -157,7 +157,14 @@ DO $$ DECLARE f record; lid uuid; org uuid; invitation jsonb; BEGIN
  PERFORM set_config('request.jwt.claim.sub',f.other_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('session_id',(SELECT staff_session FROM team_fixture))::text,true);
  PERFORM licensing.workspace_accept((invitation->>'id')::uuid,gen_random_uuid());
  IF licensing.workspace_can(org,'monitoring',true) THEN RAISE EXCEPTION 'PG15_TEAM_WRITE_WITHOUT_DEVICE';END IF;
- PERFORM licensing.register_device(lid,gen_random_uuid(),repeat('b',64),'Funcionário PG15');
+ IF to_regprocedure('licensing.request_device(uuid,uuid,text,text)') IS NULL THEN
+  PERFORM licensing.register_device(lid,gen_random_uuid(),repeat('b',64),'Funcionário PG15');
+ ELSE
+  approval:=licensing.request_device(lid,gen_random_uuid(),repeat('b',64),'Funcionário PG15');
+  PERFORM set_config('request.jwt.claim.sub',f.owner_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('session_id',(SELECT id FROM device_fixture_sessions WHERE idx=7))::text,true);
+  PERFORM licensing.review_device_request((approval->>'request_id')::uuid,(approval->>'version')::uuid,true);
+  PERFORM set_config('request.jwt.claim.sub',f.other_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('session_id',(SELECT staff_session FROM team_fixture))::text,true);
+ END IF;
  IF NOT licensing.workspace_can(org,'monitoring',true,f.other_id) OR licensing.workspace_can(org,'inventory',false) THEN RAISE EXCEPTION 'PG15_TEAM_ROLE_FAILED';END IF;
  INSERT INTO team_field_records(farm_id,author_id,body) VALUES(org,f.other_id,'Monitoramento próprio');
 END $$;

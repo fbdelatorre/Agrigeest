@@ -78,3 +78,7 @@ A persistência inicial do segredo de convites no backend foi posteriormente
 reforçada com gravação em arquivo temporário e substituição atômica, sem rotação do
 segredo existente ou das chaves Auth. Teste local de preservação das chaves passou.
 Essa alteração e a documentação não modificam os assets do executável compilado.
+
+Regra posterior de aparelhos: na versão web 0.1.3, funcionários somente solicitam;
+o proprietário é quem aprova e revoga. A lista identifica nome e email da conta.
+Detalhes e validação em [APROVACAO-DE-APARELHOS-PILOTO.md](APROVACAO-DE-APARELHOS-PILOTO.md).

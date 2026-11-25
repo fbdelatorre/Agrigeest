@@ -15,7 +15,7 @@ export default function PilotInvite(){
  {loading?<p>Verificando sua sessão…</p>:!session?<ClientAccountAccess client={client} connectionId={connectionId} redirectTo="http://127.0.0.1:48780/convite"/>:<section>
  <p className="break-all">Conta: {session.user.email}</p>
  {wrong?<p role="alert">Este convite é para outra conta. Saia desta sessão e entre com {preview.email} para aceitar.</p>:<>{invites.map(i=><article className="py-4" key={i.id}><h2 className="font-semibold">Convite para {i.organization}</h2><p>Função: {roleName(i.role)}</p><button disabled={busy} onClick={()=>void accept(i.id)}>Aceitar convite</button></article>)}{!invites.length&&!accepted&&<p className="py-3">Nenhum convite pendente. Sua conta continua cadastrada; aguarde um convite para receber uma fazenda e função.</p>}</>}
- <button disabled={busy} onClick={()=>void supabase.auth.signOut({scope:'local'})}>Sair desta conta</button>{accepted&&<Link to="/members-license">Abrir fazenda e autorizar aparelho</Link>}
+ <button disabled={busy} onClick={()=>void supabase.auth.signOut({scope:'local'})}>Sair desta conta</button>{accepted&&<Link to="/members-license">Abrir fazenda e conferir aparelhos</Link>}
  </section>}
  <Link to="/">Voltar ao aplicativo</Link>
  </div></main>;

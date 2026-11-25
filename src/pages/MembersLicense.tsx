@@ -26,14 +26,14 @@ export default function MembersLicense(){
    <h2 className="text-xl font-semibold">Licença da propriedade</h2><p className="font-medium break-words">{access.name}</p>
    <p>Sua função: <strong>{roleName(access.role)}</strong></p>
    {organization&&<p>{organization.active?'Licença de teste ativa':'Licença inativa — histórico disponível para consulta'}</p>}
-   <p className="text-sm text-gray-600">Este piloto não gera cobranças. Cada instalação ou navegador autorizado ocupa uma vaga. Somente o proprietário pode convidar, alterar funções e desligar funcionários.</p>
+   <p className="text-sm text-gray-600">Este piloto não gera cobranças. Cada instalação autorizada ocupa uma vaga. Somente o proprietário pode autorizar aparelhos, convidar, alterar funções e desligar funcionários.</p>
    <button className="rounded-lg border px-4 py-2" disabled={loading||controls?.busy} onClick={()=>void refresh()}>Atualizar permissões do aplicativo</button>
    {error&&<p role="alert" className="text-red-700">{error}</p>}
   </section>
   <section className="rounded-xl border border-gray-200 bg-white p-4 lg:p-6">
    <h2 className="text-xl font-semibold">Aparelhos</h2><div className="owner-plans !p-0 !max-w-none [&_label]:flex-wrap [&_input]:!min-w-0 [&_input]:w-full break-words">
    <OwnerDevices client={supabase as unknown as SupabaseClient} connectionId={import.meta.env.VITE_SUPABASE_URL} userId={profile.id} licenseId={access.license_id} member={access.role!=='owner'} operational/>
-   </div><p className="text-sm text-gray-600">Depois de autorizar esta instalação, atualize as permissões acima para liberar as ações permitidas à sua função.</p>
+   </div><p className="text-sm text-gray-600">Funcionários solicitam a autorização; somente o proprietário pode aprovar. Após a aprovação, atualize as permissões acima para liberar as ações permitidas à sua função.</p>
   </section>
   <section className="rounded-xl border border-gray-200 bg-white p-4 lg:p-6 space-y-3">
    <h2 className="text-xl font-semibold">Membros da equipe</h2>

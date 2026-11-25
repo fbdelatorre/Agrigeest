@@ -16,6 +16,10 @@ test('device slots are server counted, session/proof bound, isolated and revoked
   await assert.rejects(db.transaction(async tx=>{await tx.exec('SET LOCAL ROLE authenticated');await tx.query('SELECT * FROM licensing_private.devices');}),/permission denied/);
   await assert.rejects(call(owner,'register_device',[license,devices[0].installation,devices[0].secret,'Nome'],null),/DEVICE_SESSION_REQUIRED/);
   for(const d of devices)ids.push(await register(license,d));
+  assert.ok((await call(owner,'owner_devices',[license])).devices.every(d=>d.user_email===owner+'@example.test'));
+  await db.exec('ALTER TABLE auth.users ADD COLUMN raw_user_meta_data jsonb');
+  await db.query('UPDATE auth.users SET raw_user_meta_data=$1 WHERE id=$2',[{first_name:'Proprietário',last_name:'Teste'},owner]);
+  assert.ok((await call(owner,'owner_devices',[license])).devices.every(d=>d.user_name==='Proprietário Teste'));
   assert.equal((await call(owner,'owner_devices',[license])).used,6);assert.equal(await register(license,devices[0]),ids[0]);
   await assert.rejects(register(license,proof()),/DEVICE_LIMIT_REACHED/);
   await assert.rejects(register(license,{...devices[0],secret:randomBytes(32).toString('hex')}),/DEVICE_PROOF_REQUIRED/);

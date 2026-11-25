@@ -30,7 +30,7 @@ jobs:
       - name: Verify application and licensing contracts
         run: |
           node node_modules/typescript/bin/tsc --noEmit -p tsconfig.app.json
-          node --test tests/account-access.test.mjs tests/license-devices.test.mjs tests/license-teams.test.mjs tests/team-invites.test.mjs tests/writes.test.mjs
+          node --test tests/account-access.test.mjs tests/license-devices.test.mjs tests/license-teams.test.mjs tests/device-approval.test.mjs tests/team-invites.test.mjs tests/writes.test.mjs
       - run: rustup default stable-msvc
       - name: Build isolated installer
         run: node scripts/build-operational-pilot-windows.mjs

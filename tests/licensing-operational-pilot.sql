@@ -18,11 +18,17 @@ UPDATE licensing_private.devices SET revoked_at=now() WHERE license_id=(SELECT l
 UPDATE licensing_private.operational_enrollments SET enforce=true;
 GRANT ALL ON pilot_test,pilot_actors TO authenticated;
 SET LOCAL ROLE authenticated;
-DO $$ DECLARE t record; actor record; result jsonb; payload jsonb; op jsonb; amount numeric; report_id uuid; recommendation_id uuid; BEGIN
+DO $$ DECLARE t record; actor record; approving_owner record; approval jsonb; result jsonb; payload jsonb; op jsonb; amount numeric; report_id uuid; recommendation_id uuid; BEGIN
  SELECT * INTO t FROM pilot_test;
  FOR actor IN SELECT * FROM pilot_actors LOOP
   PERFORM set_config('request.jwt.claim.sub',actor.user_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',actor.user_id,'session_id',actor.session_id)::text,true);PERFORM set_config('request.headers',jsonb_build_object('x-agrigest-institution-id',t.institution)::text,true);
-  PERFORM licensing.register_device(t.license,actor.installation,actor.secret,'Instalação de teste SQL');
+  IF actor.role='owner' THEN PERFORM licensing.register_device(t.license,actor.installation,actor.secret,'Instalação de teste SQL');
+  ELSE
+   approval:=licensing.request_device(t.license,actor.installation,actor.secret,'Instalação de teste SQL');SELECT * INTO approving_owner FROM pilot_actors WHERE role='owner';
+   PERFORM set_config('request.jwt.claim.sub',approving_owner.user_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',approving_owner.user_id,'session_id',approving_owner.session_id)::text,true);
+   PERFORM licensing.review_device_request((approval->>'request_id')::uuid,(approval->>'version')::uuid,true);
+   PERFORM set_config('request.jwt.claim.sub',actor.user_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',actor.user_id,'session_id',actor.session_id)::text,true);
+  END IF;
   IF NOT licensing.operational_can(t.institution,'inventory',true) THEN RAISE EXCEPTION 'PILOT_ADMIN_LOST_STOCK_ACCESS';END IF;
  END LOOP;
  SELECT * INTO actor FROM pilot_actors WHERE role='owner';PERFORM set_config('request.jwt.claim.sub',actor.user_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',actor.user_id,'session_id',actor.session_id)::text,true);
@@ -98,7 +104,7 @@ INSERT INTO licensing_private.memberships(id,organization_id,user_id,role) SELEC
 INSERT INTO licensing_private.farm_consultants(id,farm_id,consultancy_id) SELECT c.grant_id,t.organization,c.organization FROM pilot_consultant c CROSS JOIN pilot_test t;
 GRANT ALL ON pilot_consultant TO authenticated;
 SET LOCAL ROLE authenticated;
-DO $$ DECLARE t record;c record;BEGIN
+DO $$ DECLARE t record;c record;approval jsonb;BEGIN
  SELECT * INTO t FROM pilot_test;SELECT * INTO c FROM pilot_consultant;
  PERFORM set_config('request.jwt.claim.sub',c.owner_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',c.owner_id,'session_id',c.owner_session)::text,true);
  PERFORM licensing.register_device(c.license,gen_random_uuid(),repeat('a',64),'Consultor fictício');
@@ -107,7 +113,10 @@ DO $$ DECLARE t record;c record;BEGIN
  INSERT INTO public.field_monitoring_reports(institution_id,season_id,area_id,observed_on,phenological_stage,report) VALUES(t.institution,t.season,t.area,current_date,'V2','Consultor autorizado');
  INSERT INTO public.field_recommendations(report_id,institution_id,season_id,area_id,operation_type,instructions,products) VALUES(t.report,t.institution,t.season,t.area,'dessecacao','Consultoria de teste',jsonb_build_array(jsonb_build_object('productId',t.product,'dose',1)));
  PERFORM set_config('request.jwt.claim.sub',c.staff_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',c.staff_id,'session_id',c.staff_session)::text,true);
- PERFORM licensing.register_device(c.license,gen_random_uuid(),repeat('b',64),'Monitor fictício da consultoria');
+ approval:=licensing.request_device(c.license,gen_random_uuid(),repeat('b',64),'Monitor fictício da consultoria');
+ PERFORM set_config('request.jwt.claim.sub',c.owner_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',c.owner_id,'session_id',c.owner_session)::text,true);
+ PERFORM licensing.review_device_request((approval->>'request_id')::uuid,(approval->>'version')::uuid,true);
+ PERFORM set_config('request.jwt.claim.sub',c.staff_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',c.staff_id,'session_id',c.staff_session)::text,true);
  IF EXISTS(SELECT 1 FROM public.field_monitoring_reports) THEN RAISE EXCEPTION 'PILOT_CONSULTANCY_STAFF_INHERITED_FARM';END IF;
 END $$;
 RESET ROLE;
