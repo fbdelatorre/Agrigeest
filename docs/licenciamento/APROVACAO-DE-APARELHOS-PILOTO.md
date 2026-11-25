@@ -47,3 +47,17 @@ confirmou hashes inalterados dos dados operacionais anteriores.
 
 Os testes transacionais de operações, estoque e permissões também passaram após
 a nova regra, com ROLLBACK de todas as gravações e aprovações usadas nos testes.
+
+## Contagem ao lado do membro
+
+A equipe mostra a quantidade de aparelhos autorizados de cada membro e do
+proprietário, limitada à licença daquela propriedade. Pedidos pendentes,
+aparelhos revogados e aprovações de vínculos antigos não entram na contagem.
+Aprovar ou revogar um aparelho atualiza também a lista da equipe.
+
+A migração 18 apenas acrescenta campos à consulta protegida do proprietário;
+não altera registros nem autorizações. Foi aplicada somente no piloto local.
+Os testes verificaram contagem zero enquanto pendente, incremento ao aprovar,
+redução ao revogar e isolamento entre licenças. O navegador confirmou a mudança
+para “1 aparelho autorizado” sem recarregar a página após a aprovação. As contas
+fictícias foram removidas e os dados operacionais anteriores permaneceram iguais.

@@ -32,7 +32,7 @@ export default function MembersLicense(){
   </section>
   <section className="rounded-xl border border-gray-200 bg-white p-4 lg:p-6">
    <h2 className="text-xl font-semibold">Aparelhos</h2><div className="owner-plans !p-0 !max-w-none [&_label]:flex-wrap [&_input]:!min-w-0 [&_input]:w-full break-words">
-   <OwnerDevices client={supabase as unknown as SupabaseClient} connectionId={import.meta.env.VITE_SUPABASE_URL} userId={profile.id} licenseId={access.license_id} member={access.role!=='owner'} operational/>
+   <OwnerDevices client={supabase as unknown as SupabaseClient} connectionId={import.meta.env.VITE_SUPABASE_URL} userId={profile.id} licenseId={access.license_id} member={access.role!=='owner'} operational onChange={refresh}/>
    </div><p className="text-sm text-gray-600">Funcionários solicitam a autorização; somente o proprietário pode aprovar. Após a aprovação, atualize as permissões acima para liberar as ações permitidas à sua função.</p>
   </section>
   <section className="rounded-xl border border-gray-200 bg-white p-4 lg:p-6 space-y-3">
