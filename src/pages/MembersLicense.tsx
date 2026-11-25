@@ -33,6 +33,7 @@ export default function MembersLicense(){
   <section className="rounded-xl border border-gray-200 bg-white p-4 lg:p-6 space-y-3">
    <h2 className="text-xl font-semibold">Licença da propriedade</h2><p className="font-medium break-words">{access.name}</p>
    <p>Sua função: <strong>{roleName(access.role)}</strong></p>
+   <Link className="block underline" to="/pilot-plans">Plano e licenças — situação, vagas e cancelamento</Link>
    {organization&&<p>{organization.active?'Licença de teste ativa':'Licença inativa — histórico disponível para consulta'}</p>}
    <p className="text-sm text-gray-600">Este piloto não gera cobranças. Cada instalação autorizada ocupa uma vaga. Somente o proprietário pode autorizar aparelhos, convidar, alterar funções e desligar funcionários.</p>
    <button className="rounded-lg border px-4 py-2" disabled={loading||controls?.busy} onClick={()=>void refresh()}>Atualizar permissões do aplicativo</button>
