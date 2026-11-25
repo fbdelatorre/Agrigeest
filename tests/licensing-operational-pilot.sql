@@ -108,6 +108,7 @@ DO $$ DECLARE t record;c record;approval jsonb;BEGIN
  SELECT * INTO t FROM pilot_test;SELECT * INTO c FROM pilot_consultant;
  PERFORM set_config('request.jwt.claim.sub',c.owner_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',c.owner_id,'session_id',c.owner_session)::text,true);
  PERFORM licensing.register_device(c.license,gen_random_uuid(),repeat('a',64),'Consultor fictício');
+ IF licensing.operational_device_licenses()<>jsonb_build_array(jsonb_build_object('id',c.organization,'name','Consultoria de teste revertida','kind','consultancy','license_id',c.license,'owner',true)) THEN RAISE EXCEPTION 'PILOT_WRONG_CONSULTANT_DEVICE_LICENSE';END IF;
  IF NOT EXISTS(SELECT 1 FROM public.products WHERE id=t.product) THEN RAISE EXCEPTION 'PILOT_CONSULTANT_CANNOT_READ_INVITED_FARM';END IF;
  BEGIN PERFORM public.stock_write_request(gen_random_uuid(),'add_inventory_stock',jsonb_build_object('p_product_id',t.product,'p_quantity',1,'p_reason','Negado'));RAISE EXCEPTION 'PILOT_CONSULTANT_WROTE_STOCK';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
  INSERT INTO public.field_monitoring_reports(institution_id,season_id,area_id,observed_on,phenological_stage,report) VALUES(t.institution,t.season,t.area,current_date,'V2','Consultor autorizado');
@@ -118,12 +119,14 @@ DO $$ DECLARE t record;c record;approval jsonb;BEGIN
  PERFORM licensing.review_device_request((approval->>'request_id')::uuid,(approval->>'version')::uuid,true);
  PERFORM set_config('request.jwt.claim.sub',c.staff_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',c.staff_id,'session_id',c.staff_session)::text,true);
  IF EXISTS(SELECT 1 FROM public.field_monitoring_reports) THEN RAISE EXCEPTION 'PILOT_CONSULTANCY_STAFF_INHERITED_FARM';END IF;
+ BEGIN PERFORM licensing.operational_device_licenses();RAISE EXCEPTION 'PILOT_DEVICE_LICENSE_INHERITED_WITHOUT_DELEGATION';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
 END $$;
 RESET ROLE;
 INSERT INTO licensing_private.farm_delegations(membership_id,farm_id,grant_id) SELECT c.member_id,t.organization,c.grant_id FROM pilot_consultant c CROSS JOIN pilot_test t;
 SET LOCAL ROLE authenticated;
-DO $$ DECLARE t record;BEGIN
- SELECT * INTO t FROM pilot_test;
+DO $$ DECLARE t record;c record;BEGIN
+ SELECT * INTO t FROM pilot_test;SELECT * INTO c FROM pilot_consultant;
+ IF licensing.operational_device_licenses()<>jsonb_build_array(jsonb_build_object('id',c.organization,'name','Consultoria de teste revertida','kind','consultancy','license_id',c.license,'owner',false)) THEN RAISE EXCEPTION 'PILOT_WRONG_DELEGATED_DEVICE_LICENSE';END IF;
  IF NOT EXISTS(SELECT 1 FROM public.field_monitoring_reports WHERE id=t.report) THEN RAISE EXCEPTION 'PILOT_CONSULTANCY_DELEGATION_NOT_APPLIED';END IF;
  IF EXISTS(SELECT 1 FROM public.products) THEN RAISE EXCEPTION 'PILOT_CONSULTANCY_MONITOR_READ_STOCK';END IF;
  INSERT INTO public.field_monitoring_reports(institution_id,season_id,area_id,observed_on,phenological_stage,report) VALUES(t.institution,t.season,t.area,current_date,'V2','Monitor com delegação explícita');

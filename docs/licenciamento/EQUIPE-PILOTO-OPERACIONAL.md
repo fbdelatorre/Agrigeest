@@ -61,8 +61,10 @@ monitoramento autorizado, nova função efetiva na sessão existente, desligamen
 acesso negado e conta/histórico preservados, e novo convite à mesma conta com login
 por senha sem novo cadastro. Contratos de equipe, aparelhos e emails também passaram.
 
-Consultores, seleção de múltiplas fazendas, contratação/redução de adicionais e
-cancelamento/reativação financeira continuam em etapas próprias desta integração.
+Convites diretos de consultoria foram integrados posteriormente; veja
+[CONSULTORES-PILOTO-OPERACIONAL.md](CONSULTORES-PILOTO-OPERACIONAL.md).
+Equipe da consultoria, seleção de múltiplas fazendas, contratação/redução de
+adicionais e cancelamento/reativação financeira continuam em etapas próprias.
 
 ## Entrega Windows
 

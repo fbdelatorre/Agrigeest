@@ -9,6 +9,7 @@ export function teamProblem(error:unknown){const text=error&&typeof error==='obj
  INVITATION_ALREADY_PENDING:'Já existe um convite pendente para este email. Revogue-o antes de emitir outro.',MEMBER_ALREADY_ACTIVE:'Esta conta já faz parte da equipe.',
  REGISTERED_CONSULTANCY_REQUIRED:'O consultor precisa ter uma conta verificada e uma empresa de consultoria com licença ativa.',
  CONSULTANT_INVITE_NOT_ALLOWED:'A equipe da consultoria pode receber funcionários; não pode convidar outro consultor.',
+ CONSULTANT_ALREADY_ACTIVE:'Esta consultoria já tem acesso a esta fazenda.',
  INVITATION_RECIPIENT_REQUIRED:'Entre com a conta do email que recebeu este convite.',INVITATION_UNAVAILABLE:'Este convite venceu, foi revogado ou já foi utilizado.',
  MEMBER_VERSION_CONFLICT:'A função foi alterada por outra ação. Atualize a equipe antes de salvar novamente.',FARM_ACCESS_REQUIRED:'Uma fazenda selecionada não está mais disponível. Atualize a seleção.',
  TEAM_INVITE_NOT_CONFIGURED:'O envio de convites ainda não está configurado neste servidor local.',EXISTING_INSTITUTION_REQUIRES_REVIEW:'Esta licença já possui um vínculo que exige revisão de titularidade.',
