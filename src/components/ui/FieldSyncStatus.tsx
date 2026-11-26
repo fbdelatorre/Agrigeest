@@ -11,13 +11,14 @@ export default function FieldSyncStatus({ entry }: { entry?: QueueEntry }) {
   const [failed, setFailed] = useState(false);
   const [newCode, setNewCode] = useState('');
   if (!entry || entry.state === 'sent') return null;
-  if (entry.state === 'pending') return <p className="text-xs font-medium text-amber-800">{language === 'pt' ? 'Aguardando sincronização' : 'Waiting to sync'}</p>;
+  if (entry.state === 'pending') return <p role="status" className={'rounded-lg border p-2 text-sm font-semibold '+(entry.holdReason==='authorization'?'border-red-300 bg-red-50 text-red-800':'border-amber-300 bg-amber-50 text-amber-900')}>{language==='pt'?'NÃO ENVIADO — '+(entry.holdReason==='authorization'?'acesso bloqueado. Regularize a licença, função ou autorização do aparelho. O registro está salvo neste dispositivo.':entry.holdReason==='parent'?'aguardando o envio do monitoramento vinculado.':entry.holdReason==='connection'?'sem confirmação do servidor. Salvo neste dispositivo.':'aguardando sincronização. Salvo neste dispositivo.'):'NOT SENT — saved on this device; waiting for synchronization.'}</p>;
   const act = (action: (record: QueueEntry) => Promise<void>) => {
     setFailed(false);
     void action(entry).catch(() => setFailed(true));
   };
   return (
     <div className="space-y-1 text-xs text-red-800">
+      <p className="rounded-lg border border-red-300 bg-red-50 p-2 font-semibold">{language==='pt'?'NÃO ENVIADO — o servidor recusou este registro. Ele continua salvo neste aparelho.':'NOT SENT — rejected by the server; saved on this device.'}</p>
       <p role="status">{entry.reason === 'duplicate-rainfall'
         ? (language === 'pt' ? 'Já há uma leitura no servidor para este talhão e data.' : 'The server already has a reading for this field and date.')
         : entry.reason === 'duplicate-sample'

@@ -68,6 +68,7 @@ const PilotInvite = lazy(() => import('./pages/PilotInvite'));
 const ConsultancyTeam = lazy(() => import('./pages/ConsultancyTeam'));
 const PilotFarms = lazy(() => import('./pages/PilotFarms'));
 const PilotPlans = lazy(() => import('./pages/PilotPlans'));
+const PendingFieldRecords=lazy(()=>import('./pages/PendingFieldRecords'));
 
 // Notifications
 import Notifications from './pages/Notifications';
@@ -150,6 +151,7 @@ function App() {
           {operationalPilot&&<Route path="/consultancy-team" element={<Suspense fallback={<p>Carregando equipe da consultoria…</p>}><ConsultancyTeam/></Suspense>}/>}
           {operationalPilot&&<Route path="/farms" element={<Suspense fallback={<p>Consultando fazendas…</p>}><PilotFarms/></Suspense>}/>}
           {operationalPilot&&<Route path="/pilot-plans" element={<Suspense fallback={<p>Consultando planos…</p>}><PilotPlans/></Suspense>}/>}
+          {operationalPilot&&<Route path="/pending-records" element={<Suspense fallback={<p>Consultando pendências locais…</p>}><PendingFieldRecords/></Suspense>}/>}
 
           <Route
             path="/"

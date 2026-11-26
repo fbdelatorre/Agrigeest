@@ -3,6 +3,7 @@ export function createTeamInviteHandler({authenticate,create,markDelivery,send,s
  if(!['http://127.0.0.1:4180/','http://127.0.0.1:48780/convite'].includes(portalUrl))throw Error('UNTRUSTED_INVITATION_PORTAL');
  const origins=['http://127.0.0.1:4180','http://127.0.0.1:5173','tauri://localhost','http://tauri.localhost','https://tauri.localhost'];
  origins.push(new URL(portalUrl).origin);
+ if(portalUrl==='http://127.0.0.1:48780/convite')origins.push('http://127.0.0.1:48781');
  return async request=>{
   const origin=request.headers.get('origin'),headers={'Content-Type':'application/json','Cache-Control':'no-store','Vary':'Origin'};
   if(origins.includes(origin)){headers['Access-Control-Allow-Origin']=origin;headers['Access-Control-Allow-Headers']='authorization,apikey,content-type,x-client-info';headers['Access-Control-Allow-Methods']='POST,OPTIONS';}

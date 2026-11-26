@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { authStorageKey, supabase } from '../lib/supabase';
+import { authStorageKey, supabase,operationalPilot,pilotRequestInstitution } from '../lib/supabase';
 import { readOfflineValue } from './useOfflineStorage';
 
 function savedDeviceSession() {
@@ -8,7 +8,7 @@ function savedDeviceSession() {
   // enough to open this account's local data; server writes still require JWT/RLS.
   const saved = readOfflineValue<Session | null>(authStorageKey, null);
   if (!saved?.user?.id || !saved.access_token || !saved.refresh_token) return null;
-  const profile = readOfflineValue<{ id?: string } | null>('agrigest:v2:profile:' + saved.user.id, null);
+  const profile = readOfflineValue<{ id?: string } | null>(operationalPilot?'agrigest:pilot:profile:'+saved.user.id+':'+pilotRequestInstitution:'agrigest:v2:profile:' + saved.user.id, null);
   return profile?.id === saved.user.id ? saved : null;
 }
 

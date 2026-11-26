@@ -2,7 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { syncFieldSubmission } from '../lib/fieldData';
 import { discardFieldEntry, readFieldQueue, writeFieldEntry, type FieldDraft, type QueueEntry } from '../lib/fieldQueue';
-import { supabase } from '../lib/supabase';
+import { supabase,operationalPilot,authStorageKey } from '../lib/supabase';
+import {usePilotAccess} from '../features/licensing/OperationalPilotGate';
+import {readPilotOffline} from '../features/licensing/pilotOffline';
 import { readOfflineValue, writeOfflineValue } from '../hooks/useOfflineStorage';
 import { monitoringCacheKey, monitoringCachePrefix, monitoringMetadata, patchMonitoringMetadata, type MonitoringMetadata } from '../utils/monitoringStages';
 
@@ -31,6 +33,7 @@ export function FieldSyncProvider({ scope, userId, institutionId, children }: {
   children: ReactNode;
 }) {
   const { isOnline } = useNetworkStatus();
+  const pilot=usePilotAccess();
   const [entries, setEntries] = useState<QueueEntry[]>([]);
   const [revision, setRevision] = useState(0);
   const [localError, setLocalError] = useState(false);
@@ -84,14 +87,20 @@ export function FieldSyncProvider({ scope, userId, institutionId, children }: {
           for (const entry of records) {
             if (signal.aborted) break;
             if (entry.state !== 'pending') continue;
+            if(operationalPilot){
+              if(entry.userId!==userId||entry.record.institution_id!==institutionId)break;
+              const module=entry.kind==='report'?'monitoring':entry.kind==='recommendation'?'recommendations':entry.kind==='rainfall'?'rainfall':'precision';
+              const allowed=await (supabase as unknown as import('@supabase/supabase-js').SupabaseClient).schema('licensing').rpc('operational_can',{p_institution:institutionId,p_module:module,p_write:true,p_author:userId}).abortSignal(signal);
+              if(allowed.error||allowed.data!==true){const holdReason=allowed.error&&allowed.error.code!=='42501'?'connection':'authorization';if(entry.holdReason!==holdReason){const held={...entry,holdReason} as QueueEntry;await writeFieldEntry(held);byId.set(entry.id,held);notify();}continue;}
+            }
             if (entry.kind === 'recommendation') {
               const parent = byId.get(entry.record.report_id);
-              if (parent && parent.state !== 'sent') continue;
+              if (parent && parent.state !== 'sent'){if(entry.holdReason!=='parent'){await writeFieldEntry({...entry,holdReason:'parent'});notify();}continue;}
             }
             const result = await syncFieldSubmission(entry, userId, session.access_token, signal);
             if (signal.aborted) break;
-            if (result.state === 'retry') break;
-            const updated = { ...entry, ...result };
+            if (result.state === 'retry'){if(entry.holdReason!=='connection'){await writeFieldEntry({...entry,holdReason:'connection'});notify();}break;}
+            const updated = { ...entry, ...result,holdReason:undefined };
             await writeFieldEntry(updated);
             if (entry.kind === 'report' && result.state === 'sent') {
               const key = monitoringCacheKey(scope, entry.record.season_id);
@@ -119,7 +128,7 @@ export function FieldSyncProvider({ scope, userId, institutionId, children }: {
       window.clearInterval(timer);
       window.removeEventListener('agrigest:field-queued', synchronize);
     };
-  }, [isOnline, notify, scope, userId]);
+  }, [isOnline, notify, scope, userId,institutionId]);
 
   const wake = () => {
     notify();
@@ -128,6 +137,13 @@ export function FieldSyncProvider({ scope, userId, institutionId, children }: {
 
   const enqueue = async (draft: FieldDraft) => {
     if (!scope || draft.record.institution_id !== institutionId) throw new Error('Invalid local scope');
+    if(operationalPilot){
+      const current=JSON.parse(localStorage.getItem(authStorageKey)??'null');
+      if(current?.user?.id!==userId)throw new Error('A conta conectada mudou. Reabra a página na conta correta antes de salvar. Os registros anteriores continuam preservados.');
+      const module=draft.kind==='report'?'monitoring':draft.kind==='recommendation'?'recommendations':draft.kind==='rainfall'?'rainfall':'precision';
+      if(!pilot?.permissions[module]?.write)throw new Error('Sua autorização atual não permite este registro. Reconecte para conferir a licença e a função. Os registros salvos permanecem preservados.');
+      if(pilot.offline){if(!(await readPilotOffline(current,institutionId)).permissions[module]?.write)throw new Error('Sua autorização offline venceu ou mudou. Reconecte antes de registrar novos dados.');}
+    }
     const id = crypto.randomUUID();
     const metadata = { scope, id, userId, createdAt: new Date().toISOString(), state: 'pending' as const };
     let entry: QueueEntry;
@@ -169,5 +185,5 @@ export function FieldSyncProvider({ scope, userId, institutionId, children }: {
     notify(true);
   };
 
-  return <FieldSyncContext.Provider value={{ entries: entries.filter(entry => !entry.hidden), enqueue, retry, discard, forget, revision, localError }}>{children}</FieldSyncContext.Provider>;
+  return <FieldSyncContext.Provider value={{ entries: entries.filter(entry => entry.userId===userId&&!entry.hidden), enqueue, retry, discard, forget, revision, localError }}>{children}</FieldSyncContext.Provider>;
 }

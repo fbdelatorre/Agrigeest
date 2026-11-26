@@ -1,4 +1,5 @@
 import { useFieldSync } from '../context/FieldSyncContext';
+import {usePilotAccess} from '../features/licensing/OperationalPilotGate';
 import { useFieldPage } from '../hooks/useFieldPage';
 import FieldSyncStatus from '../components/ui/FieldSyncStatus';
 import RecordActions from '../components/ui/RecordActions';
@@ -24,6 +25,7 @@ export default function Rainfall() {
 function SeasonRainfall({ season, institutionId }: { season: { id: string; name: string }; institutionId: string }) {
   const { areas, isOnline } = useAppContext();
   const sync = useFieldSync();
+  const pilot=usePilotAccess(),canWrite=!pilot||pilot.permissions.rainfall?.write;
   const { language } = useLanguage();
   const t = (pt: string, en: string) => language === 'pt' ? pt : en;
   const [areaId, setAreaId] = useState('');
@@ -101,7 +103,7 @@ function SeasonRainfall({ season, institutionId }: { season: { id: string; name:
           <Input name="millimeters" type="number" label={t('Chuva acumulada no dia (mm)', 'Daily rainfall (mm)')}
             min={0} max={3000} step="0.01" required />
         </div>
-        <Button type="submit" disabled={saving || !areas.length}>{t('Salvar', 'Save')}</Button>
+        <Button type="submit" disabled={!canWrite||saving || !areas.length}>{t('Salvar', 'Save')}</Button>
       </form>
       <section className="space-y-3 rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="text-lg font-semibold">{t('Leituras da safra', 'Season readings')}</h2>

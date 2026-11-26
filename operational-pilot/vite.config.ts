@@ -1,6 +1,10 @@
-import {defineConfig} from 'vite';
-import react from '@vitejs/plugin-react';
+import {defineConfig} from 'vite';import react from '@vitejs/plugin-react';import {VitePWA} from 'vite-plugin-pwa';
 import tailwindcss from 'tailwindcss';import autoprefixer from 'autoprefixer';import theme from '../tailwind.config.js';
-import {fileURLToPath} from 'node:url';
-const root=fileURLToPath(new URL('.',import.meta.url));
-export default defineConfig({root,envPrefix:'VITE_UNUSED_PILOT_',plugins:[react()],css:{postcss:{plugins:[tailwindcss({...theme,content:[fileURLToPath(new URL('../src/**/*.{js,ts,jsx,tsx}',import.meta.url)),fileURLToPath(new URL('./index.html',import.meta.url))]}),autoprefixer()]}},optimizeDeps:{entries:['index.html'],exclude:['lucide-react'],include:['maplibre-gl']},define:{'import.meta.env.VITE_SUPABASE_URL':JSON.stringify('http://127.0.0.1:48721'),'import.meta.env.VITE_SUPABASE_ANON_KEY':JSON.stringify('pilot-runtime-public-key'),'import.meta.env.VITE_OPERATIONAL_PILOT':JSON.stringify('true')},server:{host:'127.0.0.1',port:48780,strictPort:true,watch:{ignored:['**/src-tauri/**','**/dist.local/**']},fs:{allow:[fileURLToPath(new URL('..',import.meta.url))]}},build:{outDir:'dist.local',emptyOutDir:true}});
+import {fileURLToPath} from 'node:url';import {readFileSync} from 'node:fs';
+const root=fileURLToPath(new URL('.',import.meta.url));let publicKey=null;
+try{publicKey=JSON.parse(readFileSync(new URL('../checks.local/licensing-local/pilot-offline-signing.public.json',import.meta.url),'utf8'));if(publicKey.jwk?.d||publicKey.jwk?.crv!=='P-256')throw Error('Invalid public key');}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;}
+export default defineConfig({root,envPrefix:'VITE_UNUSED_PILOT_',plugins:[react(),VitePWA({filename:'pilot-service-worker.js',registerType:'prompt',injectRegister:'auto',manifest:{id:'/agrigest-piloto-offline',name:'AgriGest — Piloto Offline Local',short_name:'Piloto AgriGest',lang:'pt-BR',start_url:'/monitoring',scope:'/',display:'standalone',theme_color:'#174532',background_color:'#f7faf8'},workbox:{cleanupOutdatedCaches:true,clientsClaim:true,navigateFallback:'index.html',globPatterns:['**/*.{js,css,html,woff2}'],maximumFileSizeToCacheInBytes:5*1024*1024}})],
+ css:{postcss:{plugins:[tailwindcss({...theme,content:[fileURLToPath(new URL('../src/**/*.{js,ts,jsx,tsx}',import.meta.url)),fileURLToPath(new URL('./index.html',import.meta.url))]}),autoprefixer()]}},
+ optimizeDeps:{entries:['index.html'],exclude:['lucide-react'],include:['maplibre-gl']},
+ define:{'import.meta.env.VITE_SUPABASE_URL':JSON.stringify('http://127.0.0.1:48721'),'import.meta.env.VITE_SUPABASE_ANON_KEY':JSON.stringify('pilot-runtime-public-key'),'import.meta.env.VITE_OPERATIONAL_PILOT':JSON.stringify('true'),'import.meta.env.VITE_PILOT_OFFLINE_PUBLIC_KEY':JSON.stringify(JSON.stringify(publicKey))},
+ server:{host:'127.0.0.1',port:48780,strictPort:true,watch:{ignored:['**/src-tauri/**','**/dist.local/**']},fs:{allow:[fileURLToPath(new URL('..',import.meta.url))]}},preview:{host:'127.0.0.1',port:48781,strictPort:true},build:{outDir:'dist.local',emptyOutDir:true}});

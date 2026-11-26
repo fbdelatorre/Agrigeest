@@ -1,0 +1,6 @@
+import {useEffect,useState} from 'react';import {Link} from 'react-router-dom';import {readUserFieldQueue} from '../../lib/fieldQueue';
+export default function OwnPendingNotice({userId,institution}:{userId:string;institution?:string}){
+ const [count,setCount]=useState(0),[blocked,setBlocked]=useState(0);
+ useEffect(()=>{let live=true;const refresh=async()=>{try{const rows=await readUserFieldQueue(userId,institution);if(live){setCount(rows.length);setBlocked(rows.filter(r=>r.state==='blocked'||r.holdReason==='authorization').length);}}catch{/* The dedicated page reports storage errors. */}};void refresh();const timer=setInterval(()=>void refresh(),4000);window.addEventListener('agrigest:field-queued',refresh);return()=>{live=false;clearInterval(timer);window.removeEventListener('agrigest:field-queued',refresh);};},[userId,institution]);
+ return count?<aside role="status" className={'my-3 rounded-lg border-2 p-3 font-medium '+(blocked?'border-red-300 bg-red-50 text-red-900':'border-amber-300 bg-amber-50 text-amber-950')} data-own-unsent-notice><strong>{count} lançamento(s) NÃO ENVIADO(S)</strong>{blocked>0&&<p>{blocked} com bloqueio ou recusa do servidor.</p>}<p>Salvos neste aparelho pela sua conta. <Link className="underline font-semibold" to="/pending-records">Ver meus lançamentos não enviados</Link></p></aside>:null;
+}

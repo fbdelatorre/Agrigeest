@@ -1,4 +1,5 @@
 import { useFieldSync } from '../context/FieldSyncContext';
+import {usePilotAccess} from '../features/licensing/OperationalPilotGate';
 import { useFieldPage } from '../hooks/useFieldPage';
 import FieldSyncStatus from '../components/ui/FieldSyncStatus';
 import RecordActions from '../components/ui/RecordActions';
@@ -37,6 +38,7 @@ function SeasonMonitoring({ season, institutionId }: {
 }) {
   const { areas, products, isOnline } = useAppContext();
   const sync = useFieldSync();
+  const pilot=usePilotAccess(),canMonitor=!pilot||pilot.permissions.monitoring?.write,canRecommend=!pilot||pilot.permissions.recommendations?.write;
   const { language } = useLanguage();
   const t = (pt: string, en: string) => language === 'pt' ? pt : en;
   const [filterArea, setFilterArea] = useState('');
@@ -142,7 +144,7 @@ function SeasonMonitoring({ season, institutionId }: {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link className={linkStyle} to="/rainfall">{t('Pluviometria', 'Rainfall')}</Link>
-          <Button type="button" leftIcon={<Plus size={18} />} disabled={!areas.length || saving} onClick={openEntry}>{t('Novo monitoramento', 'New monitoring report')}</Button>
+          <Button type="button" leftIcon={<Plus size={18} />} disabled={!canMonitor||!areas.length || saving} onClick={openEntry}>{t('Novo monitoramento', 'New monitoring report')}</Button>
         </div>
       </header>
 
@@ -202,7 +204,7 @@ function SeasonMonitoring({ season, institutionId }: {
               <label className="block space-y-1 text-sm font-medium">{t('Relatório de monitoramento', 'Monitoring report')}<textarea name="report" className={textarea} rows={5} required maxLength={12000} /></label>
             </>
           )}
-          <Button type="submit" disabled={saving}>{saving ? t('Salvando…', 'Saving…') : t('Salvar', 'Save')}</Button>
+          <Button type="submit" disabled={saving||!(target?canRecommend:canMonitor)}>{saving ? t('Salvando…', 'Saving…') : t('Salvar', 'Save')}</Button>
         </form>
       )}
 
@@ -225,7 +227,7 @@ function SeasonMonitoring({ season, institutionId }: {
               <h2 className="flex items-center gap-2 font-semibold"><ClipboardList size={18} />{areaName(report.area_id)}</h2>
               <p className="text-sm text-gray-600">{formatDateForDisplay(report.observed_on, language)} · {report.phenological_stage}</p>
             </div>
-            <Button type="button" variant="outline" size="sm" disabled={!products.length || saving || byId.get(report.id)?.state === 'blocked'}
+            <Button type="button" variant="outline" size="sm" disabled={!canRecommend||!products.length || saving || byId.get(report.id)?.state === 'blocked'}
               onClick={() => openRecommendation(report)}>{t('Recomendar aplicação', 'Recommend application')}</Button>
           </header>
           <p className="whitespace-pre-wrap break-words text-sm">{report.report}</p>

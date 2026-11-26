@@ -53,4 +53,4 @@ const healthy=await fetch(config.apiUrl+'/pilot/health').then(r=>r.ok).catch(()=
 if(!healthy){const log=await open(join(context.folder,'api-proxy.log'),'a');const child=spawn(process.execPath,['scripts/serve-operational-pilot-api.mjs','--local-only'],{cwd:resolve('.'),detached:true,windowsHide:true,stdio:['ignore',log.fd,log.fd]});child.unref();await log.close();}
 let authReady=false;for(let n=0;n<40;n++){if(await fetch('http://127.0.0.1:48722/health').then(r=>r.ok).catch(()=>false)){authReady=true;break;}await new Promise(done=>setTimeout(done,250));}
 if(!authReady)throw Error('A autenticação do piloto ainda não respondeu; confira o Docker.');
-console.log('Serviços piloto iniciados em portas locais. Cadastros exigem confirmação na caixa local; cobranças externas permanecem desativadas.');
+console.log('Serviços piloto iniciados em portas locais. Cadastros exigem confirmação na caixa local; cobranças reais permanecem desativadas; o Asaas Sandbox pode estar habilitado.');

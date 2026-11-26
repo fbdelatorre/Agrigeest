@@ -4,13 +4,14 @@ import Navbar from './Navbar';
 import Topbar from './Topbar';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, WifiOff, AlertTriangle } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase,operationalPilot } from '../../lib/supabase';
+import OwnPendingNotice from '../../features/licensing/OwnPendingNotice';
 import { useAppContext } from '../../context/AppContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { useLanguage } from '../../context/LanguageContext';
 import { useLegacyOfflineData } from '../../hooks/useLegacyOfflineData';
 import JoinInstitution from '../auth/JoinInstitution';
-import {OperationalPilotNotices} from '../../features/licensing/OperationalPilotGate';
+import {OperationalPilotNotices,usePilotAccess} from '../../features/licensing/OperationalPilotGate';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ const Layout: React.FC = () => {
   const { isOnline } = useNetworkStatus();
   const { language } = useLanguage();
   const fieldSync = useFieldSync();
+  const pilot=usePilotAccess();
   const pending = fieldSync.entries.filter(entry => entry.state === 'pending').length;
   const blocked = fieldSync.entries.filter(entry => entry.state === 'blocked').length;
   const legacyData = useLegacyOfflineData();
@@ -114,7 +116,7 @@ const Layout: React.FC = () => {
                 <WifiOff size={18} className="text-amber-600 flex-shrink-0" />
                 <span className="text-sm text-amber-800 font-medium">
                   {language === 'pt'
-                    ? 'Sem conexão. Você pode registrar chuvas, monitoramentos e recomendações neste dispositivo.'
+                    ? pilot?(pilot.offlineReason==='valid'?'Sem conexão. Registre chuvas, monitoramentos e recomendações conforme sua função. Os envios dependem de validação ao reconectar.':'Sem conexão. Seus registros locais estão preservados. Para novos lançamentos, é necessária autorização offline válida.'):'Sem conexão. Você pode registrar chuvas, monitoramentos e recomendações neste dispositivo.'
                     : 'No connection. You can record rainfall, reports, and recommendations on this device.'}
                 </span>
               </div>
@@ -127,6 +129,7 @@ const Layout: React.FC = () => {
                     `${pending} waiting to sync · ${blocked} need attention`)}
               </p>
             )}
+            {operationalPilot&&profile&&<OwnPendingNotice userId={profile.id} institution={profile.institutionId}/>}
             {isOnline && legacyData.hasLegacyData && (
               <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center gap-2">
                 <AlertTriangle size={18} className="text-blue-600 flex-shrink-0" />

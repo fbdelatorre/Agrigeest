@@ -1,11 +1,13 @@
 // O pacote recebe apenas configuração pública e não inclui dados do usuário.
 async function start(){
- const response=await fetch('http://127.0.0.1:48721/pilot/config',{signal:AbortSignal.timeout(8000)});
- if(!response.ok)throw Error('Servidor local indisponível.');
- const config=await response.json();
+ let config;
+ try{const response=await fetch('http://127.0.0.1:48721/pilot/config',{signal:AbortSignal.timeout(5000)});if(!response.ok)throw Error('Servidor local indisponível.');config=await response.json();}
+ catch{config=JSON.parse(localStorage.getItem('agrigest:pilot:public-config')??'null');}
+ if(!config)throw Error('Configuração local indisponível.');
  if(config.apiUrl!=='http://127.0.0.1:48721'||!/^[a-f0-9-]{36}$/i.test(config.institutionId??'')||typeof config.anonKey!=='string')throw Error('Configuração local inválida.');
  const payload=JSON.parse(atob(config.anonKey.split('.')[1].replaceAll('-','+').replaceAll('_','/')));
  if(payload.role!=='anon')throw Error('A chave do piloto deve ser pública.');
+ localStorage.setItem('agrigest:pilot:public-config',JSON.stringify({apiUrl:config.apiUrl,anonKey:config.anonKey,institutionId:config.institutionId}));
  (window as Window&{__AGRIGEST_PILOT__?:unknown}).__AGRIGEST_PILOT__=config;
  await import('../src/main');
 }

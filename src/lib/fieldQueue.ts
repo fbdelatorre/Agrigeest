@@ -17,6 +17,7 @@ export type QueueEntry = (
   state: 'pending' | 'sent' | 'blocked';
   reason?: 'duplicate-rainfall' | 'duplicate-sample' | 'rejected';
   hidden?: boolean;
+  holdReason?: 'authorization' | 'connection' | 'parent';
 };
 
 const storeName = 'field-records';
@@ -52,6 +53,7 @@ export async function readFieldQueue(scope: string): Promise<QueueEntry[]> {
 }
 
 export function writeFieldEntry(entry: QueueEntry) {
+  try{const key='agrigest:field-scopes:'+entry.userId,scopes=JSON.parse(localStorage.getItem(key)??'[]');if(Array.isArray(scopes)&&!scopes.includes(entry.scope))localStorage.setItem(key,JSON.stringify([...scopes,entry.scope]));}catch{/* Registry is optional; never remove a draft if storage is full. */}
   const native = nativeFieldStore();
   if (native) return native.put({
     scope: entry.scope, id: entry.id, state: entry.state,
@@ -59,6 +61,17 @@ export function writeFieldEntry(entry: QueueEntry) {
     payload: JSON.stringify(entry),
   });
   return transact('readwrite', store => store.put(entry));
+}
+
+export async function readUserFieldQueue(userId:string,currentInstitution?:string):Promise<QueueEntry[]>{
+ const native=nativeFieldStore();let entries:QueueEntry[];
+ if(native){
+  const scopes=new Set<string>();if(currentInstitution)scopes.add(userId+':'+currentInstitution);
+  try{for(const scope of JSON.parse(localStorage.getItem('agrigest:field-scopes:'+userId)??'[]'))if(typeof scope==='string'&&scope.startsWith(userId+':'))scopes.add(scope);}catch{/* Old entries remain available in their farm. */}
+  for(const key of Object.keys(localStorage)){const prefix='agrigest:v2:'+userId+':';if(key.startsWith(prefix)){const institution=key.slice(prefix.length, prefix.length+36);if(/^[a-f0-9-]{36}$/i.test(institution))scopes.add(userId+':'+institution);}}
+  entries=(await Promise.all([...scopes].map(readFieldQueue))).flat();
+ }else entries=await transact('readonly',store=>store.getAll()) as QueueEntry[];
+ return entries.filter(e=>e.userId===userId&&e.scope.startsWith(userId+':')&&e.state!=='sent'&&!e.hidden).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
 }
 
 export async function discardFieldEntry(scope: string, id: string) {
