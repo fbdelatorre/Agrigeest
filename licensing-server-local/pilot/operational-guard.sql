@@ -50,6 +50,10 @@ CREATE FUNCTION licensing_private.table_module(p_table text) RETURNS text LANGUA
  WHEN p_table='field_monitoring_reports' THEN 'monitoring' WHEN p_table='field_rainfall' THEN 'rainfall' WHEN p_table='field_recommendations' THEN 'recommendations'
  WHEN p_table LIKE 'precision_%' THEN 'precision' ELSE 'areas' END
 $$;
+-- Mapeamento puro exposto ao RPC invoker sem abrir o schema privado.
+CREATE FUNCTION licensing.operational_module(p_table text) RETURNS text LANGUAGE sql IMMUTABLE SECURITY DEFINER SET search_path='' AS $$ SELECT licensing_private.table_module(p_table) $$;
+REVOKE ALL ON FUNCTION licensing.operational_module(text) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION licensing.operational_module(text) TO authenticated;
 CREATE FUNCTION licensing_private.row_institution(p_table text,p_row jsonb) RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $$
 DECLARE institution uuid;BEGIN
  IF p_table='institutions' THEN RETURN (p_row->>'id')::uuid;END IF;

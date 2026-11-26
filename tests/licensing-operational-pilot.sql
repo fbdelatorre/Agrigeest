@@ -33,6 +33,10 @@ DO $$ DECLARE t record; actor record; approving_owner record; approval jsonb; re
  END LOOP;
  SELECT * INTO actor FROM pilot_actors WHERE role='owner';PERFORM set_config('request.jwt.claim.sub',actor.user_id::text,true);PERFORM set_config('request.jwt.claims',jsonb_build_object('role','authenticated','sub',actor.user_id,'session_id',actor.session_id)::text,true);
  IF (SELECT count(*) FROM public.get_area_map_summary(t.season))<>(SELECT count(*) FROM public.areas WHERE institution_id=t.institution) THEN RAISE EXCEPTION 'PILOT_MAP_AREA_SCOPE_WRONG';END IF;
+ BEGIN
+  PERFORM public.get_area_map_summary((SELECT id FROM public.seasons WHERE institution_id=t.foreign_institution ORDER BY id LIMIT 1));
+  RAISE EXCEPTION 'PILOT_MAP_ACCEPTED_FOREIGN_OR_MISSING_SEASON';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;END;
  payload:=jsonb_build_object('p_name','TESTE PILOTO DESCARTADO','p_category','other','p_unit','L','p_min_stock_level',0,'p_price',1,'p_untracked_quantity',10,'p_lots','[]'::jsonb);
  result:=public.stock_write_request(t.stock_request,'create_product_with_lots',payload);
  UPDATE pilot_test SET product=COALESCE(result->'product'->>'id',result->>'id')::uuid,stock_payload=payload;SELECT * INTO t FROM pilot_test;
